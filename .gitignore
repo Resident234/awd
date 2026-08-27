@@ -1,0 +1,5 @@
+.env
+/app/vendor/
+/app/runtime/
+/app/web/assets/
+/docker-compose.override.yml

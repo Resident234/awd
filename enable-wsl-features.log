@@ -1,0 +1,43 @@
+﻿**********************
+Начало записи сценария Windows PowerShell
+Время начала: 20260825220405
+Имя пользователя: DESKTOP-1I3TIP3\GSU
+Запуск от имени пользователя: DESKTOP-1I3TIP3\GSU
+Имя конфигурации: 
+Компьютер: DESKTOP-1I3TIP3 (Microsoft Windows NT 10.0.19045.0)
+Ведущее приложение: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File H:\s\Work_awd\enable-wsl-features.ps1
+ИД процесса: 42172
+PSVersion: 5.1.19041.6456
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.19041.6456
+BuildVersion: 10.0.19041.6456
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Транскрибирование запущено, выходной файл H:\s\Work_awd\enable-wsl-features.log
+=== Enable WSL ===
+
+Cистема DISM
+Версия: 10.0.19041.3636
+
+Версия образа: 10.0.19045.6456
+
+Включение функций
+[==========================100.0%==========================]
+Операция успешно завершена.
+=== Enable Virtual Machine Platform ===
+
+Cистема DISM
+Версия: 10.0.19041.3636
+
+Версия образа: 10.0.19045.6456
+
+Включение функций
+[==========================100.0%==========================]
+Операция успешно завершена.
+**********************
+Конец записи протокола Windows PowerShell
+Время окончания: 20260825220438
+**********************
