@@ -87,6 +87,14 @@ HTML;
         $config = array_merge(self::CONFIG, ['t_from' => '441021', 't_to' => '441021']);
         $this->_repository->method('activeConfig')->willReturn($config);
         $this->_repository->method('acquireLock')->willReturn(true);
+        $this->_repository->method('save')->willReturn(true);
+        $this->_repository->expects($this->once())->method('save')->with(
+            $this->callback(static function (\app\shared\Forum\Dto\TopicData $topic): bool {
+                return $topic->id === 441021
+                    && $topic->sourceUrl === 'https://forum.awd.ru/viewtopic.php?t=441021'
+                    && $topic->loginRequired === true;
+            }),
+        );
         $this->_httpClient->method('get')->willReturn(
             '<html><body>Для просмотра этого форума вы должны быть авторизованы</body></html>',
         );
@@ -94,6 +102,7 @@ HTML;
         $stats = $this->createService()->run(null, null, null);
         $this->assertSame(1, $stats['processed']);
         $this->assertSame(1, $stats['login_required']);
+        $this->assertSame(1, $stats['saved']);
         $this->assertSame(0, $stats['failed']);
     }
 

@@ -15,6 +15,26 @@ final readonly class TopicData
         public string $contentText,
         public array $imageUrls,
         public ?MemberData $author,
+        public bool $loginRequired = false,
     ) {
+    }
+
+    /**
+     * Minimal stub for a page hidden behind forum authorization:
+     * only the id and the source url are known.
+     */
+    public static function loginRequired(int $id, string $sourceUrl): self
+    {
+        return new self(
+            $id,
+            $sourceUrl,
+            '',
+            null,
+            '',
+            '',
+            [],
+            null,
+            true,
+        );
     }
 }

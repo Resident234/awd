@@ -100,6 +100,7 @@ final class ForumRepository implements ForumRepositoryInterface
                 'content_text' => $topic->contentText,
                 'image_urls' => new JsonExpression($topic->imageUrls),
                 'author_id' => $topic->author?->id,
+                'login_required' => $topic->loginRequired,
                 'created_at' => $now,
                 'updated_at' => $now,
             ],
@@ -111,6 +112,7 @@ final class ForumRepository implements ForumRepositoryInterface
                 'content_text' => $topic->contentText,
                 'image_urls' => new JsonExpression($topic->imageUrls),
                 'author_id' => $topic->author?->id,
+                'login_required' => $topic->loginRequired,
                 'updated_at' => $now,
             ]
         )->execute();

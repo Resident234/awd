@@ -6,6 +6,7 @@ namespace app\shared\Forum\Service;
 
 use app\shared\Forum\Contract\ForumHttpClientInterface;
 use app\shared\Forum\Contract\ForumRepositoryInterface;
+use app\shared\Forum\Dto\TopicData;
 use app\shared\Forum\Infrastructure\ForumLoginRequiredException;
 use app\shared\Forum\Infrastructure\ForumPageNotFoundException;
 use app\shared\Forum\Service\ForumHtmlParser;
@@ -77,6 +78,8 @@ final class ForumScanService
             } catch (ForumLoginRequiredException $e) {
                 $stats['login_required']++;
                 $this->logger->info($e->getMessage(), ['topic_id' => $id]);
+                $isNew = $this->repository->save(TopicData::loginRequired($id, $url), $now->format('Y-m-d H:i:s'));
+                $isNew ? $stats['saved']++ : $stats['updated']++;
             } catch (\Throwable $e) {
                 $stats['failed']++;
                 $this->logger->warning('Forum topic skipped.', ['topic_id' => $id, 'error' => $e->getMessage()]);
