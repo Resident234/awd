@@ -39,6 +39,32 @@ final class ForumRepository implements ForumRepositoryInterface
     }
 
     /**
+     * Session-level PostgreSQL advisory lock: held until the process
+     * finishes or the DB session drops, so a crashed run never blocks
+     * the next launch.
+     */
+    public function acquireLock(string $code): bool
+    {
+        return (bool)$this->db
+            ->createCommand('SELECT pg_try_advisory_lock(:key)')
+            ->bindValue(':key', $this->lockKey($code))
+            ->queryScalar();
+    }
+
+    public function releaseLock(string $code): void
+    {
+        $this->db
+            ->createCommand('SELECT pg_advisory_unlock(:key)')
+            ->bindValue(':key', $this->lockKey($code))
+            ->execute();
+    }
+
+    private function lockKey(string $code): int
+    {
+        return (int)sprintf('%u', crc32($code));
+    }
+
+    /**
      * Upserts the topic and its author. Returns true when a new row was inserted.
      */
     public function save(TopicData $topic, string $now): bool

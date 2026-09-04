@@ -58,8 +58,10 @@ HTML;
     public function testRunSavesTopicsAndSkipsFailures(): void
     {
         $this->_repository->method('activeConfig')->willReturn(self::CONFIG);
+        $this->_repository->method('acquireLock')->willReturn(true);
         $this->_repository->method('save')->willReturn(true, false);
         $this->_repository->expects($this->once())->method('markRun');
+        $this->_repository->expects($this->once())->method('releaseLock');
 
         $this->_httpClient->method('get')->willReturnCallback(
             static function (string $url): string {
@@ -84,6 +86,7 @@ HTML;
     {
         $config = array_merge(self::CONFIG, ['t_from' => '441021', 't_to' => '441021']);
         $this->_repository->method('activeConfig')->willReturn($config);
+        $this->_repository->method('acquireLock')->willReturn(true);
         $this->_httpClient->method('get')->willReturn(
             '<html><body>Для просмотра этого форума вы должны быть авторизованы</body></html>',
         );
@@ -97,6 +100,7 @@ HTML;
     public function testRunRespectsLimit(): void
     {
         $this->_repository->method('activeConfig')->willReturn(self::CONFIG);
+        $this->_repository->method('acquireLock')->willReturn(true);
         $this->_repository->method('save')->willReturn(true);
         $this->_httpClient->method('get')->willReturn(self::TOPIC_HTML);
 
@@ -105,9 +109,21 @@ HTML;
         $this->assertSame(1, $stats['saved']);
     }
 
+    public function testRunSkipsWhenLockIsHeld(): void
+    {
+        $this->_repository->method('acquireLock')->willReturn(false);
+        $this->_repository->expects($this->never())->method('save');
+        $this->_repository->expects($this->never())->method('markRun');
+        $this->_repository->expects($this->never())->method('releaseLock');
+
+        $stats = $this->createService()->run();
+        $this->assertNull($stats);
+    }
+
     public function testRunDoesNothingWithoutConfig(): void
     {
         $this->_repository->method('activeConfig')->willReturn(null);
+        $this->_repository->method('acquireLock')->willReturn(true);
 
         $stats = $this->createService()->run();
         $this->assertSame(0, $stats['processed']);

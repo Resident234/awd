@@ -32,9 +32,26 @@ final class ForumScanService
      * @param int|null $from explicit range start override
      * @param int|null $to explicit range end override
      * @param int|null $limit max number of topic ids to process in this run
+     * @return array{processed: int, saved: int, updated: int, not_found: int, login_required: int, failed: int}|null null when another scan is already running
+     */
+    public function run(?int $from = null, ?int $to = null, ?int $limit = null): ?array
+    {
+        if (!$this->repository->acquireLock($this->configCode)) {
+            $this->logger->warning('Forum scan is already running, launch skipped.', ['code' => $this->configCode]);
+            return null;
+        }
+
+        try {
+            return $this->doRun($from, $to, $limit);
+        } finally {
+            $this->repository->releaseLock($this->configCode);
+        }
+    }
+
+    /**
      * @return array{processed: int, saved: int, updated: int, not_found: int, login_required: int, failed: int}
      */
-    public function run(?int $from = null, ?int $to = null, ?int $limit = null): array
+    private function doRun(?int $from, ?int $to, ?int $limit): array
     {
         $config = $this->repository->activeConfig($this->configCode);
         if ($config === null) {

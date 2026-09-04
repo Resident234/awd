@@ -38,6 +38,10 @@ final class ForumParserController extends Controller
     public function actionScan(): int
     {
         $stats = $this->scanService->run($this->from, $this->to, $this->limit);
+        if ($stats === null) {
+            $this->stdout("Skipped: another forum scan is already running\n");
+            return ExitCode::OK;
+        }
         $this->stdout(sprintf(
             "Processed: %d, saved: %d, updated: %d, not found: %d, login required: %d, failed: %d\n",
             $stats['processed'],
