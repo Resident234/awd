@@ -27,6 +27,25 @@ $config = [
         ],
         'db' => $db,
     ],
+    'controllerMap' => [
+        'forum-parser' => [
+            'class' => \app\commands\ForumParserController::class,
+        ],
+    ],
+    'container' => [
+        'definitions' => [
+            \Psr\Log\LoggerInterface::class => static fn (): \app\shared\Forum\Infrastructure\YiiPsrLoggerAdapter =>
+                new \app\shared\Forum\Infrastructure\YiiPsrLoggerAdapter(\Yii::$app->getLog()->getLogger()),
+            \app\shared\Forum\Contract\ForumHttpClientInterface::class => \app\shared\Forum\Infrastructure\ForumHttpClient::class,
+            \app\shared\Forum\Service\ForumScanService::class => static fn (): \app\shared\Forum\Service\ForumScanService =>
+                new \app\shared\Forum\Service\ForumScanService(
+                    new \app\shared\Forum\Infrastructure\ForumRepository(\Yii::$app->getDb()),
+                    \Yii::createObject(\app\shared\Forum\Contract\ForumHttpClientInterface::class),
+                    new \app\shared\Forum\Service\ForumHtmlParser(),
+                    new \app\shared\Forum\Infrastructure\YiiPsrLoggerAdapter(\Yii::$app->getLog()->getLogger()),
+                ),
+        ],
+    ],
     'params' => $params,
     /*
     'controllerMap' => [

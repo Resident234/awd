@@ -24,6 +24,29 @@ services:
     networks:
       - appnet
 
+  parser:
+    build:
+      context: ./docker/php-cli
+      args:
+        UID: ${APP_UID:-1000}
+        GID: ${APP_GID:-1000}
+    volumes:
+      - ./app:/var/www/html
+      - composer-cache:/tmp/composer-cache
+    environment:
+      COMPOSER_CACHE_DIR: /tmp/composer-cache
+      YII_ENV: ${YII_ENV:-dev}
+      YII_DEBUG: ${YII_DEBUG:-1}
+      DB_DSN: pgsql:host=postgres;port=5432;dbname=${POSTGRES_DB:-yii_dev}
+      DB_USERNAME: ${POSTGRES_USER:-yii}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-change-me-now}
+      PARSER_CRON_SCHEDULE: ${PARSER_CRON_SCHEDULE:-0 4 * * *}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - appnet
+
   nginx:
     image: nginx:stable-alpine
     ports:
