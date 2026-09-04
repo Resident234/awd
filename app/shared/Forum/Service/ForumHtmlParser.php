@@ -300,17 +300,60 @@ final class ForumHtmlParser
     private function absoluteUrl(string $url, string $base): string
     {
         if (preg_match('~^https?://~i', $url) === 1) {
+            $absolute = $url;
+        } else {
+            $parts = parse_url($base);
+            $origin = ($parts['scheme'] ?? 'https') . '://' . ($parts['host'] ?? 'forum.awd.ru');
+            if (str_starts_with($url, '//')) {
+                $absolute = ($parts['scheme'] ?? 'https') . ':' . $url;
+            } elseif (str_starts_with($url, '/')) {
+                $absolute = $origin . $url;
+            } else {
+                $path = preg_replace('~/[^/]*$~u', '', $parts['path'] ?? '') ?: '';
+                $absolute = $origin . $path . '/' . ltrim($url, './');
+            }
+        }
+        return $this->stripSessionId($absolute);
+    }
+
+    /**
+     * Drops the phpBB session id parameter from stored URLs:
+     * ...?mode=viewprofile&u=23071&sid=... -> ...?mode=viewprofile&u=23071
+     */
+    private function stripSessionId(string $url): string
+    {
+        $parts = parse_url($url);
+        if (!isset($parts['query'])) {
             return $url;
         }
-        $parts = parse_url($base);
-        $origin = ($parts['scheme'] ?? 'https') . '://' . ($parts['host'] ?? 'forum.awd.ru');
-        if (str_starts_with($url, '//')) {
-            return ($parts['scheme'] ?? 'https') . ':' . $url;
+        parse_str($parts['query'], $query);
+        if (!array_key_exists('sid', $query)) {
+            return $url;
         }
-        if (str_starts_with($url, '/')) {
-            return $origin . $url;
+        unset($query['sid']);
+        $parts['query'] = http_build_query($query);
+        if ($parts['query'] === '') {
+            unset($parts['query']);
         }
-        $path = preg_replace('~/[^/]*$~u', '', $parts['path'] ?? '') ?: '';
-        return $origin . $path . '/' . ltrim($url, './');
+        return $this->buildUrl($parts);
+    }
+
+    /**
+     * @param array{scheme?: string, host?: string, port?: int, path?: string, query?: string, fragment?: string} $parts
+     */
+    private function buildUrl(array $parts): string
+    {
+        $url = ($parts['scheme'] ?? 'https') . '://' . ($parts['host'] ?? '');
+        if (isset($parts['port'])) {
+            $url .= ':' . $parts['port'];
+        }
+        $url .= $parts['path'] ?? '';
+        if (isset($parts['query'])) {
+            $url .= '?' . $parts['query'];
+        }
+        if (isset($parts['fragment'])) {
+            $url .= '#' . $parts['fragment'];
+        }
+        return $url;
     }
 }

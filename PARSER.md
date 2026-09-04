@@ -101,6 +101,7 @@ app/
 - **Содержимое**: `div.content` внутри `div.post` с `dl.postprofile`; сохраняется HTML и текстовая версия (`<br>` → перевод строки)
 - **Изображения**: атрибут `data-src` (lazyload), fallback `src`; фильтр по расширениям (gif/jpg/png/webp); дедупликация; результат — массив абсолютных ссылок вида `https://live.staticflickr.com/65535/55491522951_2a109d663b_b.jpg`
 - **Автор**: блок `dl.postprofile`; имя — ссылка в `dt` без `img` (первая ссылка — аватар), поля — по меткам `strong` в `dd`, звание — первый `dd` без `strong`
+- **Нормализация URL**: из всех извлекаемых ссылок (`profile_url`, `avatar_url`, URL в полях профиля) удаляется сессионный параметр phpBB `sid` — `...?mode=viewprofile&u=797583&sid=1c5e...` → `...?mode=viewprofile&u=797583`. Логика в `ForumHtmlParser::stripSessionId()` (вызывается из `absoluteUrl()`): параметр убирается из query-строки, остальные параметры и fragment сохраняются. Существующие записи `member` были очищены разовым UPDATE (`regexp_replace`); повторный проход тем обновляет URL автоматически.
 
 Особые случаи распознаются отдельными исключениями и не считаются ошибками прохода:
 
@@ -169,7 +170,7 @@ docker compose exec app php yii forum-parser/scan --from=441000 --to=441025
 
 ## Тесты
 
-- `tests/Unit/shared/Forum/Service/ForumHtmlParserTest.php` — парсинг темы с автором и изображениями, относительные даты, невалидный HTML
+- `tests/Unit/shared/Forum/Service/ForumHtmlParserTest.php` — парсинг темы с автором и изображениями, относительные даты, невалидный HTML, удаление `sid` из ссылок профиля
 - `tests/Unit/ForumScanServiceTest.php` — upsert-статистика, счётчики not found / login required / failed, лимит, отсутствие конфига, пропуск при удерживаемой блокировке
 
 ## Известные ограничения

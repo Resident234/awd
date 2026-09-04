@@ -130,4 +130,24 @@ HTML;
             '<html><body><p>No topic here</p></body></html>',
         );
     }
+
+    public function testStripsSessionIdFromMemberUrls(): void
+    {
+        $parser = new ForumHtmlParser();
+        $html = str_replace(
+            'memberlist.php?mode=viewprofile&amp;u=23071&amp;sid=x',
+            'memberlist.php?mode=viewprofile&amp;u=23071&amp;sid=1c5e341d5aad9df6b9a471faf76b38b1',
+            self::TOPIC_HTML,
+        );
+        $topic = $parser->parse(
+            441019,
+            'https://forum.awd.ru/viewtopic.php?t=441019',
+            $html,
+            new DateTimeImmutable('2026-09-03 12:00:00', new DateTimeZone('UTC')),
+        );
+
+        $author = $topic->author;
+        $this->assertNotNull($author);
+        $this->assertSame('https://forum.awd.ru/memberlist.php?mode=viewprofile&u=23071', $author->profileUrl);
+    }
 }
