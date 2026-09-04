@@ -164,6 +164,34 @@ PARSER_CRON_SCHEDULE=*/10 * * * *
 docker compose exec app php yii forum-parser/scan --from=441000 --to=441025
 ```
 
+## Логи
+
+Парсер пишет логи в два места:
+
+**1. stdout контейнера `parser`** — запуски по расписанию (supercronic проксирует вывод команды):
+
+```bash
+# все выводы cron-запусков, в реальном времени
+docker compose logs -f parser
+
+# последние 50 строк
+docker compose logs --tail 50 parser
+```
+
+**2. Файл `app/runtime/logs/app.log`** — подробные warning/info-записи Yii (категория `forum-parser`). Каталог `runtime` общий с контейнером через volume:
+
+```bash
+# хвост лога в реальном времени
+docker compose exec app tail -f runtime/logs/app.log
+
+# только события парсера
+docker compose exec app sh -c "grep forum-parser runtime/logs/app.log | tail -20"
+```
+
+Файл доступен и с хоста: `H:\s\Work_awd\app\runtime\logs\app.log` (можно открыть в PhpStorm).
+
+Формат записи: timestamp, уровень, категория `forum-parser`, сообщение и JSON-контекст (`topic_id`, `error`, счётчики финальной статистики `Forum scan finished`). Пропуск запуска из-за блокировки пишется как warning `Forum scan is already running, launch skipped.`
+
 ## Проверено
 
 - Реальный проход диапазона 441000–441025: 26 обработано, 18 сохранено, 6 not found (404), 2 login required, 0 failed; повторный проход корректно обновляет записи (saved 0, updated 18)
