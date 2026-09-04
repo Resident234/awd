@@ -155,7 +155,7 @@ HTTP-адаптер (cURL): редиректы до 5, retry с нарастаю
 Расписание задаётся в `.env`:
 
 ```
-PARSER_CRON_SCHEDULE=0 4 * * *
+PARSER_CRON_SCHEDULE=*/10 * * * *
 ```
 
 Запуск вручную:
