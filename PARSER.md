@@ -1,10 +1,10 @@
 # Парсер форума awd.ru
 
-Описание реализации парсинга тем форума `forum.awd.ru` (phpBB) в PostgreSQL: модель данных, слои, обход диапазона, периодический запуск.
+Описание реализации парсинга тем форума `forum.awd.ru` (phpBB) в PostgreSQL: модель данных, слои, обход диапазона, парсинг постов тем, периодический запуск.
 
 ## Модель данных
 
-Миграция: `app/migrations/m260828_000001_create_forum_parser_tables.php`
+Миграции: `app/migrations/m260828_000001_create_forum_parser_tables.php`, `app/migrations/m260904_000002_add_topic_login_required.php`, `app/migrations/m260906_000003_create_post_table.php`
 
 ### parser_config
 
@@ -68,19 +68,45 @@
 
 Замечание по схеме: уникальный индекс на `topic.source_url` отсутствует намеренно — Yii pgsql upsert строит `ON CONFLICT` из всех unique-ограничений таблицы, и составной конфликт `(id, source_url)` без соответствующего constraint ломает запрос. `id` уже уникален и детерминированно порождает `source_url`.
 
+### post
+
+Пост темы. `id` = значение параметра `p` (например, `p11861699` → `11861699`).
+
+| Поле | Тип | Назначение |
+|---|---|---|
+| `id` | bigint, PK | Параметр `p` |
+| `topic_id` | int, FK → topic.id | Ссылка на топик (`CASCADE`) |
+| `author_id` | int, FK → member.id, NULL | Автор поста (`SET NULL`) |
+| `number` | int, NULL | Номер поста в теме из блока «Сообщение: #4495» |
+| `title` | string(1000) | Заголовок поста из `h3` |
+| `posted_at` | datetime, NULL | Дата поста из `p.author` |
+| `content_html` | text | HTML содержимого `div.content` |
+| `content_text` | text | Текстовая версия содержимого |
+| `source_url` | string(1000) | `https://forum.awd.ru/viewtopic.php?p=11861699#p11861699` |
+| `created_at` / `updated_at` | datetime | Метки времени |
+
+Индексы: `idx_post_topic_id`, `idx_post_author_id`. FK `fk_post_topic` → `topic.id`, `fk_post_author` → `member.id`.
+
+### parser_config для постов
+
+Миграция `m260906_000003` вставляет сид `awd_forum_posts` с тем же диапазоном `0–500000`; диапазон используется для выборки существующих топиков через `existingTopicIds()` (login-required заглушки пропускаются).
+
 ## Слои (по README)
 
 ```
 app/
-├── commands/ForumParserController.php          # Application: тонкая команда
+├── commands/ForumParserController.php          # Application: тонкая команда (темы)
+├── commands/ForumPostParserController.php      # Application: тонкая команда (посты)
 ├── config/console.php                          # composition root
-├── migrations/m260828_000001_...php            # модель данных
+├── migrations/m260828_000001_...php            # модель данных (parser_config, member, topic)
+├── migrations/m260906_000003_...php            # таблица post + сид awd_forum_posts
 └── shared/Forum/                               # Shared-модуль
     ├── Contract/
     │   ├── ForumHttpClientInterface.php        # граница HTTP
-    │   └── ForumRepositoryInterface.php        # граница хранения
+    │   └── ForumRepositoryInterface.php        # граница хранения (upsert тем, постов, lock)
     ├── Dto/
     │   ├── TopicData.php
+    │   ├── PostData.php
     │   └── MemberData.php
     ├── Infrastructure/
     │   ├── ForumHttpClient.php                # cURL-адаптер
@@ -89,12 +115,15 @@ app/
     │   ├── ForumRepository.php                 # SQL (PostgreSQL)
     │   └── YiiPsrLoggerAdapter.php             # PSR-3 над yii-логгером
     └── Service/
-        ├── ForumHtmlParser.php                 # DOMDocument/XPath
-        └── ForumScanService.php                # обход диапазона
+        ├── ForumPageDomParser.php              # базовые хелперы DOM/даты/URL
+        ├── ForumHtmlParser.php                 # DOMDocument/XPath (тема)
+        ├── ForumPostPageParser.php             # DOMDocument/XPath (посты + пагинация)
+        ├── ForumScanService.php                # обход диапазона тем
+        └── ForumPostScanService.php            # обход топиков и страниц постов
 ```
 
-- **Application**: команда `yii forum-parser/scan` принимает `--from`, `--to`, `--limit`, выводит статистику. Логики парсинга не содержит.
-- **Shared**: сервис, парсер и DTO. SQL и HTTP скрыты за контрактами; замена хранилища или HTTP-адаптера не требует изменений в команде и сервисе.
+- **Application**: команды `yii forum-parser/scan` и `yii forum-post-parser/scan` принимают `--from`, `--to`, `--limit` (посты: ещё `--pageLimit`), выводят статистику. Логики парсинга не содержат.
+- **Shared**: сервисы, парсеры и DTO. SQL и HTTP скрыты за контрактами; замена хранилища или HTTP-адаптера не требует изменений в командах и сервисах.
 - **Composition root**: `config/console.php` связывает реализации через `controllerMap` и `container.definitions`.
 
 ## Парсинг страниц
@@ -112,6 +141,28 @@ app/
 
 - `ForumPageNotFoundException` — тема не существует (HTTP 404)
 - `ForumLoginRequiredException` — раздел доступен только авторизованным («вы должны быть авторизованы»); страница сохраняется в `topic` как заглушка: только `id` и `source_url`, `login_required = true` (см. модель `topic`)
+
+## Парсинг постов тем
+
+`ForumPostScanService::run(from, to, limit, pageLimit)` обходит топики, уже сохранённые в таблице `topic` (login-required заглушки пропускаются), и для каждого проходит все страницы через пагинацию:
+
+1. Захватывает advisory lock по коду конфига `awd_forum_posts` (отдельный от lock'а сканера тем — работают параллельно)
+2. Читает активный `parser_config`; `from`/`to` сужают диапазон, но не расширяют
+3. Для каждого топика: GET первой страницы `viewtopic.php?t=<id>`, парсинг постов, сохранение, переход к следующей странице
+4. **Пагинация**: ссылки `viewtopic.php?t=...&start=N` из `div.pagination`; следующая страница = ссылка с минимальным `start` больше текущего; на последней странице таких ссылок нет — обход завершается
+5. **Посты**: `div` с `id="p123456"` и `class="post"` (блок «Похожие темы» без `dl.postprofile` отфильтровывается). Для каждого поста извлекаются: заголовок (`h3/a`), номер («Сообщение: #4495»), дата (`p.author`), HTML и текст (`div.content`), автор (`dl.postprofile` — те же поля, что у автора темы). Автор добавляется/обновляется в `member`
+6. **Дедупликация**: phpBB повторяет открывающий пост топика в начале каждой страницы с позиционным номером (`start+1`) — уже сохранённые в рамках топика post id пропускаются, чтобы не затирать корректный `number`
+7. `savePosts()` пишет посты и авторов одной транзакцией на страницу; повторный проход обновляет существующие записи (upsert)
+8. Ошибка одного топика не останавливает проход; статистика: `processed`, `pages`, `posts_saved`, `posts_updated`, `topics_failed`, `topics_not_found`, `topics_login_required`, `topics_skipped_no_posts`
+
+Команда: `yii forum-post-parser/scan [--from=...] [--to=...] [--limit=N] [--pageLimit=N]`. Пример: полный проход топика 415949 — 189 страниц, 9447 постов, 1401 уникальный автор, повторный проход — 0 saved / 9447 updated.
+
+Cron-контейнер запускает оба парсера по своим расписаниям:
+
+```
+PARSER_CRON_SCHEDULE=*/10 * * * *                  # forum-parser/scan (темы)
+FORUM_POST_PARSER_CRON_SCHEDULE=*/10 * * * *       # forum-post-parser/scan (посты)
+```
 
 ## Обход и сохранение
 
@@ -144,6 +195,27 @@ HTTP-адаптер (cURL): редиректы до 5, retry с нарастаю
 
 Проверено интеграционно на живой БД: параллельный запуск во время активного прохода пропущен, после завершения прохода следующий запуск успешен.
 
+## Параллельная работа двух парсеров
+
+Сканер тем (`forum-parser/scan`, конфиг `awd_forum_topics`) и парсер постов (`forum-post-parser/scan`, конфиг `awd_forum_posts`) работают одновременно и не мешают друг другу:
+
+- **Независимые локи**: ключ advisory lock вычисляется из кода конфигурации (`crc32`), у каждого парсера свой ключ (`awd_forum_topics` → 2949174020, `awd_forum_posts` → 3636419613). Лок защищает только от повторного запуска *того же* парсера, другой парсер не блокируется
+- **Независимые cron-задачи**: supercronic запускает оба прохода по своим расписаниям (`PARSER_CRON_SCHEDULE`, `FORUM_POST_PARSER_CRON_SCHEDULE`)
+- **Безопасная конкуренция за данные**: оба пишут в общие таблицы (`topic`, `member`, `post`) короткими транзакциями (один топик / одна страница постов) через upsert. Редкие коллизии на одной строке (например, одновременное обновление одного автора) PostgreSQL разрешает на уровне строк — вторая транзакция кратко ждёт первую
+- **Логическая связка**: парсер постов берёт только топики, уже существующие в `topic` (`existingTopicIds`, login-required заглушки пропускаются), поэтому он двигается по диапазону вслед за сканером тем — на живом cron-потоке это отставание несущественно
+
+Проверено на живой БД: оба процесса работали одновременно (каждый держал свой advisory lock в отдельной сессии), за 90 секунд пост-парсер добавил ~2700 постов, сканер тем параллельно обновлял топики.
+
+## Наблюдаемость прогресса
+
+`updated_at` у записей пишется **на каждую тему / каждую страницу постов**, а не временем старта прохода — иначе все строки прохода получали одну метку и прогресс был не виден (`updated_at` застыл на времени запуска). Текущую позицию сканера тем можно оценить так:
+
+```sql
+SELECT max(id) FROM topic WHERE updated_at > now() - interval '2 minutes';
+```
+
+Замечание: сканер тем перебирает все id диапазона подряд, включая несуществующие (404), поэтому «сколько осталось» — это доля пройденного диапазона, а не доля существующих топиков.
+
 ## Периодический запуск
 
 Отдельный cron-контейнер в Docker Compose:
@@ -156,12 +228,14 @@ HTTP-адаптер (cURL): редиректы до 5, retry с нарастаю
 
 ```
 PARSER_CRON_SCHEDULE=*/10 * * * *
+FORUM_POST_PARSER_CRON_SCHEDULE=*/10 * * * *
 ```
 
 Запуск вручную:
 
 ```
 docker compose exec app php yii forum-parser/scan --from=441000 --to=441025
+docker compose exec app php yii forum-post-parser/scan --from=415949 --to=415949
 ```
 
 ## Логи
@@ -198,16 +272,21 @@ docker compose exec app sh -c "grep forum-parser runtime/logs/app.log | tail -20
 - Тема 441019: заголовок, дата `2026-08-27 19:42:00`, 26 изображений, текст 8442 символа, автор 23071 со всеми полями профиля
 - Защита от параллельного запуска: второй запуск во время активного прохода пропущен, лок снят после завершения
 - Login-required темы 441013/441014: сохранены с `login_required = true`, пустым `title` и корректным `source_url`; повторный проход обновляет заглушки
+- Парсер постов, тема 415949 (189 страниц): 9447 постов сохранено, 0 обновлено, 0 ошибок; непрерывная нумерация 1–9448, 1401 уникальный автор; повторный проход — 0 saved / 9447 updated (идемпотентно)
+- Пост из примера `p11861699`/`p11860687`: заголовок, дата `2024-07-04 17:50:00`, номер #4495, автор 394702 (@nnet., все поля профиля) — совпадают с требованиями
 - `vendor/bin/phpstan` — 0 ошибок
 - `vendor/bin/phpcs` — 0 ошибок
-- `vendor/bin/codecept run Unit` — 34 теста зелёные, включая нормализацию «Вчера»/«Сегодня», статистику сервиса, блокировку и заглушки login-required
+- `vendor/bin/codecept run Unit` — 45 тестов зелёные, включая нормализацию «Вчера»/«Сегодня», статистику сервисов, блокировку, заглушки login-required, пагинацию и дедупликацию открывающего поста
 
 ## Тесты
 
 - `tests/Unit/shared/Forum/Service/ForumHtmlParserTest.php` — парсинг темы с автором и изображениями, относительные даты, невалидный HTML, удаление `sid` из ссылок профиля
+- `tests/Unit/shared/Forum/Service/ForumPostPageParserTest.php` — парсинг всех постов страницы (заголовок, номер, дата, текст, автор), пагинация (`start=N`), последняя страница, блок «Похожие темы» отфильтровывается
 - `tests/Unit/ForumScanServiceTest.php` — upsert-статистика, счётчики not found / login required / failed, сохранение login-required заглушки (id + url + флаг), лимит, отсутствие конфига, пропуск при удерживаемой блокировке
+- `tests/Unit/ForumPostScanServiceTest.php` — обход всех страниц топика, обновление существующих постов, login-required, лимиты топиков и страниц, дедупликация повторяющегося открывающего поста, блокировка
 
 ## Известные ограничения
 
 - Темы закрытых разделов не парсятся полностью (нужна авторизация) — сохраняются заглушки с `login_required = true`
-- Диапазон 0–500000 проходится полностью при каждом запуске; оптимизация «пропускать неизменённые» — отдельная задача (см. TODO 12 в README)
+- Диапазон 0–500000 тем проходится полностью при каждом запуске; оптимизация «пропускать неизменённые» — отдельная задача (см. TODO 12 в README)
+- Парсер постов обходит только топики, уже существующие в таблице `topic` (кроме login-required заглушек), и двигается по диапазону вслед за сканером тем; оба парсера работают параллельно по независимым блокировкам (см. «Параллельная работа двух парсеров»)

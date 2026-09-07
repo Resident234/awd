@@ -41,6 +41,7 @@ services:
       DB_USERNAME: ${POSTGRES_USER:-yii}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-change-me-now}
       PARSER_CRON_SCHEDULE: ${PARSER_CRON_SCHEDULE:-0 4 * * *}
+      FORUM_POST_PARSER_CRON_SCHEDULE: ${FORUM_POST_PARSER_CRON_SCHEDULE:-*/10 * * * *}
     depends_on:
       postgres:
         condition: service_healthy

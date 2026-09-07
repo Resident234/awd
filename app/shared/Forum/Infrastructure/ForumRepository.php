@@ -6,6 +6,7 @@ namespace app\shared\Forum\Infrastructure;
 
 use app\shared\Forum\Contract\ForumRepositoryInterface;
 use app\shared\Forum\Dto\MemberData;
+use app\shared\Forum\Dto\PostData;
 use app\shared\Forum\Dto\TopicData;
 use PDO;
 use yii\db\Connection;
@@ -85,6 +86,84 @@ final class ForumRepository implements ForumRepositoryInterface
             $transaction->rollBack();
             throw $e;
         }
+    }
+
+    /**
+     * Upserts the posts of one topic page together with their authors
+     * in a single transaction. Returns the number of newly inserted posts.
+     */
+    public function savePosts(array $posts, string $now): int
+    {
+        $inserted = 0;
+        $transaction = $this->db->beginTransaction();
+        try {
+            foreach ($posts as $post) {
+                if (!$post instanceof PostData) {
+                    continue;
+                }
+                if ($post->author !== null) {
+                    $this->saveMember($post->author, $now);
+                }
+                $exists = $this->db
+                    ->createCommand('SELECT 1 FROM {{%post}} WHERE id = :id')
+                    ->bindValue(':id', $post->id)
+                    ->queryScalar() !== false;
+                $this->savePost($post, $now);
+                if (!$exists) {
+                    $inserted++;
+                }
+            }
+            $transaction->commit();
+            return $inserted;
+        } catch (\Throwable $e) {
+            $transaction->rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * @return int[]
+     */
+    public function existingTopicIds(int $fromId, int $toId): array
+    {
+        $rows = $this->db
+            ->createCommand(
+                'SELECT id FROM {{%topic}} WHERE id BETWEEN :from AND :to AND login_required = FALSE ORDER BY id'
+            )
+            ->bindValues([':from' => $fromId, ':to' => $toId])
+            ->queryColumn();
+        return array_map(intval(...), $rows);
+    }
+
+    private function savePost(PostData $post, string $now): void
+    {
+        $this->db->createCommand()->upsert(
+            '{{%post}}',
+            [
+                'id' => $post->id,
+                'topic_id' => $post->topicId,
+                'author_id' => $post->author?->id,
+                'number' => $post->number,
+                'title' => $post->title,
+                'posted_at' => $post->postedAt,
+                'content_html' => $post->contentHtml,
+                'content_text' => $post->contentText,
+                'source_url' => $post->sourceUrl,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+            [
+                'topic_id' => $post->topicId,
+                'author_id' => $post->author?->id,
+                'number' => $post->number,
+                'title' => $post->title,
+                'posted_at' => $post->postedAt,
+                'content_html' => $post->contentHtml,
+                'content_text' => $post->contentText,
+                'source_url' => $post->sourceUrl,
+                'updated_at' => $now,
+            ]
+        )->execute();
     }
 
     private function saveTopic(TopicData $topic, string $now): void

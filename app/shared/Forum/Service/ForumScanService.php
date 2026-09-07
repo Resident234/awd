@@ -62,13 +62,15 @@ final class ForumScanService
 
         $start = max((int)$config['t_from'], $from ?? (int)$config['t_from']);
         $end = min((int)$config['t_to'], $to ?? (int)$config['t_to']);
-        $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
         $stats = ['processed' => 0, 'saved' => 0, 'updated' => 0, 'not_found' => 0, 'login_required' => 0, 'failed' => 0];
 
         for ($id = $start; $id <= $end && ($limit === null || $stats['processed'] < $limit); $id++) {
             $stats['processed']++;
             $url = rtrim((string)$config['base_url'], '=') . '=' . $id;
             try {
+                // A fresh timestamp per topic: updated_at must show when the
+                // row was actually refreshed, not when the run started.
+                $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
                 $topic = $this->parser->parse($id, $url, $this->httpClient->get($url), $now);
                 $isNew = $this->repository->save($topic, $now->format('Y-m-d H:i:s'));
                 $isNew ? $stats['saved']++ : $stats['updated']++;
@@ -78,6 +80,7 @@ final class ForumScanService
             } catch (ForumLoginRequiredException $e) {
                 $stats['login_required']++;
                 $this->logger->info($e->getMessage(), ['topic_id' => $id]);
+                $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
                 $isNew = $this->repository->save(TopicData::loginRequired($id, $url), $now->format('Y-m-d H:i:s'));
                 $isNew ? $stats['saved']++ : $stats['updated']++;
             } catch (\Throwable $e) {
@@ -86,7 +89,8 @@ final class ForumScanService
             }
         }
 
-        $this->repository->markRun($this->configCode, $now->format('Y-m-d H:i:s'));
+        $endNow = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+        $this->repository->markRun($this->configCode, $endNow->format('Y-m-d H:i:s'));
         $this->logger->info('Forum scan finished.', array_merge(['code' => $this->configCode], $stats));
         return $stats;
     }

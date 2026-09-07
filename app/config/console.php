@@ -31,6 +31,9 @@ $config = [
         'forum-parser' => [
             'class' => \app\commands\ForumParserController::class,
         ],
+        'forum-post-parser' => [
+            'class' => \app\commands\ForumPostParserController::class,
+        ],
     ],
     'container' => [
         'definitions' => [
@@ -42,6 +45,13 @@ $config = [
                     new \app\shared\Forum\Infrastructure\ForumRepository(\Yii::$app->getDb()),
                     \Yii::createObject(\app\shared\Forum\Contract\ForumHttpClientInterface::class),
                     new \app\shared\Forum\Service\ForumHtmlParser(),
+                    new \app\shared\Forum\Infrastructure\YiiPsrLoggerAdapter(\Yii::$app->getLog()->getLogger()),
+                ),
+            \app\shared\Forum\Service\ForumPostScanService::class => static fn (): \app\shared\Forum\Service\ForumPostScanService =>
+                new \app\shared\Forum\Service\ForumPostScanService(
+                    new \app\shared\Forum\Infrastructure\ForumRepository(\Yii::$app->getDb()),
+                    \Yii::createObject(\app\shared\Forum\Contract\ForumHttpClientInterface::class),
+                    new \app\shared\Forum\Service\ForumPostPageParser(),
                     new \app\shared\Forum\Infrastructure\YiiPsrLoggerAdapter(\Yii::$app->getLog()->getLogger()),
                 ),
         ],
@@ -62,14 +72,8 @@ if (YII_ENV_DEV) {
     $config['modules']['gii'] = [
         'class' => \yii\gii\Module::class,
     ];
-    // configuration adjustments for 'dev' environment
-    // requires version `2.1.21` of yii2-debug module
-    $config['bootstrap'][] = 'debug';
-    $config['modules']['debug'] = [
-        'class' => \yii\debug\Module::class,
-        // uncomment the following to add your IP if you are not connecting from localhost.
-        //'allowedIPs' => ['127.0.0.1', '::1'],
-    ];
+    // The debug module is intentionally NOT enabled for the console app:
+    // long-running parser commands produce huge debug logs and exhaust memory.
 }
 
 return $config;
