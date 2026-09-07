@@ -39,4 +39,3 @@ interface ForumRepositoryInterface
      */
     public function existingTopicIds(int $fromId, int $toId): array;
 }
-

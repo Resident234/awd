@@ -34,6 +34,9 @@ $config = [
         'forum-post-parser' => [
             'class' => \app\commands\ForumPostParserController::class,
         ],
+        'gallery-parser' => [
+            'class' => \app\commands\GalleryParserController::class,
+        ],
     ],
     'container' => [
         'definitions' => [
@@ -52,6 +55,13 @@ $config = [
                     new \app\shared\Forum\Infrastructure\ForumRepository(\Yii::$app->getDb()),
                     \Yii::createObject(\app\shared\Forum\Contract\ForumHttpClientInterface::class),
                     new \app\shared\Forum\Service\ForumPostPageParser(),
+                    new \app\shared\Forum\Infrastructure\YiiPsrLoggerAdapter(\Yii::$app->getLog()->getLogger()),
+                ),
+            \app\shared\Gallery\Service\GalleryScanService::class => static fn (): \app\shared\Gallery\Service\GalleryScanService =>
+                new \app\shared\Gallery\Service\GalleryScanService(
+                    new \app\shared\Gallery\Infrastructure\GalleryRepository(\Yii::$app->getDb()),
+                    \Yii::createObject(\app\shared\Forum\Contract\ForumHttpClientInterface::class),
+                    new \app\shared\Gallery\Service\GalleryAlbumPageParser(),
                     new \app\shared\Forum\Infrastructure\YiiPsrLoggerAdapter(\Yii::$app->getLog()->getLogger()),
                 ),
         ],

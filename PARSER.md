@@ -4,7 +4,7 @@
 
 ## Модель данных
 
-Миграции: `app/migrations/m260828_000001_create_forum_parser_tables.php`, `app/migrations/m260904_000002_add_topic_login_required.php`, `app/migrations/m260906_000003_create_post_table.php`
+Миграции: `app/migrations/m260828_000001_create_forum_parser_tables.php`, `app/migrations/m260904_000002_add_topic_login_required.php`, `app/migrations/m260906_000003_create_post_table.php`, `app/migrations/m260907_000004_create_gallery_tables.php`
 
 ### parser_config
 
@@ -91,38 +91,83 @@
 
 Миграция `m260906_000003` вставляет сид `awd_forum_posts` с тем же диапазоном `0–500000`; диапазон используется для выборки существующих топиков через `existingTopicIds()` (login-required заглушки пропускаются).
 
+### gallery_album
+
+Альбом галереи. `id` = значение параметра `album_id` (например, `54903`).
+
+| Поле | Тип | Назначение |
+|---|---|---|
+| `id` | PK | Параметр `album_id` |
+| `source_url` | string(1000) | Полная ссылка `https://forum.awd.ru/gallery/album.php?album_id=54903` |
+| `title` | string(1000) | Название из `h2 > a` (`Metallica`) |
+| `username` | string(255), NULL | Имя пользователя — 4-й элемент навигации личных альбомов (`8008`); у общих альбомов NULL |
+| `login_required` | bool, default false | Альбом доступен только авторизованным (заглушка) |
+| `created_at` / `updated_at` | datetime | Метки времени |
+
+### gallery_image
+
+Изображение альбома. `id` = значение параметра `image_id` (например, `2048754`).
+
+| Поле | Тип | Назначение |
+|---|---|---|
+| `id` | bigint, PK | Параметр `image_id` из ссылки `image_page.php` |
+| `album_id` | int, FK → gallery_album.id | Привязка к альбому (`CASCADE`) |
+| `title` | string(1000) | Название изображения (`Met 23-18`) |
+| `image_url` | string(1000) | Ссылка на полноразмерное изображение `https://forum.awd.ru/gallery/images/upload/c0e/423/....jpg` |
+| `source_url` | string(1000) | Ссылка на страницу изображения `image_page.php?album_id=...&image_id=...` |
+| `created_at` / `updated_at` | datetime | Метки времени |
+
+Индексы: `idx_gallery_image_album_id`. FK `fk_gallery_image_album` → `gallery_album.id`.
+
+### parser_config для галереи
+
+Миграция `m260907_000004` вставляет сид `awd_gallery_albums` с диапазоном `0–500000`, `base_url` `https://forum.awd.ru/gallery/album.php?album_id=`.
+
 ## Слои (по README)
 
 ```
 app/
 ├── commands/ForumParserController.php          # Application: тонкая команда (темы)
 ├── commands/ForumPostParserController.php      # Application: тонкая команда (посты)
+├── commands/GalleryParserController.php        # Application: тонкая команда (альбомы галереи)
 ├── config/console.php                          # composition root
 ├── migrations/m260828_000001_...php            # модель данных (parser_config, member, topic)
 ├── migrations/m260906_000003_...php            # таблица post + сид awd_forum_posts
-└── shared/Forum/                               # Shared-модуль
+├── migrations/m260907_000004_...php            # таблицы gallery_album, gallery_image + сид awd_gallery_albums
+├── shared/Forum/                               # Shared-модуль
+│   ├── Contract/
+│   │   ├── ForumHttpClientInterface.php        # граница HTTP
+│   │   └── ForumRepositoryInterface.php        # граница хранения (upsert тем, постов, lock)
+│   ├── Dto/
+│   │   ├── TopicData.php
+│   │   ├── PostData.php
+│   │   └── MemberData.php
+│   ├── Infrastructure/
+│   │   ├── ForumHttpClient.php                # cURL-адаптер
+│   │   ├── ForumPageNotFoundException.php      # 404
+│   │   ├── ForumLoginRequiredException.php     # раздел для авторизованных
+│   │   ├── ForumRepository.php                 # SQL (PostgreSQL)
+│   │   └── YiiPsrLoggerAdapter.php            # PSR-3 над yii-логгером
+│   └── Service/
+│       ├── ForumPageDomParser.php              # базовые хелперы DOM/даты/URL
+│       ├── ForumHtmlParser.php                 # DOMDocument/XPath (тема)
+│       ├── ForumPostPageParser.php            # DOMDocument/XPath (посты + пагинация)
+│       ├── ForumScanService.php                # обход диапазона тем
+│       └── ForumPostScanService.php            # обход топиков и страниц постов
+└── shared/Gallery/                             # Shared-модуль галереи
     ├── Contract/
-    │   ├── ForumHttpClientInterface.php        # граница HTTP
-    │   └── ForumRepositoryInterface.php        # граница хранения (upsert тем, постов, lock)
+    │   └── GalleryRepositoryInterface.php       # граница хранения (upsert альбомов, lock)
     ├── Dto/
-    │   ├── TopicData.php
-    │   ├── PostData.php
-    │   └── MemberData.php
+    │   ├── AlbumData.php
+    │   └── GalleryImageData.php
     ├── Infrastructure/
-    │   ├── ForumHttpClient.php                # cURL-адаптер
-    │   ├── ForumPageNotFoundException.php      # 404
-    │   ├── ForumLoginRequiredException.php     # раздел для авторизованных
-    │   ├── ForumRepository.php                 # SQL (PostgreSQL)
-    │   └── YiiPsrLoggerAdapter.php             # PSR-3 над yii-логгером
+    │   └── GalleryRepository.php              # SQL (PostgreSQL)
     └── Service/
-        ├── ForumPageDomParser.php              # базовые хелперы DOM/даты/URL
-        ├── ForumHtmlParser.php                 # DOMDocument/XPath (тема)
-        ├── ForumPostPageParser.php             # DOMDocument/XPath (посты + пагинация)
-        ├── ForumScanService.php                # обход диапазона тем
-        └── ForumPostScanService.php            # обход топиков и страниц постов
+        ├── GalleryAlbumPageParser.php          # DOMDocument/XPath (альбом + пагинация)
+        └── GalleryScanService.php              # обход диапазона альбомов
 ```
 
-- **Application**: команды `yii forum-parser/scan` и `yii forum-post-parser/scan` принимают `--from`, `--to`, `--limit` (посты: ещё `--pageLimit`), выводят статистику. Логики парсинга не содержат.
+- **Application**: команды `yii forum-parser/scan`, `yii forum-post-parser/scan` и `yii gallery-parser/scan` принимают `--from`, `--to`, `--limit` (посты и галерея: ещё `--pageLimit`), выводят статистику. Логики парсинга не содержат.
 - **Shared**: сервисы, парсеры и DTO. SQL и HTTP скрыты за контрактами; замена хранилища или HTTP-адаптера не требует изменений в командах и сервисах.
 - **Composition root**: `config/console.php` связывает реализации через `controllerMap` и `container.definitions`.
 
@@ -157,11 +202,28 @@ app/
 
 Команда: `yii forum-post-parser/scan [--from=...] [--to=...] [--limit=N] [--pageLimit=N]`. Пример: полный проход топика 415949 — 189 страниц, 9447 постов, 1401 уникальный автор, повторный проход — 0 saved / 9447 updated.
 
-Cron-контейнер запускает оба парсера по своим расписаниям:
+## Парсинг альбомов галереи
+
+`GalleryScanService::run(from, to, limit, pageLimit)` перебирает диапазон `album_id` (конфиг `awd_gallery_albums`, 0–500000) и для каждого альбома проходит все страницы через пагинацию:
+
+1. Захватывает advisory lock по коду конфига `awd_gallery_albums` (отдельный от lock'ов сканера тем и постов — все три парсера работают параллельно)
+2. Читает активный `parser_config`; `from`/`to` сужают диапазон, но не расширяют
+3. Для каждого `album_id`: GET `album.php?album_id=<id>`, парсинг, обход страниц, сохранение
+4. **Пагинация**: ссылки `album.php?album_id=...&start=N` из `div.pagination` (100 изображений на страницу); следующая страница = ссылка с минимальным `start` больше текущего; на последней странице таких ссылок нет
+5. **Альбом**: название из `h2 > a` (`Metallica`); имя пользователя — 4-й элемент навигации `ul.linklist.navlinks` (`Список форумов › Галерея › Личные альбомы › 8008 › Metallica`), распознаётся по 3-й ссылке `mode=personal`; у общих альбомов 3-й элемент другой — `username = NULL`. Корневые личные альбомы пользователя (54902) содержат только подальбомы и сохраняются с названием и `username`, без изображений
+6. **Изображения**: элементы `a.highslide`; из `href` — ссылка на полноразмерное изображение (`../gallery/images/upload/c0e/423/....jpg` → абсолютная), из `title` — название (`Met 23-18`), из экранированного `rel` — `image_id` (`image_page.php?...&image_id=2048754`). Дедупликация по `image_id` в рамках альбома; страницы мержатся в один набор
+7. `save()` пишет альбом и все изображения одной транзакцией; повторный проход обновляет записи (upsert)
+8. Ошибка одного альбома не останавливает проход; особые случаи: `Запрошенный альбом не существует` (HTTP 200 с текстом) → `ForumPageNotFoundException` → счётчик `not_found`; «вы должны быть авторизованы» → заглушка в `gallery_album` (`login_required = true`); битый HTML без `h2` → `failed`
+9. Статистика: `processed`, `saved`, `updated`, `not_found`, `login_required`, `images_saved`, `images_updated`, `failed`
+
+Команда: `yii gallery-parser/scan [--from=...] [--to=...] [--limit=N] [--pageLimit=N]`. Пример: альбом 54903 (Metallica) — 4 изображения; альбом 11186 — 16 страниц по 100 изображений.
+
+Cron-контейнер запускает все три парсера по своим расписаниям:
 
 ```
 PARSER_CRON_SCHEDULE=*/10 * * * *                  # forum-parser/scan (темы)
-FORUM_POST_PARSER_CRON_SCHEDULE=*/10 * * * *       # forum-post-parser/scan (посты)
+FORUM_POST_PARSER_CRON_SCHEDULE=*/10 * * * *      # forum-post-parser/scan (посты)
+GALLERY_PARSER_CRON_SCHEDULE=*/10 * * * *         # gallery-parser/scan (альбомы)
 ```
 
 ## Обход и сохранение
@@ -195,26 +257,28 @@ HTTP-адаптер (cURL): редиректы до 5, retry с нарастаю
 
 Проверено интеграционно на живой БД: параллельный запуск во время активного прохода пропущен, после завершения прохода следующий запуск успешен.
 
-## Параллельная работа двух парсеров
+## Параллельная работа парсеров
 
-Сканер тем (`forum-parser/scan`, конфиг `awd_forum_topics`) и парсер постов (`forum-post-parser/scan`, конфиг `awd_forum_posts`) работают одновременно и не мешают друг другу:
+Сканер тем (`forum-parser/scan`, конфиг `awd_forum_topics`), парсер постов (`forum-post-parser/scan`, конфиг `awd_forum_posts`) и парсер галереи (`gallery-parser/scan`, конфиг `awd_gallery_albums`) работают одновременно и не мешают друг другу:
 
-- **Независимые локи**: ключ advisory lock вычисляется из кода конфигурации (`crc32`), у каждого парсера свой ключ (`awd_forum_topics` → 2949174020, `awd_forum_posts` → 3636419613). Лок защищает только от повторного запуска *того же* парсера, другой парсер не блокируется
-- **Независимые cron-задачи**: supercronic запускает оба прохода по своим расписаниям (`PARSER_CRON_SCHEDULE`, `FORUM_POST_PARSER_CRON_SCHEDULE`)
-- **Безопасная конкуренция за данные**: оба пишут в общие таблицы (`topic`, `member`, `post`) короткими транзакциями (один топик / одна страница постов) через upsert. Редкие коллизии на одной строке (например, одновременное обновление одного автора) PostgreSQL разрешает на уровне строк — вторая транзакция кратко ждёт первую
-- **Логическая связка**: парсер постов берёт только топики, уже существующие в `topic` (`existingTopicIds`, login-required заглушки пропускаются), поэтому он двигается по диапазону вслед за сканером тем — на живом cron-потоке это отставание несущественно
+- **Независимые локи**: ключ advisory lock вычисляется из кода конфигурации (`crc32`), у каждого парсера свой ключ. Лок защищает только от повторного запуска *того же* парсера, другой парсер не блокируется
+- **Независимые cron-задачи**: supercronic запускает все три прохода по своим расписаниям (`PARSER_CRON_SCHEDULE`, `FORUM_POST_PARSER_CRON_SCHEDULE`, `GALLERY_PARSER_CRON_SCHEDULE`)
+- **Безопасная конкуренция за данные**: парсеры пишут в свои таблицы короткими транзакциями (один топик / одна страница постов / один альбом) через upsert. Редкие коллизии на одной строке PostgreSQL разрешает на уровне строк — вторая транзакция кратко ждёт первую
+- **Логическая связка**: парсер постов берёт только топики, уже существующие в `topic`, поэтому он двигается по диапазону вслед за сканером тем; парсер галереи независим — работает только с таблицами `gallery_album` / `gallery_image`
 
 Проверено на живой БД: оба процесса работали одновременно (каждый держал свой advisory lock в отдельной сессии), за 90 секунд пост-парсер добавил ~2700 постов, сканер тем параллельно обновлял топики.
 
 ## Наблюдаемость прогресса
 
-`updated_at` у записей пишется **на каждую тему / каждую страницу постов**, а не временем старта прохода — иначе все строки прохода получали одну метку и прогресс был не виден (`updated_at` застыл на времени запуска). Текущую позицию сканера тем можно оценить так:
+`updated_at` у записей пишется **на каждую тему / каждую страницу постов / каждый альбом**, а не временем старта прохода — иначе все строки прохода получали одну метку и прогресс был не виден (`updated_at` застыл на времени запуска). Текущую позицию сканера тем можно оценить так:
 
 ```sql
 SELECT max(id) FROM topic WHERE updated_at > now() - interval '2 minutes';
 ```
 
-Замечание: сканер тем перебирает все id диапазона подряд, включая несуществующие (404), поэтому «сколько осталось» — это доля пройденного диапазона, а не доля существующих топиков.
+Для галереи — аналогично по `gallery_album`.
+
+Замечание: сканеры тем и галереи перебирают все id диапазона подряд, включая несуществующие (404), поэтому «сколько осталось» — это доля пройденного диапазона, а не доля существующих элементов.
 
 ## Периодический запуск
 
@@ -229,6 +293,7 @@ SELECT max(id) FROM topic WHERE updated_at > now() - interval '2 minutes';
 ```
 PARSER_CRON_SCHEDULE=*/10 * * * *
 FORUM_POST_PARSER_CRON_SCHEDULE=*/10 * * * *
+GALLERY_PARSER_CRON_SCHEDULE=*/10 * * * *
 ```
 
 Запуск вручную:
@@ -236,6 +301,7 @@ FORUM_POST_PARSER_CRON_SCHEDULE=*/10 * * * *
 ```
 docker compose exec app php yii forum-parser/scan --from=441000 --to=441025
 docker compose exec app php yii forum-post-parser/scan --from=415949 --to=415949
+docker compose exec app php yii gallery-parser/scan --from=54900 --to=54910
 ```
 
 ## Логи
@@ -274,9 +340,12 @@ docker compose exec app sh -c "grep forum-parser runtime/logs/app.log | tail -20
 - Login-required темы 441013/441014: сохранены с `login_required = true`, пустым `title` и корректным `source_url`; повторный проход обновляет заглушки
 - Парсер постов, тема 415949 (189 страниц): 9447 постов сохранено, 0 обновлено, 0 ошибок; непрерывная нумерация 1–9448, 1401 уникальный автор; повторный проход — 0 saved / 9447 updated (идемпотентно)
 - Пост из примера `p11861699`/`p11860687`: заголовок, дата `2024-07-04 17:50:00`, номер #4495, автор 394702 (@nnet., все поля профиля) — совпадают с требованиями
+- Парсер галереи, альбом 54903 (Metallica): id, название, username `8008` (4-й элемент навигации), 4 изображения с id (2048750–2048754), названиями и абсолютными ссылками — совпадают с требованиями; повторный проход — 0 saved / 1 updated / 4 images updated (идемпотентно)
+- Парсер галереи, альбом 11186 (1563 фото): 16 страниц пагинации по 100 изображений, все 1563 сохранены одним набором
+- Парсер галереи, диапазон 54900–54910: 11 обработано, 8 сохранено, 1 not found (текст «Запрошенный альбом не существует»), 76 изображений; корневые личные альбомы — с username, без изображений; общие — username NULL
 - `vendor/bin/phpstan` — 0 ошибок
 - `vendor/bin/phpcs` — 0 ошибок
-- `vendor/bin/codecept run Unit` — 45 тестов зелёные, включая нормализацию «Вчера»/«Сегодня», статистику сервисов, блокировку, заглушки login-required, пагинацию и дедупликацию открывающего поста
+- `vendor/bin/codecept run Unit` — 58 тестов зелёные, включая нормализацию «Вчера»/«Сегодня», статистику сервисов, блокировку, заглушки login-required, пагинацию, дедупликацию открывающего поста и все сценарии галереи
 
 ## Тесты
 
@@ -284,9 +353,12 @@ docker compose exec app sh -c "grep forum-parser runtime/logs/app.log | tail -20
 - `tests/Unit/shared/Forum/Service/ForumPostPageParserTest.php` — парсинг всех постов страницы (заголовок, номер, дата, текст, автор), пагинация (`start=N`), последняя страница, блок «Похожие темы» отфильтровывается
 - `tests/Unit/ForumScanServiceTest.php` — upsert-статистика, счётчики not found / login required / failed, сохранение login-required заглушки (id + url + флаг), лимит, отсутствие конфига, пропуск при удерживаемой блокировке
 - `tests/Unit/ForumPostScanServiceTest.php` — обход всех страниц топика, обновление существующих постов, login-required, лимиты топиков и страниц, дедупликация повторяющегося открывающего поста, блокировка
+- `tests/Unit/shared/Gallery/Service/GalleryAlbumPageParserTest.php` — парсинг альбома (название, username из навигации, изображения: id/название/ссылки), общие альбомы без username, несуществующий альбом (текст «Запрошенный альбом не существует»), пагинация (`start=N`), последняя страница
+- `tests/Unit/GalleryScanServiceTest.php` — upsert-статистика альбомов и изображений, счётчики not found / login required / failed, заглушка login-required, обход пагинации альбома, лимит, отсутствие конфига, пропуск при удерживаемой блокировке
 
 ## Известные ограничения
 
 - Темы закрытых разделов не парсятся полностью (нужна авторизация) — сохраняются заглушки с `login_required = true`
-- Диапазон 0–500000 тем проходится полностью при каждом запуске; оптимизация «пропускать неизменённые» — отдельная задача (см. TODO 12 в README)
-- Парсер постов обходит только топики, уже существующие в таблице `topic` (кроме login-required заглушек), и двигается по диапазону вслед за сканером тем; оба парсера работают параллельно по независимым блокировкам (см. «Параллельная работа двух парсеров»)
+- Диапазоны 0–500000 тем и альбомов проходятся полностью при каждом запуске; оптимизация «пропускать неизменённые» — отдельная задача (см. TODO 12 в README)
+- Парсер постов обходит только топики, уже существующие в таблице `topic` (кроме login-required заглушек), и двигается по диапазону вслед за сканером тем; все три парсера работают параллельно по независимым блокировкам (см. «Параллельная работа парсеров»)
+- Альбомы закрытых разделов галереи могут требовать авторизацию — сохраняются заглушки; ссылка на изображение ведёт на файл в `images/upload` — при удалении изображения из галереи ссылка устареет до следующего прохода
