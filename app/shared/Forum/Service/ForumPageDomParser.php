@@ -42,7 +42,8 @@ abstract class ForumPageDomParser
 
     /**
      * Normalizes a phpBB post date into "Y-m-d H:i:s" (site timezone Europe/Moscow).
-     * Supports "27 авг 2026, 19:42", "Вчера, 19:42", "Сегодня, 09:05", "31.12.2024, 23:59".
+     * Supports "27 авг 2026, 19:42", "Вчера, 19:42", "Сегодня, 09:05", "31.12.2024, 23:59",
+     * "2 минуты назад", "менее минуты назад", "3 часа назад".
      */
     protected function normalizeDate(string $value, DateTimeImmutable $now): ?string
     {
@@ -54,6 +55,20 @@ abstract class ForumPageDomParser
         if (preg_match('/(Сегодня|Вчера),?\s*(\d{1,2}:\d{2})/u', $value, $m) === 1) {
             $day = $siteNow->modify($m[1] === 'Вчера' ? '-1 day' : 'today');
             return $this->formatSiteDate($day, $m[2]);
+        }
+        if (preg_match('/(?:менее\s+)?(\d+)\s*(секунд[уы]?|минут[уы]?|час[аов]?|дн[еяй]?)\s+назад/ui', $value, $m) === 1) {
+            $amount = (int)$m[1];
+            $unit = mb_strtolower($m[2], 'UTF-8');
+            $interval = match (true) {
+                str_starts_with($unit, 'секунд') => "PT{$amount}S",
+                str_starts_with($unit, 'минут') => "PT{$amount}M",
+                str_starts_with($unit, 'час') => "PT{$amount}H",
+                default => "P{$amount}D",
+            };
+            return $siteNow->sub(new \DateInterval($interval))->format('Y-m-d H:i:s');
+        }
+        if (preg_match('/менее\s+минуты\s+назад/ui', $value) === 1) {
+            return $siteNow->format('Y-m-d H:i:s');
         }
         if (preg_match('/(\d{1,2})\s+([а-яё]+)\s+(\d{4}),?\s+(\d{1,2}:\d{2})/ui', $value, $m) === 1) {
             $month = self::MONTHS[mb_strtolower($m[2], 'UTF-8')] ?? null;

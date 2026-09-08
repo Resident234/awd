@@ -16,6 +16,8 @@ services:
       DB_DSN: pgsql:host=postgres;port=5432;dbname=${POSTGRES_DB:-yii_dev}
       DB_USERNAME: ${POSTGRES_USER:-yii}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-change-me-now}
+      FORUM_LOGIN_USERNAME: ${FORUM_LOGIN_USERNAME:-}
+      FORUM_LOGIN_PASSWORD: ${FORUM_LOGIN_PASSWORD:-}
     expose:
       - "9000"
     depends_on:
@@ -40,9 +42,12 @@ services:
       DB_DSN: pgsql:host=postgres;port=5432;dbname=${POSTGRES_DB:-yii_dev}
       DB_USERNAME: ${POSTGRES_USER:-yii}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-change-me-now}
+      FORUM_LOGIN_USERNAME: ${FORUM_LOGIN_USERNAME:-}
+      FORUM_LOGIN_PASSWORD: ${FORUM_LOGIN_PASSWORD:-}
       PARSER_CRON_SCHEDULE: ${PARSER_CRON_SCHEDULE:-0 4 * * *}
       FORUM_POST_PARSER_CRON_SCHEDULE: ${FORUM_POST_PARSER_CRON_SCHEDULE:-*/10 * * * *}
       GALLERY_PARSER_CRON_SCHEDULE: ${GALLERY_PARSER_CRON_SCHEDULE:-*/10 * * * *}
+      MEMBER_PARSER_CRON_SCHEDULE: ${MEMBER_PARSER_CRON_SCHEDULE:-*/10 * * * *}
     depends_on:
       postgres:
         condition: service_healthy

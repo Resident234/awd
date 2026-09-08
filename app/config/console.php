@@ -37,12 +37,23 @@ $config = [
         'gallery-parser' => [
             'class' => \app\commands\GalleryParserController::class,
         ],
+        'member-parser' => [
+            'class' => \app\commands\MemberParserController::class,
+        ],
     ],
     'container' => [
         'definitions' => [
             \Psr\Log\LoggerInterface::class => static fn (): \app\shared\Forum\Infrastructure\YiiPsrLoggerAdapter =>
                 new \app\shared\Forum\Infrastructure\YiiPsrLoggerAdapter(\Yii::$app->getLog()->getLogger()),
-            \app\shared\Forum\Contract\ForumHttpClientInterface::class => \app\shared\Forum\Infrastructure\ForumHttpClient::class,
+            \app\shared\Forum\Contract\ForumHttpClientInterface::class => static fn (): \app\shared\Forum\Infrastructure\ForumHttpClient =>
+                new \app\shared\Forum\Infrastructure\ForumHttpClient(
+                    30,
+                    3,
+                    500000,
+                    'https://forum.awd.ru/ucp.php?mode=login',
+                    (string)(getenv('FORUM_LOGIN_USERNAME') ?: ''),
+                    (string)(getenv('FORUM_LOGIN_PASSWORD') ?: ''),
+                ),
             \app\shared\Forum\Service\ForumScanService::class => static fn (): \app\shared\Forum\Service\ForumScanService =>
                 new \app\shared\Forum\Service\ForumScanService(
                     new \app\shared\Forum\Infrastructure\ForumRepository(\Yii::$app->getDb()),
@@ -62,6 +73,13 @@ $config = [
                     new \app\shared\Gallery\Infrastructure\GalleryRepository(\Yii::$app->getDb()),
                     \Yii::createObject(\app\shared\Forum\Contract\ForumHttpClientInterface::class),
                     new \app\shared\Gallery\Service\GalleryAlbumPageParser(),
+                    new \app\shared\Forum\Infrastructure\YiiPsrLoggerAdapter(\Yii::$app->getLog()->getLogger()),
+                ),
+            \app\shared\Forum\Service\MemberScanService::class => static fn (): \app\shared\Forum\Service\MemberScanService =>
+                new \app\shared\Forum\Service\MemberScanService(
+                    new \app\shared\Forum\Infrastructure\ForumRepository(\Yii::$app->getDb()),
+                    \Yii::createObject(\app\shared\Forum\Contract\ForumHttpClientInterface::class),
+                    new \app\shared\Forum\Service\MemberProfilePageParser(),
                     new \app\shared\Forum\Infrastructure\YiiPsrLoggerAdapter(\Yii::$app->getLog()->getLogger()),
                 ),
         ],

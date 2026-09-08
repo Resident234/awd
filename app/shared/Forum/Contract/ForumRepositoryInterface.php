@@ -38,4 +38,10 @@ interface ForumRepositoryInterface
      * @return int[]
      */
     public function existingTopicIds(int $fromId, int $toId): array;
+
+    /**
+     * Upserts a member profile parsed from the memberlist pages.
+     * Returns true when a new row was inserted.
+     */
+    public function saveMemberProfile(\app\shared\Forum\Dto\MemberData $member, string $now): bool;
 }

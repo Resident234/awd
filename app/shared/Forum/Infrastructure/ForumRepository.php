@@ -209,6 +209,8 @@ final class ForumRepository implements ForumRepositoryInterface
                 'rank_name' => $member->rankName,
                 'messages_count' => $member->messagesCount,
                 'registered_on' => $member->registeredOn,
+                'last_visit_at' => $member->lastVisitAt,
+                'photos_count' => $member->photosCount,
                 'city' => $member->city,
                 'thanks_given_count' => $member->thanksGivenCount,
                 'thanks_received_count' => $member->thanksReceivedCount,
@@ -216,6 +218,7 @@ final class ForumRepository implements ForumRepositoryInterface
                 'countries_count' => $member->countriesCount,
                 'reports_count' => $member->reportsCount,
                 'gender' => $member->gender,
+                'profile_login_required' => $member->profileLoginRequired,
                 'raw_data' => new JsonExpression($member->rawData),
                 'created_at' => $now,
                 'updated_at' => $now,
@@ -227,6 +230,8 @@ final class ForumRepository implements ForumRepositoryInterface
                 'rank_name' => $member->rankName,
                 'messages_count' => $member->messagesCount,
                 'registered_on' => $member->registeredOn,
+                'last_visit_at' => $member->lastVisitAt,
+                'photos_count' => $member->photosCount,
                 'city' => $member->city,
                 'thanks_given_count' => $member->thanksGivenCount,
                 'thanks_received_count' => $member->thanksReceivedCount,
@@ -234,9 +239,50 @@ final class ForumRepository implements ForumRepositoryInterface
                 'countries_count' => $member->countriesCount,
                 'reports_count' => $member->reportsCount,
                 'gender' => $member->gender,
+                'profile_login_required' => $member->profileLoginRequired,
                 'raw_data' => new JsonExpression($member->rawData),
                 'updated_at' => $now,
             ]
         )->execute();
+    }
+
+    /**
+     * Upserts a member parsed from the memberlist profile pages. Unlike
+     * saveMember() (which overwrites everything with post-block values),
+     * this merges: fields the memberlist does not provide (thanks, countries,
+     * reports) keep their stored values. Returns true for a new row.
+     */
+    public function saveMemberProfile(MemberData $member, string $now): bool
+    {
+        $exists = $this->db
+            ->createCommand('SELECT 1 FROM {{%member}} WHERE id = :id')
+            ->bindValue(':id', $member->id)
+            ->queryScalar() !== false;
+
+        $values = [
+            'profile_url' => $member->profileUrl,
+            'name' => $member->name,
+            'avatar_url' => $member->avatarUrl,
+            'rank_name' => $member->rankName,
+            'messages_count' => $member->messagesCount,
+            'registered_on' => $member->registeredOn,
+            'last_visit_at' => $member->lastVisitAt,
+            'photos_count' => $member->photosCount,
+            'city' => $member->city,
+            'age' => $member->age,
+            'gender' => $member->gender,
+            'profile_login_required' => $member->profileLoginRequired,
+            'updated_at' => $now,
+        ];
+        $this->db->createCommand()->upsert(
+            '{{%member}}',
+            array_merge($values, [
+                'id' => $member->id,
+                'raw_data' => new JsonExpression($member->rawData),
+                'created_at' => $now,
+            ]),
+            array_merge($values, ['raw_data' => new JsonExpression($member->rawData)])
+        )->execute();
+        return !$exists;
     }
 }
