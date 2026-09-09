@@ -1,207 +1,298 @@
 <?php
 
+declare(strict_types=1);
+
 /** @var yii\web\View $this */
 
-use yii\helpers\Html;
-
-$this->title = 'My Yii Application';
-$this->params['meta_description'] = 'A high-performance PHP framework best for developing web applications. Fast, secure, and professional.';
-$this->params['meta_keywords'] = 'yii, yii2, php, framework, web application, high-performance';
+$this->title = 'Дашборд TRVL';
 ?>
-<div class="site-index">
-
-    <!-- Hero banner with Yii gradient -->
-    <div class="hero-banner text-white rounded-4 p-5 mb-4 position-relative overflow-hidden">
-        <?= Html::img(Yii::getAlias('@web/images/yii3_full_white_for_dark.svg'), [
-            'alt' => '',
-            'class' => 'd-none d-lg-block position-absolute hero-logo',
-        ]) ?>
-        <div class="position-relative">
-            <h1 class="display-5 fw-bold mb-3">Build with Yii Framework</h1>
-            <p class="lead opacity-75 mb-4 hero-lead">
-                A high-performance PHP framework best for developing web applications.
-                Fast, secure, and professional.
-            </p>
-            <div class="d-flex gap-2 flex-wrap">
-                <?= Html::a(
-                    'Get Started',
-                    'https://www.yiiframework.com/doc/guide/2.0/en/start-installation',
-                    [
-                        'class' => 'btn btn-light btn-lg fw-semibold px-4',
-                        'rel' => 'noopener',
-                        'target' => '_blank',
-                    ],
-                ) ?>
-                <?= Html::a(
-                    'API Reference',
-                    'https://www.yiiframework.com/doc/api/2.0',
-                    [
-                        'class' => 'btn btn-outline-light btn-lg px-4',
-                        'rel' => 'noopener',
-                        'target' => '_blank',
-                    ],
-                ) ?>
-            </div>
-        </div>
-    </div>
-
-    <!-- Extensions grid -->
-    <div class="row g-3">
-        <div class="col-md-6 col-lg-4">
-            <div class="card h-100 border-0 shadow-sm rounded-3 extension-card">
-                <div class="card-body">
-                    <div class="d-flex align-items-center mb-3">
-                        <span class="extension-icon" aria-hidden="true">&#128270;</span>
-                        <h3 class="h6 fw-bold mb-0 ms-2">yii2-debug</h3>
+<!-- Row start -->
+<div class="row">
+    <div class="col-xl-3 col-sm-6 col-12">
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="icon-box md bg-primary-subtle rounded-5">
+                        <i class="bi bi-telegram text-primary"></i>
                     </div>
-                    <p class="text-body-secondary small mb-0">
-                        Debug toolbar and debugger for Yii2. Inspect logs, database queries,
-                        request data, and application performance in real time.
-                    </p>
-                </div>
-                <div class="card-footer bg-transparent border-0 pt-0">
-                    <?= Html::a(
-                        'Learn more &raquo;',
-                        'https://www.yiiframework.com/extension/yiisoft/yii2-debug',
-                        [
-                            'class' => 'btn btn-sm btn-outline-secondary',
-                            'rel' => 'noopener',
-                            'target' => '_blank',
-                        ],
-                    ) ?>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-6 col-lg-4">
-            <div class="card h-100 border-0 shadow-sm rounded-3 extension-card">
-                <div class="card-body">
-                    <div class="d-flex align-items-center mb-3">
-                        <span class="extension-icon" aria-hidden="true">&#9881;</span>
-                        <h3 class="h6 fw-bold mb-0 ms-2">yii2-gii</h3>
+                    <div class="d-flex justify-content-between w-100">
+                        <div>
+                            <p class="text-muted small mb-1">Опубликовано сегодня</p>
+                            <h5 class="m-0 fw-semibold">12</h5>
+                        </div>
+                        <div class="text-end">
+                            <h5 class="mb-1 fw-semibold">+3</h5>
+                            <p class="text-success small m-0 fw-semibold">
+                                <i class="bi bi-arrow-up-right"></i> 25%
+                            </p>
+                        </div>
                     </div>
-                    <p class="text-body-secondary small mb-0">
-                        Automatic code generator for models, controllers, CRUD, forms, and modules.
-                        Boost your productivity with scaffolding.
-                    </p>
-                </div>
-                <div class="card-footer bg-transparent border-0 pt-0">
-                    <?= Html::a(
-                        'Learn more &raquo;',
-                        'https://www.yiiframework.com/extension/yiisoft/yii2-gii',
-                        [
-                            'class' => 'btn btn-sm btn-outline-secondary',
-                            'rel' => 'noopener',
-                            'target' => '_blank',
-                        ],
-                    ) ?>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-6 col-lg-4">
-            <div class="card h-100 border-0 shadow-sm rounded-3 extension-card">
-                <div class="card-body">
-                    <div class="d-flex align-items-center mb-3">
-                        <span class="extension-icon" aria-hidden="true">&#128203;</span>
-                        <h3 class="h6 fw-bold mb-0 ms-2">yii2-queue</h3>
-                    </div>
-                    <p class="text-body-secondary small mb-0">
-                        Asynchronous job queue with support for DB, Redis, AMQP, Beanstalk,
-                        and SQS drivers. Run background tasks with ease.
-                    </p>
-                </div>
-                <div class="card-footer bg-transparent border-0 pt-0">
-                    <?= Html::a(
-                        'Learn more &raquo;',
-                        'https://www.yiiframework.com/extension/yiisoft/yii2-queue',
-                        [
-                            'class' => 'btn btn-sm btn-outline-secondary',
-                            'rel' => 'noopener',
-                            'target' => '_blank',
-                        ],
-                    ) ?>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-6 col-lg-4">
-            <div class="card h-100 border-0 shadow-sm rounded-3 extension-card">
-                <div class="card-body">
-                    <div class="d-flex align-items-center mb-3">
-                        <span class="extension-icon" aria-hidden="true">&#9889;</span>
-                        <h3 class="h6 fw-bold mb-0 ms-2">yii2-redis</h3>
-                    </div>
-                    <p class="text-body-secondary small mb-0">
-                        Redis integration providing cache, session, and ActiveRecord support.
-                        Leverage in-memory storage for blazing-fast data access.
-                    </p>
-                </div>
-                <div class="card-footer bg-transparent border-0 pt-0">
-                    <?= Html::a(
-                        'Learn more &raquo;',
-                        'https://www.yiiframework.com/extension/yiisoft/yii2-redis',
-                        [
-                            'class' => 'btn btn-sm btn-outline-secondary',
-                            'rel' => 'noopener',
-                            'target' => '_blank',
-                        ],
-                    ) ?>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-6 col-lg-4">
-            <div class="card h-100 border-0 shadow-sm rounded-3 extension-card">
-                <div class="card-body">
-                    <div class="d-flex align-items-center mb-3">
-                        <span class="extension-icon" aria-hidden="true">&#128269;</span>
-                        <h3 class="h6 fw-bold mb-0 ms-2">yii2-elasticsearch</h3>
-                    </div>
-                    <p class="text-body-secondary small mb-0">
-                        Elasticsearch integration with ActiveRecord and query builder.
-                        Add powerful full-text search capabilities to your application.
-                    </p>
-                </div>
-                <div class="card-footer bg-transparent border-0 pt-0">
-                    <?= Html::a(
-                        'Learn more &raquo;',
-                        'https://www.yiiframework.com/extension/yiisoft/yii2-elasticsearch',
-                        [
-                            'class' => 'btn btn-sm btn-outline-secondary',
-                            'rel' => 'noopener',
-                            'target' => '_blank',
-                        ],
-                    ) ?>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-6 col-lg-4">
-            <div class="card h-100 border-0 shadow-sm rounded-3 extension-card">
-                <div class="card-body">
-                    <div class="d-flex align-items-center mb-3">
-                        <span class="extension-icon" aria-hidden="true">&#9993;</span>
-                        <h3 class="h6 fw-bold mb-0 ms-2">yii2-symfonymailer</h3>
-                    </div>
-                    <p class="text-body-secondary small mb-0">
-                        Email sending integration powered by Symfony Mailer.
-                        Compose and deliver rich HTML emails with attachments and templates.
-                    </p>
-                </div>
-                <div class="card-footer bg-transparent border-0 pt-0">
-                    <?= Html::a(
-                        'Learn more &raquo;',
-                        'https://github.com/yiisoft/yii2-symfonymailer',
-                        [
-                            'class' => 'btn btn-sm btn-outline-secondary',
-                            'rel' => 'noopener',
-                            'target' => '_blank',
-                        ],
-                    ) ?>
                 </div>
             </div>
         </div>
     </div>
-
+    <div class="col-xl-3 col-sm-6 col-12">
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="icon-box md bg-success-subtle rounded-5">
+                        <i class="bi bi-collection text-success"></i>
+                    </div>
+                    <div class="d-flex justify-content-between w-100">
+                        <div>
+                            <p class="text-muted small mb-1">В очереди на публикацию</p>
+                            <h5 class="m-0 fw-semibold">48</h5>
+                        </div>
+                        <div class="text-end">
+                            <h5 class="mb-1 fw-semibold">+7</h5>
+                            <p class="text-success small m-0 fw-semibold">
+                                <i class="bi bi-arrow-up-right"></i> 14%
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-sm-6 col-12">
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="icon-box md bg-info-subtle rounded-5">
+                        <i class="bi bi-clock-history text-info"></i>
+                    </div>
+                    <div class="d-flex justify-content-between w-100">
+                        <div>
+                            <p class="text-muted small mb-1">Отложенных постов</p>
+                            <h5 class="m-0 fw-semibold">9</h5>
+                        </div>
+                        <div class="text-end">
+                            <h5 class="mb-1 fw-semibold">+2</h5>
+                            <p class="text-success small m-0 fw-semibold">
+                                <i class="bi bi-arrow-up-right"></i> 22%
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-sm-6 col-12">
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="icon-box md bg-danger-subtle rounded-5">
+                        <i class="bi bi-cloud-download text-danger"></i>
+                    </div>
+                    <div class="d-flex justify-content-between w-100">
+                        <div>
+                            <p class="text-muted small mb-1">Спарсено элементов</p>
+                            <h5 class="m-0 fw-semibold">1 246</h5>
+                        </div>
+                        <div class="text-end">
+                            <h5 class="mb-1 fw-semibold">+58</h5>
+                            <p class="text-success small m-0 fw-semibold">
+                                <i class="bi bi-arrow-up-right"></i> 4.6%
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
+<!-- Row end -->
+
+<!-- Row start -->
+<div class="row">
+    <div class="col-xxl-8 col-sm-12 col-12">
+
+        <!-- Channel description management -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title">Описание канала TRVL</h5>
+            </div>
+            <div class="card-body">
+                <form>
+                    <!-- Description input field -->
+                    <div class="mb-3">
+                        <label for="channelDescriptionInput" class="form-label">Описание канала</label>
+                        <textarea class="form-control" id="channelDescriptionInput" rows="4"
+                                  placeholder="Введите описание канала TRVL">TRVL — канал о путешествиях и приключениях. Маршруты, лайфхаки и вдохновение для ваших странствий.</textarea>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check2 me-1"></i>Сохранить описание
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-counterclockwise me-1"></i>Сбросить
+                        </button>
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer bg-transparent">
+                <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Описание будет применено к каналу TRVL
+                    </small>
+                    <span class="badge bg-primary-subtle text-primary rounded-pill px-3">255 символов</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Publication queue -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title">Очередь публикаций</h5>
+            </div>
+            <div class="card-body pt-0">
+                <div class="table-outer">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0 align-middle">
+                            <thead>
+                            <tr>
+                                <th scope="col">#</th>
+                                <th scope="col">Заголовок</th>
+                                <th scope="col">Стиль</th>
+                                <th scope="col">Время публикации</th>
+                                <th scope="col">Статус</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr>
+                                <td>1024</td>
+                                <td>10 маршрутов по Грузии</td>
+                                <td><span class="badge bg-primary-subtle text-primary">TRVL Basic</span></td>
+                                <td>Сегодня, 18:00</td>
+                                <td><span class="badge bg-warning">Ожидает</span></td>
+                            </tr>
+                            <tr>
+                                <td>1025</td>
+                                <td>Как собрать рюкзак в поход</td>
+                                <td><span class="badge bg-success-subtle text-success">Adventure</span></td>
+                                <td>Сегодня, 21:30</td>
+                                <td><span class="badge bg-info">Стилизация</span></td>
+                            </tr>
+                            <tr>
+                                <td>1026</td>
+                                <td>Ночной Стамбул: маршрут выходного дня</td>
+                                <td><span class="badge bg-info-subtle text-info">City Walk</span></td>
+                                <td>Завтра, 09:00</td>
+                                <td><span class="badge bg-secondary">Черновик</span></td>
+                            </tr>
+                            <tr>
+                                <td>1027</td>
+                                <td>Бюджетные страны Азии</td>
+                                <td><span class="badge bg-primary-subtle text-primary">TRVL Basic</span></td>
+                                <td>Завтра, 12:00</td>
+                                <td><span class="badge bg-success">Готов</span></td>
+                            </tr>
+                            <tr>
+                                <td>1028</td>
+                                <td>Пять островов Греции</td>
+                                <td><span class="badge bg-success-subtle text-success">Adventure</span></td>
+                                <td>Сегодня, 15:00</td>
+                                <td><span class="badge bg-success">Опубликовано</span></td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <div class="col-xxl-4 col-sm-12 col-12">
+
+        <!-- Slogans list -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title">Слоганы канала</h5>
+            </div>
+            <div class="card-body pt-0">
+                <ul class="list-group">
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-quote text-primary"></i>
+                            <small>Путешествуй. Познавай. Вдохновляй.</small>
+                        </div>
+                        <span class="badge bg-success-subtle text-success rounded-pill">Активен</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-quote text-primary"></i>
+                            <small>Мир ближе, чем кажется</small>
+                        </div>
+                        <span class="badge bg-success-subtle text-success rounded-pill">Активен</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-quote text-secondary"></i>
+                            <small>Твое приключение начинается здесь</small>
+                        </div>
+                        <span class="badge bg-secondary-subtle text-secondary rounded-pill">Архив</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-quote text-secondary"></i>
+                            <small>Открывай мир вместе с TRVL</small>
+                        </div>
+                        <span class="badge bg-secondary-subtle text-secondary rounded-pill">Архив</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Parser status -->
+        <div class="card mb-4">
+            <div class="card-body pt-0">
+                <div class="d-flex align-items-center justify-content-between py-3">
+                    <div>
+                        <h6 class="mb-1"><i class="bi bi-cloud-download-fill text-warning me-2"></i>Статус парсера</h6>
+                        <p class="text-muted small mb-0">Последний проход источника</p>
+                    </div>
+                    <div class="text-end">
+                            <span class="badge bg-warning-subtle text-warning fw-semibold rounded-pill px-3 py-2">
+                                <i class="bi bi-arrow-repeat me-1"></i> Работает
+                            </span>
+                        <div class="small text-warning mt-1">
+                            04:00, сегодня
+                        </div>
+                    </div>
+                </div>
+                <div class="progress medium" role="progressbar" aria-label="Parser" aria-valuenow="65"
+                     aria-valuemin="0" aria-valuemax="100">
+                    <div class="progress-bar bg-warning w-60"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Telegram connection -->
+        <div class="card mb-4">
+            <div class="card-body pt-0">
+                <div class="d-flex align-items-center justify-content-between py-3">
+                    <div>
+                        <h6 class="mb-1"><i class="bi bi-telegram text-primary me-2"></i>Канал TRVL</h6>
+                        <p class="text-muted small mb-0">Подключение к Telegram API</p>
+                    </div>
+                    <div class="text-end">
+                            <span class="badge bg-success-subtle text-success fw-semibold rounded-pill px-3 py-2">
+                                <i class="bi bi-check-circle me-1"></i> Подключен
+                            </span>
+                        <div class="small text-success mt-1">
+                            Все системы работают.
+                        </div>
+                    </div>
+                </div>
+                <div class="progress medium" role="progressbar" aria-label="Telegram" aria-valuenow="90"
+                     aria-valuemin="0" aria-valuemax="100">
+                    <div class="progress-bar bg-success w-90"></div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+<!-- Row end -->

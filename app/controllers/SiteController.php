@@ -78,6 +78,8 @@ class SiteController extends Controller
      */
     public function actionIndex(): string
     {
+        $this->layout = 'dashboard';
+
         return $this->render('index');
     }
 
