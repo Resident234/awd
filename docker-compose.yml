@@ -18,6 +18,8 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD:-change-me-now}
       FORUM_LOGIN_USERNAME: ${FORUM_LOGIN_USERNAME:-}
       FORUM_LOGIN_PASSWORD: ${FORUM_LOGIN_PASSWORD:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHANNEL_ID: ${TELEGRAM_CHANNEL_ID:-@gsu_travels}
     expose:
       - "9000"
     depends_on:
@@ -48,6 +50,8 @@ services:
       FORUM_POST_PARSER_CRON_SCHEDULE: ${FORUM_POST_PARSER_CRON_SCHEDULE:-*/10 * * * *}
       GALLERY_PARSER_CRON_SCHEDULE: ${GALLERY_PARSER_CRON_SCHEDULE:-*/10 * * * *}
       MEMBER_PARSER_CRON_SCHEDULE: ${MEMBER_PARSER_CRON_SCHEDULE:-*/10 * * * *}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHANNEL_ID: ${TELEGRAM_CHANNEL_ID:-@gsu_travels}
     depends_on:
       postgres:
         condition: service_healthy

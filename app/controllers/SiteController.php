@@ -7,6 +7,8 @@ namespace app\controllers;
 use Yii;
 use app\models\ContactForm;
 use app\models\LoginForm;
+use app\shared\Telegram\Infrastructure\TelegramApiException;
+use app\shared\Telegram\Service\ChannelService;
 use yii\captcha\CaptchaAction;
 use yii\filters\AccessControl;
 use yii\filters\VerbFilter;
@@ -15,6 +17,9 @@ use yii\mail\MailerInterface;
 use yii\web\Controller;
 use yii\web\ErrorAction;
 use yii\web\Response;
+use InvalidArgumentException;
+use RuntimeException;
+use Throwable;
 
 class SiteController extends Controller
 {
@@ -23,6 +28,7 @@ class SiteController extends Controller
         $module,
         private readonly MailerInterface $mailer,
         private readonly Security $security,
+        private readonly ChannelService $telegramChannel,
         $config = [],
     ) {
         parent::__construct($id, $module, $config);
@@ -80,7 +86,53 @@ class SiteController extends Controller
     {
         $this->layout = 'dashboard';
 
-        return $this->render('index');
+        $channelDescription = null;
+        $channelConnected = false;
+        try {
+            $channelDescription = $this->telegramChannel->channelInfo()->description;
+            $channelConnected = true;
+        } catch (Throwable) {
+            // Token is not configured yet or Telegram API is unreachable:
+            // the dashboard still renders with the placeholder state.
+        }
+
+        return $this->render('index', [
+            'channelDescription' => $channelDescription,
+            'channelConnected' => $channelConnected,
+        ]);
+    }
+
+    /**
+     * Updates the TRVL channel description from the dashboard.
+     *
+     * @return Response
+     */
+    public function actionChannelDescription(): Response
+    {
+        $description = (string)($this->request->post('channelDescription', ''));
+
+        try {
+            $this->telegramChannel->updateDescription($description);
+        } catch (InvalidArgumentException $e) {
+            Yii::$app->session->setFlash('error', $e->getMessage());
+
+            return $this->redirect(['index']);
+        } catch (TelegramApiException $e) {
+            Yii::$app->session->setFlash(
+                'error',
+                "Telegram API error [{$e->errorCode}]: {$e->getMessage()}",
+            );
+
+            return $this->redirect(['index']);
+        } catch (RuntimeException $e) {
+            Yii::$app->session->setFlash('error', $e->getMessage());
+
+            return $this->redirect(['index']);
+        }
+
+        Yii::$app->session->setFlash('success', 'Описание канала TRVL обновлено.');
+
+        return $this->redirect(['index']);
     }
 
     /**

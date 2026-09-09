@@ -6,6 +6,7 @@ namespace app\tests\Unit;
 
 use app\controllers\SiteController;
 use app\models\User;
+use app\shared\Telegram\Service\ChannelService;
 use Yii;
 use yii\base\Security;
 use yii\web\IdentityInterface;
@@ -22,6 +23,36 @@ final class LogoutTest extends \Codeception\Test\Unit
             Yii::$app,
             Yii::$app->mailer,
             new Security(),
+            new ChannelService(
+                new class implements \app\shared\Telegram\Contract\TelegramChannelClientInterface {
+                    public function getChannelInfo(string $channelId): \app\shared\Telegram\Dto\ChannelInfo
+                    {
+                        throw new \RuntimeException('not needed in this test');
+                    }
+
+                    public function setChannelDescription(string $channelId, string $description): void
+                    {
+                    }
+
+                    public function sendTextMessage(string $channelId, string $text): \app\shared\Telegram\Dto\PostResult
+                    {
+                        throw new \RuntimeException('not needed in this test');
+                    }
+
+                    public function sendPhotoMessage(
+                        string $channelId,
+                        string $photoPath,
+                        string $caption,
+                    ): \app\shared\Telegram\Dto\PostResult {
+                        throw new \RuntimeException('not needed in this test');
+                    }
+
+                    public function pinChannelMessage(string $channelId, int $messageId): void
+                    {
+                    }
+                },
+                '@gsu_travels',
+            ),
         );
 
         $view = new View(['context' => $controller]);

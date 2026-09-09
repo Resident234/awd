@@ -17,6 +17,12 @@ return [
         '@npm'   => '@vendor/npm-asset',
     ],
     'language' => 'en-US',
+    'container' => [
+        'singletons' => [
+            \app\shared\Telegram\Service\ChannelService::class => static fn (): \app\shared\Telegram\Service\ChannelService =>
+                new \app\shared\Telegram\Service\ChannelService(null, '@gsu_travels'),
+        ],
+    ],
     'components' => [
         'db' => $db,
         'mailer' => [

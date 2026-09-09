@@ -40,11 +40,23 @@ $config = [
         'member-parser' => [
             'class' => \app\commands\MemberParserController::class,
         ],
+        'telegram' => [
+            'class' => \app\commands\TelegramController::class,
+        ],
     ],
     'container' => [
         'definitions' => [
             \Psr\Log\LoggerInterface::class => static fn (): \app\shared\Forum\Infrastructure\YiiPsrLoggerAdapter =>
                 new \app\shared\Forum\Infrastructure\YiiPsrLoggerAdapter(\Yii::$app->getLog()->getLogger()),
+            \app\shared\Telegram\Contract\TelegramChannelClientInterface::class => static function (): ?\app\shared\Telegram\Infrastructure\NutgramChannelClient {
+                $token = (string)(getenv('TELEGRAM_BOT_TOKEN') ?: '');
+                return $token === '' ? null : new \app\shared\Telegram\Infrastructure\NutgramChannelClient($token);
+            },
+            \app\shared\Telegram\Service\ChannelService::class => static fn (): \app\shared\Telegram\Service\ChannelService =>
+                new \app\shared\Telegram\Service\ChannelService(
+                    \Yii::createObject(\app\shared\Telegram\Contract\TelegramChannelClientInterface::class),
+                    (string)(getenv('TELEGRAM_CHANNEL_ID') ?: '@gsu_travels'),
+                ),
             \app\shared\Forum\Contract\ForumHttpClientInterface::class => static fn (): \app\shared\Forum\Infrastructure\ForumHttpClient =>
                 new \app\shared\Forum\Infrastructure\ForumHttpClient(
                     30,

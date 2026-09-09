@@ -15,6 +15,15 @@ $config = [
                 'useFileTransport' => true,
                 'viewPath' => '@app/mail',
             ],
+            \app\shared\Telegram\Contract\TelegramChannelClientInterface::class => static function (): ?\app\shared\Telegram\Infrastructure\NutgramChannelClient {
+                $token = (string)(getenv('TELEGRAM_BOT_TOKEN') ?: '');
+                return $token === '' ? null : new \app\shared\Telegram\Infrastructure\NutgramChannelClient($token);
+            },
+            \app\shared\Telegram\Service\ChannelService::class => static fn (): \app\shared\Telegram\Service\ChannelService =>
+                new \app\shared\Telegram\Service\ChannelService(
+                    \Yii::createObject(\app\shared\Telegram\Contract\TelegramChannelClientInterface::class),
+                    (string)(getenv('TELEGRAM_CHANNEL_ID') ?: '@gsu_travels'),
+                ),
         ],
     ],
     'aliases' => [

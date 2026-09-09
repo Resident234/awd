@@ -3,6 +3,10 @@
 declare(strict_types=1);
 
 /** @var yii\web\View $this */
+/** @var string|null $channelDescription */
+/** @var bool $channelConnected */
+
+use yii\helpers\Html;
 
 $this->title = 'Дашборд TRVL';
 ?>
@@ -113,12 +117,17 @@ $this->title = 'Дашборд TRVL';
                 <h5 class="card-title">Описание канала TRVL</h5>
             </div>
             <div class="card-body">
-                <form>
+                <form method="post" action="<?= \yii\helpers\Url::to(['site/channel-description']) ?>">
+                    <input type="hidden" name="<?= Yii::$app->request->csrfParam ?>"
+                           value="<?= Yii::$app->request->csrfToken ?>">
+
                     <!-- Description input field -->
                     <div class="mb-3">
                         <label for="channelDescriptionInput" class="form-label">Описание канала</label>
-                        <textarea class="form-control" id="channelDescriptionInput" rows="4"
-                                  placeholder="Введите описание канала TRVL">TRVL — канал о путешествиях и приключениях. Маршруты, лайфхаки и вдохновение для ваших странствий.</textarea>
+                        <textarea class="form-control" id="channelDescriptionInput" name="channelDescription"
+                                  rows="4"
+                                  maxlength="255"
+                                  placeholder="Введите описание канала TRVL"><?= Html::encode($channelDescription ?? 'TRVL — канал о путешествиях и приключениях. Маршруты, лайфхаки и вдохновение для ваших странствий.') ?></textarea>
                     </div>
 
                     <div class="d-flex gap-2">
@@ -278,17 +287,26 @@ $this->title = 'Дашборд TRVL';
                         <p class="text-muted small mb-0">Подключение к Telegram API</p>
                     </div>
                     <div class="text-end">
+                        <?php if ($channelConnected): ?>
                             <span class="badge bg-success-subtle text-success fw-semibold rounded-pill px-3 py-2">
                                 <i class="bi bi-check-circle me-1"></i> Подключен
                             </span>
-                        <div class="small text-success mt-1">
-                            Все системы работают.
-                        </div>
+                            <div class="small text-success mt-1">
+                                Все системы работают.
+                            </div>
+                        <?php else: ?>
+                            <span class="badge bg-secondary-subtle text-secondary fw-semibold rounded-pill px-3 py-2">
+                                <i class="bi bi-plug me-1"></i> Не подключен
+                            </span>
+                            <div class="small text-secondary mt-1">
+                                Задайте TELEGRAM_BOT_TOKEN в .env
+                            </div>
+                        <?php endif ?>
                     </div>
                 </div>
-                <div class="progress medium" role="progressbar" aria-label="Telegram" aria-valuenow="90"
-                     aria-valuemin="0" aria-valuemax="100">
-                    <div class="progress-bar bg-success w-90"></div>
+                <div class="progress medium" role="progressbar" aria-label="Telegram"
+                     aria-valuenow="<?= $channelConnected ? 90 : 10 ?>" aria-valuemin="0" aria-valuemax="100">
+                    <div class="progress-bar <?= $channelConnected ? 'bg-success w-90' : 'bg-secondary w-10' ?>"></div>
                 </div>
             </div>
         </div>
