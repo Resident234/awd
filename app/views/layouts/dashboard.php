@@ -50,7 +50,8 @@ $this->registerMetaTag(
 
             <div class="sidebarMenuScroll">
                 <ul class="sidebar-menu">
-                    <li class="active current-page">
+                    <?php $currentRoute = Yii::$app->controller->id . '/' . Yii::$app->controller->action->id; ?>
+                    <li class="<?= $currentRoute === 'site/index' ? 'active current-page' : '' ?>">
                         <a href="<?= Yii::$app->homeUrl ?>">
                             <i class="bi bi-speedometer2"></i>
                             <span class="menu-text">Дашборд</span>
@@ -78,6 +79,12 @@ $this->registerMetaTag(
                         <a href="#!">
                             <i class="bi bi-images"></i>
                             <span class="menu-text">Медиа</span>
+                        </a>
+                    </li>
+                    <li class="<?= $currentRoute === 'site/channel-settings' ? 'active current-page' : '' ?>">
+                        <a href="<?= Url::to(['site/channel-settings']) ?>">
+                            <i class="bi bi-gear"></i>
+                            <span class="menu-text">Настройки канала</span>
                         </a>
                     </li>
                     <li>

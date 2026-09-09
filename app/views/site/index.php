@@ -3,10 +3,7 @@
 declare(strict_types=1);
 
 /** @var yii\web\View $this */
-/** @var string|null $channelDescription */
 /** @var bool $channelConnected */
-
-use yii\helpers\Html;
 
 $this->title = 'Дашборд TRVL';
 ?>
@@ -111,46 +108,6 @@ $this->title = 'Дашборд TRVL';
 <div class="row">
     <div class="col-xxl-8 col-sm-12 col-12">
 
-        <!-- Channel description management -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="card-title">Описание канала TRVL</h5>
-            </div>
-            <div class="card-body">
-                <form method="post" action="<?= \yii\helpers\Url::to(['site/channel-description']) ?>">
-                    <input type="hidden" name="<?= Yii::$app->request->csrfParam ?>"
-                           value="<?= Yii::$app->request->csrfToken ?>">
-
-                    <!-- Description input field -->
-                    <div class="mb-3">
-                        <label for="channelDescriptionInput" class="form-label">Описание канала</label>
-                        <textarea class="form-control" id="channelDescriptionInput" name="channelDescription"
-                                  rows="4"
-                                  maxlength="255"
-                                  placeholder="Введите описание канала TRVL"><?= Html::encode($channelDescription ?? 'TRVL — канал о путешествиях и приключениях. Маршруты, лайфхаки и вдохновение для ваших странствий.') ?></textarea>
-                    </div>
-
-                    <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-check2 me-1"></i>Сохранить описание
-                        </button>
-                        <button type="button" class="btn btn-outline-secondary">
-                            <i class="bi bi-arrow-counterclockwise me-1"></i>Сбросить
-                        </button>
-                    </div>
-                </form>
-            </div>
-            <div class="card-footer bg-transparent">
-                <div class="d-flex justify-content-between align-items-center">
-                    <small class="text-muted">
-                        <i class="bi bi-info-circle me-1"></i>
-                        Описание будет применено к каналу TRVL
-                    </small>
-                    <span class="badge bg-primary-subtle text-primary rounded-pill px-3">255 символов</span>
-                </div>
-            </div>
-        </div>
-
         <!-- Publication queue -->
         <div class="card mb-4">
             <div class="card-header">
@@ -214,45 +171,6 @@ $this->title = 'Дашборд TRVL';
 
     </div>
     <div class="col-xxl-4 col-sm-12 col-12">
-
-        <!-- Slogans list -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="card-title">Слоганы канала</h5>
-            </div>
-            <div class="card-body pt-0">
-                <ul class="list-group">
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <div class="d-flex align-items-center gap-2">
-                            <i class="bi bi-quote text-primary"></i>
-                            <small>Путешествуй. Познавай. Вдохновляй.</small>
-                        </div>
-                        <span class="badge bg-success-subtle text-success rounded-pill">Активен</span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <div class="d-flex align-items-center gap-2">
-                            <i class="bi bi-quote text-primary"></i>
-                            <small>Мир ближе, чем кажется</small>
-                        </div>
-                        <span class="badge bg-success-subtle text-success rounded-pill">Активен</span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <div class="d-flex align-items-center gap-2">
-                            <i class="bi bi-quote text-secondary"></i>
-                            <small>Твое приключение начинается здесь</small>
-                        </div>
-                        <span class="badge bg-secondary-subtle text-secondary rounded-pill">Архив</span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <div class="d-flex align-items-center gap-2">
-                            <i class="bi bi-quote text-secondary"></i>
-                            <small>Открывай мир вместе с TRVL</small>
-                        </div>
-                        <span class="badge bg-secondary-subtle text-secondary rounded-pill">Архив</span>
-                    </li>
-                </ul>
-            </div>
-        </div>
 
         <!-- Parser status -->
         <div class="card mb-4">

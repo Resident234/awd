@@ -19,8 +19,14 @@ return [
     'language' => 'en-US',
     'container' => [
         'singletons' => [
+            \app\shared\Telegram\Contract\PublishedDescriptionRepositoryInterface::class => static fn (): \app\shared\Telegram\Infrastructure\PublishedDescriptionRepository =>
+                new \app\shared\Telegram\Infrastructure\PublishedDescriptionRepository(\Yii::$app->getDb()),
             \app\shared\Telegram\Service\ChannelService::class => static fn (): \app\shared\Telegram\Service\ChannelService =>
-                new \app\shared\Telegram\Service\ChannelService(null, '@gsu_travels'),
+                new \app\shared\Telegram\Service\ChannelService(
+                    null,
+                    '@gsu_travels',
+                    \Yii::createObject(\app\shared\Telegram\Contract\PublishedDescriptionRepositoryInterface::class),
+                ),
         ],
     ],
     'components' => [

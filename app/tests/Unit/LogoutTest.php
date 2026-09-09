@@ -52,6 +52,7 @@ final class LogoutTest extends \Codeception\Test\Unit
                     }
                 },
                 '@gsu_travels',
+                new \app\shared\Telegram\Infrastructure\PublishedDescriptionRepository(\Yii::$app->getDb()),
             ),
         );
 

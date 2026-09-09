@@ -56,6 +56,7 @@ $config = [
                 new \app\shared\Telegram\Service\ChannelService(
                     \Yii::createObject(\app\shared\Telegram\Contract\TelegramChannelClientInterface::class),
                     (string)(getenv('TELEGRAM_CHANNEL_ID') ?: '@gsu_travels'),
+                    new \app\shared\Telegram\Infrastructure\PublishedDescriptionRepository(\Yii::$app->getDb()),
                 ),
             \app\shared\Forum\Contract\ForumHttpClientInterface::class => static fn (): \app\shared\Forum\Infrastructure\ForumHttpClient =>
                 new \app\shared\Forum\Infrastructure\ForumHttpClient(

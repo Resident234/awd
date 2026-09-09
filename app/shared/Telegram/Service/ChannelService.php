@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace app\shared\Telegram\Service;
 
+use app\shared\Telegram\Contract\PublishedDescriptionRepositoryInterface;
 use app\shared\Telegram\Contract\TelegramChannelClientInterface;
 use app\shared\Telegram\Dto\ChannelInfo;
+use app\shared\Telegram\Dto\PublishedDescriptionData;
 use app\shared\Telegram\Infrastructure\TelegramApiException;
+use DateTimeImmutable;
+use DateTimeZone;
 use InvalidArgumentException;
 use RuntimeException;
 
@@ -25,6 +29,7 @@ final class ChannelService
     public function __construct(
         private readonly ?TelegramChannelClientInterface $client,
         private readonly string $channelId,
+        private readonly PublishedDescriptionRepositoryInterface $publishedDescriptions,
     ) {
     }
 
@@ -60,6 +65,17 @@ final class ChannelService
         }
 
         $this->client()->setChannelDescription($this->channelId, $description);
+
+        $now = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s');
+        $this->publishedDescriptions->archiveAndStart($description, $now);
+    }
+
+    /**
+     * @return PublishedDescriptionData[] published descriptions, newest first
+     */
+    public function publishedDescriptions(): array
+    {
+        return $this->publishedDescriptions->all();
     }
 
     /**

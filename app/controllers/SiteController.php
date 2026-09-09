@@ -86,10 +86,9 @@ class SiteController extends Controller
     {
         $this->layout = 'dashboard';
 
-        $channelDescription = null;
         $channelConnected = false;
         try {
-            $channelDescription = $this->telegramChannel->channelInfo()->description;
+            $this->telegramChannel->channelInfo();
             $channelConnected = true;
         } catch (Throwable) {
             // Token is not configured yet or Telegram API is unreachable:
@@ -97,13 +96,37 @@ class SiteController extends Controller
         }
 
         return $this->render('index', [
-            'channelDescription' => $channelDescription,
             'channelConnected' => $channelConnected,
         ]);
     }
 
     /**
-     * Updates the TRVL channel description from the dashboard.
+     * Displays the channel settings page.
+     *
+     * @return string
+     */
+    public function actionChannelSettings(): string
+    {
+        $this->layout = 'dashboard';
+
+        $channelDescription = null;
+        try {
+            $channelDescription = $this->telegramChannel->channelInfo()->description;
+        } catch (Throwable) {
+            // Token is not configured yet or Telegram API is unreachable:
+            // the page still renders with the placeholder state.
+        }
+
+        $publishedDescriptions = $this->telegramChannel->publishedDescriptions();
+
+        return $this->render('channel-settings', [
+            'channelDescription' => $channelDescription,
+            'publishedDescriptions' => $publishedDescriptions,
+        ]);
+    }
+
+    /**
+     * Updates the TRVL channel description from the channel settings page.
      *
      * @return Response
      */
@@ -116,23 +139,23 @@ class SiteController extends Controller
         } catch (InvalidArgumentException $e) {
             Yii::$app->session->setFlash('error', $e->getMessage());
 
-            return $this->redirect(['index']);
+            return $this->redirect(['channel-settings']);
         } catch (TelegramApiException $e) {
             Yii::$app->session->setFlash(
                 'error',
                 "Telegram API error [{$e->errorCode}]: {$e->getMessage()}",
             );
 
-            return $this->redirect(['index']);
+            return $this->redirect(['channel-settings']);
         } catch (RuntimeException $e) {
             Yii::$app->session->setFlash('error', $e->getMessage());
 
-            return $this->redirect(['index']);
+            return $this->redirect(['channel-settings']);
         }
 
-        Yii::$app->session->setFlash('success', 'Описание канала TRVL обновлено.');
+        Yii::$app->session->setFlash('success', 'Описание канала обновлено.');
 
-        return $this->redirect(['index']);
+        return $this->redirect(['channel-settings']);
     }
 
     /**
