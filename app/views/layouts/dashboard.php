@@ -12,7 +12,7 @@ use yii\helpers\Url;
 
 DashboardAsset::register($this);
 
-$uiKitUrl = Yii::getAlias('@web/ui-kit');
+$uiKitUrl = Yii::getAlias('@web/ui-kit/assets');
 
 $this->registerCsrfMetaTags();
 $this->registerMetaTag(
