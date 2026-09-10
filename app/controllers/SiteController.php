@@ -126,6 +126,18 @@ class SiteController extends Controller
     }
 
     /**
+     * Displays the channel publications page.
+     *
+     * @return string
+     */
+    public function actionPublications(): string
+    {
+        $this->layout = 'dashboard';
+
+        return $this->render('publications');
+    }
+
+    /**
      * Updates the TRVL channel description from the channel settings page.
      *
      * @return Response

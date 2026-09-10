@@ -63,10 +63,10 @@ $this->registerMetaTag(
                             <span class="menu-text">Канал TRVL</span>
                         </a>
                     </li>
-                    <li>
-                        <a href="#!">
+                    <li class="<?= $currentRoute === 'site/publications' ? 'active current-page' : '' ?>">
+                        <a href="<?= Url::to(['site/publications']) ?>">
                             <i class="bi bi-collection"></i>
-                            <span class="menu-text">Очередь публикаций</span>
+                            <span class="menu-text">Публикации в канал</span>
                         </a>
                     </li>
                     <li>
