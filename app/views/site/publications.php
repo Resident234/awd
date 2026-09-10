@@ -121,6 +121,46 @@ $this->title = 'Публикации в канал';
             </div>
         </div>
 
+        <!-- Drafts -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title">Черновики</h5>
+            </div>
+            <div class="card-body pt-0">
+                <div class="table-outer">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0 align-middle">
+                            <thead>
+                            <tr>
+                                <th scope="col">ID в Telegram</th>
+                                <th scope="col">Изображения</th>
+                                <th scope="col">Текст</th>
+                                <th scope="col">Время публикации</th>
+                                <th scope="col">Статус</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr>
+                                <td>#4222</td>
+                                <td><i class="bi bi-card-image fs-5 text-secondary"></i></td>
+                                <td>Пять островов Греции</td>
+                                <td>—</td>
+                                <td><span class="badge bg-secondary">Черновик</span></td>
+                            </tr>
+                            <tr>
+                                <td>#4223</td>
+                                <td></td>
+                                <td>Секреты дешёвых перелётов</td>
+                                <td>—</td>
+                                <td><span class="badge bg-secondary">Черновик</span></td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
 </div>
 <!-- Row end -->
