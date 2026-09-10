@@ -67,56 +67,60 @@ $this->title = 'Публикации в канал';
             <div class="card-header">
                 <h5 class="card-title">Публикации</h5>
             </div>
-            <div class="card-body pt-0">
-                <div class="table-outer">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0 align-middle">
-                            <thead>
-                            <tr>
-                                <th scope="col">ID в Telegram</th>
-                                <th scope="col">Изображения</th>
-                                <th scope="col">Текст</th>
-                                <th scope="col">Время публикации</th>
-                                <th scope="col">Статус</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            <tr>
-                                <td>#4218</td>
-                                <td><i class="bi bi-card-image fs-5 text-secondary"></i></td>
-                                <td>10 маршрутов по Грузии</td>
-                                <td>Сегодня, 18:00</td>
-                                <td><span class="badge bg-success">Опубликовано</span></td>
-                            </tr>
-                            <tr>
-                                <td>#4219</td>
-                                <td>
-                                    <div class="d-flex gap-1">
-                                        <i class="bi bi-card-image fs-5 text-secondary"></i>
-                                        <i class="bi bi-card-image fs-5 text-secondary"></i>
-                                    </div>
-                                </td>
-                                <td>Как собрать рюкзак в поход</td>
-                                <td>Сегодня, 21:30</td>
-                                <td><span class="badge bg-info">Запланировано</span></td>
-                            </tr>
-                            <tr>
-                                <td>#4220</td>
-                                <td><i class="bi bi-card-image fs-5 text-secondary"></i></td>
-                                <td>Ночной Стамбул: маршрут выходного дня</td>
-                                <td>Завтра, 09:00</td>
-                                <td><span class="badge bg-info">Запланировано</span></td>
-                            </tr>
-                            <tr>
-                                <td>#4221</td>
-                                <td></td>
-                                <td>Бюджетные страны Азии</td>
-                                <td>Завтра, 12:00</td>
-                                <td><span class="badge bg-info">Запланировано</span></td>
-                            </tr>
-                            </tbody>
-                        </table>
+            <div class="card-body">
+                <div class="scroll350">
+
+                    <!-- Timeline start -->
+                    <div class="m-0">
+                        <div class="activity-log">
+                            <p class="mb-1">
+                                <span class="text-primary">#4218</span> — 10 маршрутов по Грузии
+                            </p>
+                            <div class="activity-meta">
+                                <i class="bi bi-clock me-1"></i>Сегодня, 18:00
+                            </div>
+                            <span class="badge bg-success mt-2">Опубликовано</span>
+                        </div>
+
+                        <div class="activity-log">
+                            <p class="mb-1">
+                                <span class="text-primary">#4219</span> — Как собрать рюкзак в поход
+                            </p>
+                            <div class="stacked-images sm mt-2">
+                                <img src="<?= Yii::getAlias('@web/ui-kit/assets/images/user.png') ?>" alt="Attachment">
+                                <img src="<?= Yii::getAlias('@web/ui-kit/assets/images/user2.png') ?>" alt="Attachment">
+                            </div>
+                            <div class="activity-meta mt-2">
+                                <i class="bi bi-clock me-1"></i>Сегодня, 21:30
+                            </div>
+                            <span class="badge bg-info mt-2">Запланировано</span>
+                        </div>
+
+                        <div class="activity-log">
+                            <p class="mb-1">
+                                <span class="text-primary">#4220</span> — Ночной Стамбул: маршрут выходного дня
+                            </p>
+                            <div class="stacked-images sm mt-2">
+                                <img src="<?= Yii::getAlias('@web/ui-kit/assets/images/user3.png') ?>" alt="Attachment">
+                            </div>
+                            <div class="activity-meta mt-2">
+                                <i class="bi bi-clock me-1"></i>Завтра, 09:00
+                            </div>
+                            <span class="badge bg-info mt-2">Запланировано</span>
+                        </div>
+
+                        <div class="activity-log">
+                            <p class="mb-1">
+                                <span class="text-primary">#4221</span> — Бюджетные страны Азии
+                            </p>
+                            <div class="activity-meta">
+                                <i class="bi bi-clock me-1"></i>Завтра, 12:00
+                            </div>
+                            <span class="badge bg-info mt-2">Запланировано</span>
+                        </div>
                     </div>
+                    <!-- Timeline end -->
+
                 </div>
             </div>
         </div>
@@ -126,37 +130,36 @@ $this->title = 'Публикации в канал';
             <div class="card-header">
                 <h5 class="card-title">Черновики</h5>
             </div>
-            <div class="card-body pt-0">
-                <div class="table-outer">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0 align-middle">
-                            <thead>
-                            <tr>
-                                <th scope="col">ID в Telegram</th>
-                                <th scope="col">Изображения</th>
-                                <th scope="col">Текст</th>
-                                <th scope="col">Время публикации</th>
-                                <th scope="col">Статус</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            <tr>
-                                <td>#4222</td>
-                                <td><i class="bi bi-card-image fs-5 text-secondary"></i></td>
-                                <td>Пять островов Греции</td>
-                                <td>—</td>
-                                <td><span class="badge bg-secondary">Черновик</span></td>
-                            </tr>
-                            <tr>
-                                <td>#4223</td>
-                                <td></td>
-                                <td>Секреты дешёвых перелётов</td>
-                                <td>—</td>
-                                <td><span class="badge bg-secondary">Черновик</span></td>
-                            </tr>
-                            </tbody>
-                        </table>
+            <div class="card-body">
+                <div class="scroll350">
+
+                    <!-- Timeline start -->
+                    <div class="m-0">
+                        <div class="activity-log">
+                            <p class="mb-1">
+                                <span class="text-primary">#4222</span> — Пять островов Греции
+                            </p>
+                            <div class="stacked-images sm mt-2">
+                                <img src="<?= Yii::getAlias('@web/ui-kit/assets/images/user4.png') ?>" alt="Attachment">
+                            </div>
+                            <div class="activity-meta mt-2">
+                                <i class="bi bi-clock me-1"></i>Черновик
+                            </div>
+                            <span class="badge bg-secondary mt-2">Черновик</span>
+                        </div>
+
+                        <div class="activity-log">
+                            <p class="mb-1">
+                                <span class="text-primary">#4223</span> — Секреты дешёвых перелётов
+                            </p>
+                            <div class="activity-meta">
+                                <i class="bi bi-clock me-1"></i>Черновик
+                            </div>
+                            <span class="badge bg-secondary mt-2">Черновик</span>
+                        </div>
                     </div>
+                    <!-- Timeline end -->
+
                 </div>
             </div>
         </div>
