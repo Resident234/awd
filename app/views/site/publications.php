@@ -14,6 +14,26 @@ $publicationPreview = 'TRVL — канал о путешествиях и при
 <div class="row">
     <div class="col-xxl-7 col-sm-12 col-12">
 
+        <!-- Publication preview -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title">Предпросмотр публикации</h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-0" id="publicationPreview" data-source="publicationTextInput">
+                    <?= Html::encode($publicationPreview) ?>
+                </p>
+            </div>
+            <div class="card-footer bg-transparent">
+                <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted">
+                        <i class="bi bi-eye me-1"></i>
+                        Текст обновляется по мере ввода
+                    </small>
+                </div>
+            </div>
+        </div>
+
         <!-- New post form -->
         <div class="card mb-4">
             <div class="card-header">
@@ -69,32 +89,6 @@ $publicationPreview = 'TRVL — канал о путешествиях и при
     </div>
     <div class="col-xxl-5 col-sm-12 col-12">
 
-        <!-- Publication preview -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="card-title">Предпросмотр публикации</h5>
-            </div>
-            <div class="card-body">
-                <p class="mb-0" id="publicationPreview" data-source="publicationTextInput">
-                    <?= Html::encode($publicationPreview) ?>
-                </p>
-            </div>
-            <div class="card-footer bg-transparent">
-                <div class="d-flex justify-content-between align-items-center">
-                    <small class="text-muted">
-                        <i class="bi bi-eye me-1"></i>
-                        Текст обновляется по мере ввода
-                    </small>
-                </div>
-            </div>
-        </div>
-
-    </div>
-</div>
-
-<!-- Row start -->
-<div class="row">
-    <div class="col-xxl-7 col-sm-12 col-12">
         <!-- Publications -->
         <div class="card mb-4">
             <div class="card-header">
@@ -197,8 +191,6 @@ $publicationPreview = 'TRVL — канал о путешествиях и при
             </div>
         </div>
 
-    </div>
-    <div class="col-xxl-5 col-sm-12 col-12">
     </div>
 </div>
 <!-- Row end -->
