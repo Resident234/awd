@@ -18,7 +18,7 @@ final class PublishedDescriptionRepositoryTest extends Unit
         parent::_before();
 
         Yii::$app->getDb()
-            ->createCommand('TRUNCATE TABLE {{%published_description}}')
+            ->createCommand('TRUNCATE TABLE {{%publications_description}}')
             ->execute();
         $this->_repository = new PublishedDescriptionRepository(Yii::$app->getDb());
     }

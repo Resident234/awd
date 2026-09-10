@@ -24,7 +24,7 @@ final class PublishedDescriptionRepository implements PublishedDescriptionReposi
         $rows = $this->db
             ->createCommand(
                 'SELECT id, description, published_from, published_to'
-                . ' FROM {{%published_description}} ORDER BY published_from DESC, id DESC',
+                . ' FROM {{%publications_description}} ORDER BY published_from DESC, id DESC',
             )
             ->queryAll(PDO::FETCH_ASSOC);
 
@@ -45,14 +45,14 @@ final class PublishedDescriptionRepository implements PublishedDescriptionReposi
         try {
             $this->db
                 ->createCommand(
-                    'UPDATE {{%published_description}} SET published_to = :now'
+                    'UPDATE {{%publications_description}} SET published_to = :now'
                     . ' WHERE published_to IS NULL',
                 )
                 ->bindValue(':now', $now)
                 ->execute();
             $this->db
                 ->createCommand()
-                ->insert('{{%published_description}}', [
+                ->insert('{{%publications_description}}', [
                     'description' => $description,
                     'published_from' => $now,
                     'published_to' => null,
