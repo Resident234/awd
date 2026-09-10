@@ -50,6 +50,65 @@ $this->title = 'Публикации в канал';
             </div>
         </div>
 
+        <!-- Publications -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title">Публикации</h5>
+            </div>
+            <div class="card-body pt-0">
+                <div class="table-outer">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0 align-middle">
+                            <thead>
+                            <tr>
+                                <th scope="col">ID в Telegram</th>
+                                <th scope="col">Изображения</th>
+                                <th scope="col">Текст</th>
+                                <th scope="col">Время публикации</th>
+                                <th scope="col">Статус</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr>
+                                <td>#4218</td>
+                                <td><i class="bi bi-card-image fs-5 text-secondary"></i></td>
+                                <td>10 маршрутов по Грузии</td>
+                                <td>Сегодня, 18:00</td>
+                                <td><span class="badge bg-success">Опубликовано</span></td>
+                            </tr>
+                            <tr>
+                                <td>#4219</td>
+                                <td>
+                                    <div class="d-flex gap-1">
+                                        <i class="bi bi-card-image fs-5 text-secondary"></i>
+                                        <i class="bi bi-card-image fs-5 text-secondary"></i>
+                                    </div>
+                                </td>
+                                <td>Как собрать рюкзак в поход</td>
+                                <td>Сегодня, 21:30</td>
+                                <td><span class="badge bg-info">Запланировано</span></td>
+                            </tr>
+                            <tr>
+                                <td>#4220</td>
+                                <td><i class="bi bi-card-image fs-5 text-secondary"></i></td>
+                                <td>Ночной Стамбул: маршрут выходного дня</td>
+                                <td>Завтра, 09:00</td>
+                                <td><span class="badge bg-info">Запланировано</span></td>
+                            </tr>
+                            <tr>
+                                <td>#4221</td>
+                                <td></td>
+                                <td>Бюджетные страны Азии</td>
+                                <td>Завтра, 12:00</td>
+                                <td><span class="badge bg-info">Запланировано</span></td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
 </div>
 <!-- Row end -->
