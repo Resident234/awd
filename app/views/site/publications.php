@@ -99,7 +99,7 @@ $publicationPreview = 'TRVL — канал о путешествиях и при
 
                     <!-- Timeline start -->
                     <div class="m-0">
-                        <div class="activity-log">
+                        <div class="activity-log" data-text="10 маршрутов по Грузии: от Тбилиси до Сванетии. Проверенные дороги, горные перевалы, гостевые дома и бюджет на каждую поездку. Рассказываем, где остановиться и что обязательно попробовать в пути.">
                             <div class="d-flex align-items-center gap-2 mb-1">
                                 <p class="mb-0">
                                     <span class="text-primary">#4218</span>
@@ -116,9 +116,10 @@ $publicationPreview = 'TRVL — канал о путешествиях и при
                                 <i class="bi bi-clock me-1"></i>Сегодня, 18:00
                             </div>
                             <span class="badge bg-success mt-2">Опубликовано</span>
+                            <span class="badge bg-warning text-dark mt-2 d-none editing-badge">Редактируется</span>
                         </div>
 
-                        <div class="activity-log">
+                        <div class="activity-log" data-text="Как собрать рюкзак в поход: чек-лист снаряжения для похода выходного дня и многодневного маршрута. Вес, одежда, посуда, аптечка и лайфхаки укладки.">
                             <div class="d-flex align-items-center gap-2 mb-1">
                                 <p class="mb-0">
                                     <span class="text-primary">#4219</span>
@@ -142,9 +143,10 @@ $publicationPreview = 'TRVL — канал о путешествиях и при
                                 <i class="bi bi-clock me-1"></i>Сегодня, 21:30
                             </div>
                             <span class="badge bg-info mt-2">Запланировано</span>
+                            <span class="badge bg-warning text-dark mt-2 d-none editing-badge">Редактируется</span>
                         </div>
 
-                        <div class="activity-log">
+                        <div class="activity-log" data-text="Ночной Стамбул: маршрут выходного дня по вечернему городу — Босфор, Галата, балык-экмек и вид на пролив в огнях. Куда идти после заката и что успеть за 48 часов.">
                             <div class="d-flex align-items-center gap-2 mb-1">
                                 <p class="mb-0">
                                     <span class="text-primary">#4220</span>
@@ -167,9 +169,10 @@ $publicationPreview = 'TRVL — канал о путешествиях и при
                                 <i class="bi bi-clock me-1"></i>Завтра, 09:00
                             </div>
                             <span class="badge bg-info mt-2">Запланировано</span>
+                            <span class="badge bg-warning text-dark mt-2 d-none editing-badge">Редактируется</span>
                         </div>
 
-                        <div class="activity-log">
+                        <div class="activity-log" data-text="Бюджетные страны Азии: где жить на 30 долларов в день. Вьетнам, Камбоджа, Лаос, Индонезия — цены на жильё, еду, транспорт и визы.">
                             <div class="d-flex align-items-center gap-2 mb-1">
                                 <p class="mb-0">
                                     <span class="text-primary">#4221</span>
@@ -189,6 +192,7 @@ $publicationPreview = 'TRVL — канал о путешествиях и при
                                 <i class="bi bi-clock me-1"></i>Завтра, 12:00
                             </div>
                             <span class="badge bg-info mt-2">Запланировано</span>
+                            <span class="badge bg-warning text-dark mt-2 d-none editing-badge">Редактируется</span>
                         </div>
                     </div>
                     <!-- Timeline end -->
@@ -207,7 +211,7 @@ $publicationPreview = 'TRVL — канал о путешествиях и при
 
                     <!-- Timeline start -->
                     <div class="m-0">
-                        <div class="activity-log">
+                        <div class="activity-log" data-text="Пять островов Греции, куда хочется вернуться: Наксос, Парос, Milos, Фолегандрос и Амарго. Пляжи, еда, паромы и сколько стоит неделя на каждом.">
                             <div class="d-flex align-items-center gap-2 mb-1">
                                 <p class="mb-0">
                                     <span class="text-primary">#4222</span>
@@ -233,9 +237,10 @@ $publicationPreview = 'TRVL — канал о путешествиях и при
                                 <i class="bi bi-clock me-1"></i>Черновик
                             </div>
                             <span class="badge bg-secondary mt-2">Черновик</span>
+                            <span class="badge bg-warning text-dark mt-2 d-none editing-badge">Редактируется</span>
                         </div>
 
-                        <div class="activity-log">
+                        <div class="activity-log" data-text="Секреты дешёвых перелётов: как ловить ошибки тарифов, когда покупать билеты и какие сервисы мониторинга цен работают.">
                             <div class="d-flex align-items-center gap-2 mb-1">
                                 <p class="mb-0">
                                     <span class="text-primary">#4223</span>
@@ -258,6 +263,7 @@ $publicationPreview = 'TRVL — канал о путешествиях и при
                                 <i class="bi bi-clock me-1"></i>Черновик
                             </div>
                             <span class="badge bg-secondary mt-2">Черновик</span>
+                            <span class="badge bg-warning text-dark mt-2 d-none editing-badge">Редактируется</span>
                         </div>
                     </div>
                     <!-- Timeline end -->
@@ -284,6 +290,46 @@ $this->registerJs(
     };
     source.addEventListener('input', update);
     update();
+
+    var editingLog = null;
+
+    var scrollToMiddle = function (log) {
+        var scroller = log.closest('.scroll350');
+        if (!scroller) {
+            return;
+        }
+        var viewport = scroller.querySelector('.os-viewport') || scroller;
+        var logRect = log.getBoundingClientRect();
+        var viewRect = viewport.getBoundingClientRect();
+        var delta = logRect.top + logRect.height / 2 - (viewRect.top + viewRect.height / 2);
+        viewport.scrollTop += delta;
+        if (scroller.scrollTop !== undefined && scroller !== viewport) {
+            scroller.scrollTop += delta;
+        }
+    };
+
+    var setEditing = function (log) {
+        if (editingLog === log) {
+            return;
+        }
+        if (editingLog) {
+            editingLog.querySelector('.editing-badge').classList.add('d-none');
+        }
+        editingLog = log;
+        log.querySelector('.editing-badge').classList.remove('d-none');
+        source.value = log.getAttribute('data-text') || '';
+        update();
+        scrollToMiddle(log);
+    };
+
+    document.querySelectorAll('.activity-log').forEach(function (log) {
+        log.querySelectorAll('a[title="Редактировать"], a[title="Запланировать публикацию"]').forEach(function (btn) {
+            btn.addEventListener('click', function (event) {
+                event.preventDefault();
+                setEditing(log);
+            });
+        });
+    });
 })();
 JS
 );
