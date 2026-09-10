@@ -100,9 +100,18 @@ $publicationPreview = 'TRVL — канал о путешествиях и при
                     <!-- Timeline start -->
                     <div class="m-0">
                         <div class="activity-log">
-                            <p class="mb-1">
-                                <span class="text-primary">#4218</span> — 10 маршрутов по Грузии
-                            </p>
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <p class="mb-0">
+                                    <span class="text-primary">#4218</span>
+                                </p>
+                                <a href="#" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Редактировать">
+                                    <i class="bi bi-pencil-square"></i>
+                                </a>
+                                <a href="#" class="btn btn-sm btn-outline-danger rounded-pill px-3" title="Удалить">
+                                    <i class="bi bi-trash"></i>
+                                </a>
+                            </div>
+                            <p class="mb-1">10 маршрутов по Грузии</p>
                             <div class="activity-meta">
                                 <i class="bi bi-clock me-1"></i>Сегодня, 18:00
                             </div>
@@ -110,9 +119,21 @@ $publicationPreview = 'TRVL — канал о путешествиях и при
                         </div>
 
                         <div class="activity-log">
-                            <p class="mb-1">
-                                <span class="text-primary">#4219</span> — Как собрать рюкзак в поход
-                            </p>
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <p class="mb-0">
+                                    <span class="text-primary">#4219</span>
+                                </p>
+                                <a href="#" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Редактировать">
+                                    <i class="bi bi-pencil-square"></i>
+                                </a>
+                                <a href="#" class="btn btn-sm btn-outline-danger rounded-pill px-3" title="Удалить">
+                                    <i class="bi bi-trash"></i>
+                                </a>
+                                <a href="#" class="btn btn-sm btn-outline-success rounded-pill px-3" title="Опубликовать">
+                                    <i class="bi bi-send"></i>
+                                </a>
+                            </div>
+                            <p class="mb-1">Как собрать рюкзак в поход</p>
                             <div class="stacked-images sm mt-2">
                                 <img src="<?= Yii::getAlias('@web/ui-kit/assets/images/user.png') ?>" alt="Attachment">
                                 <img src="<?= Yii::getAlias('@web/ui-kit/assets/images/user2.png') ?>" alt="Attachment">
@@ -124,9 +145,21 @@ $publicationPreview = 'TRVL — канал о путешествиях и при
                         </div>
 
                         <div class="activity-log">
-                            <p class="mb-1">
-                                <span class="text-primary">#4220</span> — Ночной Стамбул: маршрут выходного дня
-                            </p>
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <p class="mb-0">
+                                    <span class="text-primary">#4220</span>
+                                </p>
+                                <a href="#" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Редактировать">
+                                    <i class="bi bi-pencil-square"></i>
+                                </a>
+                                <a href="#" class="btn btn-sm btn-outline-danger rounded-pill px-3" title="Удалить">
+                                    <i class="bi bi-trash"></i>
+                                </a>
+                                <a href="#" class="btn btn-sm btn-outline-success rounded-pill px-3" title="Опубликовать">
+                                    <i class="bi bi-send"></i>
+                                </a>
+                            </div>
+                            <p class="mb-1">Ночной Стамбул: маршрут выходного дня</p>
                             <div class="stacked-images sm mt-2">
                                 <img src="<?= Yii::getAlias('@web/ui-kit/assets/images/user3.png') ?>" alt="Attachment">
                             </div>
@@ -137,9 +170,21 @@ $publicationPreview = 'TRVL — канал о путешествиях и при
                         </div>
 
                         <div class="activity-log">
-                            <p class="mb-1">
-                                <span class="text-primary">#4221</span> — Бюджетные страны Азии
-                            </p>
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <p class="mb-0">
+                                    <span class="text-primary">#4221</span>
+                                </p>
+                                <a href="#" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Редактировать">
+                                    <i class="bi bi-pencil-square"></i>
+                                </a>
+                                <a href="#" class="btn btn-sm btn-outline-danger rounded-pill px-3" title="Удалить">
+                                    <i class="bi bi-trash"></i>
+                                </a>
+                                <a href="#" class="btn btn-sm btn-outline-success rounded-pill px-3" title="Опубликовать">
+                                    <i class="bi bi-send"></i>
+                                </a>
+                            </div>
+                            <p class="mb-1">Бюджетные страны Азии</p>
                             <div class="activity-meta">
                                 <i class="bi bi-clock me-1"></i>Завтра, 12:00
                             </div>
@@ -163,9 +208,24 @@ $publicationPreview = 'TRVL — канал о путешествиях и при
                     <!-- Timeline start -->
                     <div class="m-0">
                         <div class="activity-log">
-                            <p class="mb-1">
-                                <span class="text-primary">#4222</span> — Пять островов Греции
-                            </p>
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <p class="mb-0">
+                                    <span class="text-primary">#4222</span>
+                                </p>
+                                <a href="#" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Редактировать">
+                                    <i class="bi bi-pencil-square"></i>
+                                </a>
+                                <a href="#" class="btn btn-sm btn-outline-danger rounded-pill px-3" title="Удалить">
+                                    <i class="bi bi-trash"></i>
+                                </a>
+                                <a href="#" class="btn btn-sm btn-outline-success rounded-pill px-3" title="Опубликовать">
+                                    <i class="bi bi-send"></i>
+                                </a>
+                                <a href="#" class="btn btn-sm btn-outline-info rounded-pill px-3" title="Запланировать публикацию">
+                                    <i class="bi bi-calendar2-plus"></i>
+                                </a>
+                            </div>
+                            <p class="mb-1">Пять островов Греции</p>
                             <div class="stacked-images sm mt-2">
                                 <img src="<?= Yii::getAlias('@web/ui-kit/assets/images/user4.png') ?>" alt="Attachment">
                             </div>
@@ -176,9 +236,24 @@ $publicationPreview = 'TRVL — канал о путешествиях и при
                         </div>
 
                         <div class="activity-log">
-                            <p class="mb-1">
-                                <span class="text-primary">#4223</span> — Секреты дешёвых перелётов
-                            </p>
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <p class="mb-0">
+                                    <span class="text-primary">#4223</span>
+                                </p>
+                                <a href="#" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Редактировать">
+                                    <i class="bi bi-pencil-square"></i>
+                                </a>
+                                <a href="#" class="btn btn-sm btn-outline-danger rounded-pill px-3" title="Удалить">
+                                    <i class="bi bi-trash"></i>
+                                </a>
+                                <a href="#" class="btn btn-sm btn-outline-success rounded-pill px-3" title="Опубликовать">
+                                    <i class="bi bi-send"></i>
+                                </a>
+                                <a href="#" class="btn btn-sm btn-outline-info rounded-pill px-3" title="Запланировать публикацию">
+                                    <i class="bi bi-calendar2-plus"></i>
+                                </a>
+                            </div>
+                            <p class="mb-1">Секреты дешёвых перелётов</p>
                             <div class="activity-meta">
                                 <i class="bi bi-clock me-1"></i>Черновик
                             </div>
