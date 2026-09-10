@@ -29,6 +29,18 @@ $this->title = 'Публикации в канал';
                                   placeholder="Введите текст публикации"></textarea>
                     </div>
 
+                    <!-- Publication date & time -->
+                    <div class="mb-3">
+                        <label class="form-label" for="publicationAt">Дата и время публикации</label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="bi bi-calendar4"></i>
+                            </span>
+                            <input type="text" id="publicationAt" name="publicationAt"
+                                   class="form-control datepicker-time">
+                        </div>
+                    </div>
+
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-primary">
                             <i class="bi bi-send me-1"></i>Опубликовать
