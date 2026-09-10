@@ -233,9 +233,6 @@ $publicationPreview = 'TRVL — канал о путешествиях и при
                             <div class="stacked-images sm mt-2">
                                 <img src="<?= Yii::getAlias('@web/ui-kit/assets/images/user4.png') ?>" alt="Attachment">
                             </div>
-                            <div class="activity-meta mt-2">
-                                <i class="bi bi-clock me-1"></i>Черновик
-                            </div>
                             <span class="badge bg-secondary mt-2">Черновик</span>
                             <span class="badge bg-warning text-dark mt-2 d-none editing-badge">Редактируется</span>
                         </div>
@@ -259,9 +256,6 @@ $publicationPreview = 'TRVL — канал о путешествиях и при
                                 </a>
                             </div>
                             <p class="mb-1">Секреты дешёвых перелётов</p>
-                            <div class="activity-meta">
-                                <i class="bi bi-clock me-1"></i>Черновик
-                            </div>
                             <span class="badge bg-secondary mt-2">Черновик</span>
                             <span class="badge bg-warning text-dark mt-2 d-none editing-badge">Редактируется</span>
                         </div>
