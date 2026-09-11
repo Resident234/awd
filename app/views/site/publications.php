@@ -172,9 +172,6 @@ $duePosts = array_values(array_filter(
                         <?php foreach ($drafts as $draft): ?>
                             <div class="activity-log" data-text="<?= Html::encode($draft->text) ?>">
                                 <div class="d-flex align-items-center gap-2 mb-1">
-                                    <p class="mb-0">
-                                        <span class="text-primary">#<?= $draft->id ?></span>
-                                    </p>
                                     <a href="#" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Редактировать">
                                         <i class="bi bi-pencil-square"></i>
                                     </a>
