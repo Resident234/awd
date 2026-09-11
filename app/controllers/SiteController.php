@@ -7,6 +7,7 @@ namespace app\controllers;
 use Yii;
 use app\models\ContactForm;
 use app\models\LoginForm;
+use app\shared\Publications\Service\PublicationsService;
 use app\shared\Telegram\Infrastructure\TelegramApiException;
 use app\shared\Telegram\Service\ChannelService;
 use yii\captcha\CaptchaAction;
@@ -29,6 +30,7 @@ class SiteController extends Controller
         private readonly MailerInterface $mailer,
         private readonly Security $security,
         private readonly ChannelService $telegramChannel,
+        private readonly PublicationsService $publications,
         $config = [],
     ) {
         parent::__construct($id, $module, $config);
@@ -55,6 +57,7 @@ class SiteController extends Controller
                 'class' => VerbFilter::class,
                 'actions' => [
                     'logout' => ['post'],
+                    'publication-create' => ['post'],
                 ],
             ],
         ];
@@ -134,7 +137,39 @@ class SiteController extends Controller
     {
         $this->layout = 'dashboard';
 
-        return $this->render('publications');
+        return $this->render('publications', [
+            'posts' => $this->publications->posts(),
+            'drafts' => $this->publications->drafts(),
+            'now' => gmdate('Y-m-d H:i:s'),
+        ]);
+    }
+
+    /**
+     * Saves a publication from the new post form: "Опубликовать" creates
+     * a scheduled post, "Сохранить" creates a draft. Neither action
+     * sends anything to Telegram directly.
+     *
+     * @return Response
+     */
+    public function actionPublicationCreate(): Response
+    {
+        $text = (string)($this->request->post('publicationText', ''));
+        $publishedAt = (string)($this->request->post('publicationAt', ''));
+        $saveDraft = $this->request->post('action') === 'draft';
+
+        try {
+            if ($saveDraft) {
+                $this->publications->saveDraft($text, []);
+                Yii::$app->session->setFlash('success', 'Черновик сохранён.');
+            } else {
+                $this->publications->schedulePost($text, [], $publishedAt);
+                Yii::$app->session->setFlash('success', 'Публикация сохранена и будет отправлена в канал в заданное время.');
+            }
+        } catch (InvalidArgumentException $e) {
+            Yii::$app->session->setFlash('error', $e->getMessage());
+        }
+
+        return $this->redirect(['publications']);
     }
 
     /**

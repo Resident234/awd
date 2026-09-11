@@ -58,6 +58,12 @@ $config = [
                     (string)(getenv('TELEGRAM_CHANNEL_ID') ?: '@gsu_travels'),
                     new \app\shared\Telegram\Infrastructure\PublishedDescriptionRepository(\Yii::$app->getDb()),
                 ),
+            \app\shared\Publications\Service\PublicationsService::class => static fn (): \app\shared\Publications\Service\PublicationsService =>
+                new \app\shared\Publications\Service\PublicationsService(
+                    new \app\shared\Publications\Infrastructure\PublicationRepository(\Yii::$app->getDb()),
+                    new \app\shared\Forum\Infrastructure\YiiPsrLoggerAdapter(\Yii::$app->getLog()->getLogger()),
+                    \Yii::createObject(\app\shared\Telegram\Service\ChannelService::class),
+                ),
             \app\shared\Forum\Contract\ForumHttpClientInterface::class => static fn (): \app\shared\Forum\Infrastructure\ForumHttpClient =>
                 new \app\shared\Forum\Infrastructure\ForumHttpClient(
                     30,

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace app\commands;
 
+use app\shared\Publications\Service\PublicationsService;
 use app\shared\Telegram\Infrastructure\TelegramApiException;
 use app\shared\Telegram\Service\ChannelService;
 use InvalidArgumentException;
@@ -16,8 +17,13 @@ use Yii;
  */
 final class TelegramController extends Controller
 {
-    public function __construct($id, $module, private readonly ChannelService $channel, $config = [])
-    {
+    public function __construct(
+        $id,
+        $module,
+        private readonly ChannelService $channel,
+        private readonly PublicationsService $publications,
+        $config = [],
+    ) {
         parent::__construct($id, $module, $config);
     }
 
@@ -106,5 +112,24 @@ final class TelegramController extends Controller
         $this->stdout("Опубликовано, message_id={$messageId}\n");
 
         return ExitCode::OK;
+    }
+
+    /**
+     * Send all due scheduled posts to the channel: posts with an empty
+     * telegram_id whose publication time has already come, from the
+     * smallest id to the biggest one.
+     */
+    public function actionPublishDue(): int
+    {
+        $stats = $this->publications->publishDue();
+
+        $this->stdout(sprintf(
+            "Processed: %d, published: %d, failed: %d\n",
+            $stats['processed'],
+            $stats['published'],
+            $stats['failed'],
+        ));
+
+        return $stats['failed'] > 0 ? ExitCode::UNSPECIFIED_ERROR : ExitCode::OK;
     }
 }

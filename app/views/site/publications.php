@@ -3,12 +3,21 @@
 declare(strict_types=1);
 
 /** @var yii\web\View $this */
+/** @var \app\shared\Publications\Dto\PublicationData[] $posts */
+/** @var \app\shared\Publications\Dto\PublicationData[] $drafts */
+/** @var string $now */
 
 use yii\helpers\Html;
 
 $this->title = 'Публикации в канал';
 
-$publicationPreview = 'TRVL — канал о путешествиях и приключениях. Маршруты, лайфхаки и вдохновение для ваших странствий.';
+$defaultAt = gmdate('d/m/Y h:i A');
+
+/** @var \app\shared\Publications\Dto\PublicationData[] $duePosts */
+$duePosts = array_values(array_filter(
+    $posts,
+    static fn (\app\shared\Publications\Dto\PublicationData $post): bool => $post->telegramId !== null,
+));
 ?>
 <!-- Row start -->
 <div class="row">
@@ -21,7 +30,7 @@ $publicationPreview = 'TRVL — канал о путешествиях и при
             </div>
             <div class="card-body">
                 <p class="mb-0" id="publicationPreview" data-source="publicationTextInput">
-                    <?= Html::encode($publicationPreview) ?>
+                    Введите текст публикации — он отобразится здесь до отправки в канал TRVL.
                 </p>
             </div>
             <div class="card-footer bg-transparent">
@@ -61,15 +70,16 @@ $publicationPreview = 'TRVL — канал о путешествиях и при
                                 <i class="bi bi-calendar4"></i>
                             </span>
                             <input type="text" id="publicationAt" name="publicationAt"
-                                   class="form-control datepicker-time">
+                                   class="form-control datepicker-time"
+                                   value="<?= Html::encode($defaultAt) ?>">
                         </div>
                     </div>
 
                     <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-primary">
+                        <button type="submit" name="action" value="publish" class="btn btn-primary">
                             <i class="bi bi-send me-1"></i>Опубликовать
                         </button>
-                        <button type="submit" class="btn btn-outline-secondary">
+                        <button type="submit" name="action" value="draft" class="btn btn-outline-secondary">
                             <i class="bi bi-save me-1"></i>Сохранить
                         </button>
                     </div>
@@ -79,7 +89,7 @@ $publicationPreview = 'TRVL — канал о путешествиях и при
                 <div class="d-flex justify-content-between align-items-center">
                     <small class="text-muted">
                         <i class="bi bi-info-circle me-1"></i>
-                        Публикация будет отправлена в канал TRVL
+                        Запись сохраняется в БД и будет отправлена в канал TRVL в заданное время
                     </small>
                     <span class="badge bg-primary-subtle text-primary rounded-pill px-3">4096 символов</span>
                 </div>
@@ -99,101 +109,43 @@ $publicationPreview = 'TRVL — канал о путешествиях и при
 
                     <!-- Timeline start -->
                     <div class="m-0">
-                        <div class="activity-log" data-text="10 маршрутов по Грузии: от Тбилиси до Сванетии. Проверенные дороги, горные перевалы, гостевые дома и бюджет на каждую поездку. Рассказываем, где остановиться и что обязательно попробовать в пути.">
-                            <div class="d-flex align-items-center gap-2 mb-1">
-                                <p class="mb-0">
-                                    <span class="text-primary">#4218</span>
-                                </p>
-                                <a href="#" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Редактировать">
-                                    <i class="bi bi-pencil-square"></i>
-                                </a>
-                                <a href="#" class="btn btn-sm btn-outline-danger rounded-pill px-3" title="Удалить">
-                                    <i class="bi bi-trash"></i>
-                                </a>
+                        <?php if ($posts === []): ?>
+                            <p class="text-muted small mb-0 py-3">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Публикаций пока нет.
+                            </p>
+                        <?php endif ?>
+                        <?php foreach ($posts as $post): ?>
+                            <?php
+                            $isPublished = $post->telegramId !== null || ($post->publishedAt !== null && $post->publishedAt <= $now);
+                            ?>
+                            <div class="activity-log" data-text="<?= Html::encode($post->text) ?>">
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <p class="mb-0">
+                                        <span class="text-primary">#<?= $post->id ?></span>
+                                    </p>
+                                    <a href="#" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Редактировать">
+                                        <i class="bi bi-pencil-square"></i>
+                                    </a>
+                                    <a href="#" class="btn btn-sm btn-outline-danger rounded-pill px-3" title="Удалить">
+                                        <i class="bi bi-trash"></i>
+                                    </a>
+                                    <?php if (!$isPublished): ?>
+                                        <a href="#" class="btn btn-sm btn-outline-success rounded-pill px-3" title="Опубликовать">
+                                            <i class="bi bi-send"></i>
+                                        </a>
+                                    <?php endif ?>
+                                </div>
+                                <p class="mb-1"><?= Html::encode($post->text) ?></p>
+                                <div class="activity-meta">
+                                    <i class="bi bi-clock me-1"></i><?= Html::encode($post->publishedAt ?? '') ?>
+                                </div>
+                                <span class="badge <?= $isPublished ? 'bg-success' : 'bg-info' ?> mt-2">
+                                    <?= $isPublished ? 'Опубликовано' : 'Запланировано' ?>
+                                </span>
+                                <span class="badge bg-warning text-dark mt-2 d-none editing-badge">Редактируется</span>
                             </div>
-                            <p class="mb-1">10 маршрутов по Грузии</p>
-                            <div class="activity-meta">
-                                <i class="bi bi-clock me-1"></i>Сегодня, 18:00
-                            </div>
-                            <span class="badge bg-success mt-2">Опубликовано</span>
-                            <span class="badge bg-warning text-dark mt-2 d-none editing-badge">Редактируется</span>
-                        </div>
-
-                        <div class="activity-log" data-text="Как собрать рюкзак в поход: чек-лист снаряжения для похода выходного дня и многодневного маршрута. Вес, одежда, посуда, аптечка и лайфхаки укладки.">
-                            <div class="d-flex align-items-center gap-2 mb-1">
-                                <p class="mb-0">
-                                    <span class="text-primary">#4219</span>
-                                </p>
-                                <a href="#" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Редактировать">
-                                    <i class="bi bi-pencil-square"></i>
-                                </a>
-                                <a href="#" class="btn btn-sm btn-outline-danger rounded-pill px-3" title="Удалить">
-                                    <i class="bi bi-trash"></i>
-                                </a>
-                                <a href="#" class="btn btn-sm btn-outline-success rounded-pill px-3" title="Опубликовать">
-                                    <i class="bi bi-send"></i>
-                                </a>
-                            </div>
-                            <p class="mb-1">Как собрать рюкзак в поход</p>
-                            <div class="stacked-images sm mt-2">
-                                <img src="<?= Yii::getAlias('@web/ui-kit/assets/images/user.png') ?>" alt="Attachment">
-                                <img src="<?= Yii::getAlias('@web/ui-kit/assets/images/user2.png') ?>" alt="Attachment">
-                            </div>
-                            <div class="activity-meta mt-2">
-                                <i class="bi bi-clock me-1"></i>Сегодня, 21:30
-                            </div>
-                            <span class="badge bg-info mt-2">Запланировано</span>
-                            <span class="badge bg-warning text-dark mt-2 d-none editing-badge">Редактируется</span>
-                        </div>
-
-                        <div class="activity-log" data-text="Ночной Стамбул: маршрут выходного дня по вечернему городу — Босфор, Галата, балык-экмек и вид на пролив в огнях. Куда идти после заката и что успеть за 48 часов.">
-                            <div class="d-flex align-items-center gap-2 mb-1">
-                                <p class="mb-0">
-                                    <span class="text-primary">#4220</span>
-                                </p>
-                                <a href="#" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Редактировать">
-                                    <i class="bi bi-pencil-square"></i>
-                                </a>
-                                <a href="#" class="btn btn-sm btn-outline-danger rounded-pill px-3" title="Удалить">
-                                    <i class="bi bi-trash"></i>
-                                </a>
-                                <a href="#" class="btn btn-sm btn-outline-success rounded-pill px-3" title="Опубликовать">
-                                    <i class="bi bi-send"></i>
-                                </a>
-                            </div>
-                            <p class="mb-1">Ночной Стамбул: маршрут выходного дня</p>
-                            <div class="stacked-images sm mt-2">
-                                <img src="<?= Yii::getAlias('@web/ui-kit/assets/images/user3.png') ?>" alt="Attachment">
-                            </div>
-                            <div class="activity-meta mt-2">
-                                <i class="bi bi-clock me-1"></i>Завтра, 09:00
-                            </div>
-                            <span class="badge bg-info mt-2">Запланировано</span>
-                            <span class="badge bg-warning text-dark mt-2 d-none editing-badge">Редактируется</span>
-                        </div>
-
-                        <div class="activity-log" data-text="Бюджетные страны Азии: где жить на 30 долларов в день. Вьетнам, Камбоджа, Лаос, Индонезия — цены на жильё, еду, транспорт и визы.">
-                            <div class="d-flex align-items-center gap-2 mb-1">
-                                <p class="mb-0">
-                                    <span class="text-primary">#4221</span>
-                                </p>
-                                <a href="#" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Редактировать">
-                                    <i class="bi bi-pencil-square"></i>
-                                </a>
-                                <a href="#" class="btn btn-sm btn-outline-danger rounded-pill px-3" title="Удалить">
-                                    <i class="bi bi-trash"></i>
-                                </a>
-                                <a href="#" class="btn btn-sm btn-outline-success rounded-pill px-3" title="Опубликовать">
-                                    <i class="bi bi-send"></i>
-                                </a>
-                            </div>
-                            <p class="mb-1">Бюджетные страны Азии</p>
-                            <div class="activity-meta">
-                                <i class="bi bi-clock me-1"></i>Завтра, 12:00
-                            </div>
-                            <span class="badge bg-info mt-2">Запланировано</span>
-                            <span class="badge bg-warning text-dark mt-2 d-none editing-badge">Редактируется</span>
-                        </div>
+                        <?php endforeach ?>
                     </div>
                     <!-- Timeline end -->
 
@@ -211,54 +163,36 @@ $publicationPreview = 'TRVL — канал о путешествиях и при
 
                     <!-- Timeline start -->
                     <div class="m-0">
-                        <div class="activity-log" data-text="Пять островов Греции, куда хочется вернуться: Наксос, Парос, Milos, Фолегандрос и Амарго. Пляжи, еда, паромы и сколько стоит неделя на каждом.">
-                            <div class="d-flex align-items-center gap-2 mb-1">
-                                <p class="mb-0">
-                                    <span class="text-primary">#4222</span>
-                                </p>
-                                <a href="#" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Редактировать">
-                                    <i class="bi bi-pencil-square"></i>
-                                </a>
-                                <a href="#" class="btn btn-sm btn-outline-danger rounded-pill px-3" title="Удалить">
-                                    <i class="bi bi-trash"></i>
-                                </a>
-                                <a href="#" class="btn btn-sm btn-outline-success rounded-pill px-3" title="Опубликовать">
-                                    <i class="bi bi-send"></i>
-                                </a>
-                                <a href="#" class="btn btn-sm btn-outline-info rounded-pill px-3" title="Запланировать публикацию">
-                                    <i class="bi bi-calendar2-plus"></i>
-                                </a>
+                        <?php if ($drafts === []): ?>
+                            <p class="text-muted small mb-0 py-3">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Черновиков пока нет.
+                            </p>
+                        <?php endif ?>
+                        <?php foreach ($drafts as $draft): ?>
+                            <div class="activity-log" data-text="<?= Html::encode($draft->text) ?>">
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <p class="mb-0">
+                                        <span class="text-primary">#<?= $draft->id ?></span>
+                                    </p>
+                                    <a href="#" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Редактировать">
+                                        <i class="bi bi-pencil-square"></i>
+                                    </a>
+                                    <a href="#" class="btn btn-sm btn-outline-danger rounded-pill px-3" title="Удалить">
+                                        <i class="bi bi-trash"></i>
+                                    </a>
+                                    <a href="#" class="btn btn-sm btn-outline-success rounded-pill px-3" title="Опубликовать">
+                                        <i class="bi bi-send"></i>
+                                    </a>
+                                    <a href="#" class="btn btn-sm btn-outline-info rounded-pill px-3" title="Запланировать публикацию">
+                                        <i class="bi bi-calendar2-plus"></i>
+                                    </a>
+                                </div>
+                                <p class="mb-1"><?= Html::encode($draft->text) ?></p>
+                                <span class="badge bg-secondary mt-2">Черновик</span>
+                                <span class="badge bg-warning text-dark mt-2 d-none editing-badge">Редактируется</span>
                             </div>
-                            <p class="mb-1">Пять островов Греции</p>
-                            <div class="stacked-images sm mt-2">
-                                <img src="<?= Yii::getAlias('@web/ui-kit/assets/images/user4.png') ?>" alt="Attachment">
-                            </div>
-                            <span class="badge bg-secondary mt-2">Черновик</span>
-                            <span class="badge bg-warning text-dark mt-2 d-none editing-badge">Редактируется</span>
-                        </div>
-
-                        <div class="activity-log" data-text="Секреты дешёвых перелётов: как ловить ошибки тарифов, когда покупать билеты и какие сервисы мониторинга цен работают.">
-                            <div class="d-flex align-items-center gap-2 mb-1">
-                                <p class="mb-0">
-                                    <span class="text-primary">#4223</span>
-                                </p>
-                                <a href="#" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Редактировать">
-                                    <i class="bi bi-pencil-square"></i>
-                                </a>
-                                <a href="#" class="btn btn-sm btn-outline-danger rounded-pill px-3" title="Удалить">
-                                    <i class="bi bi-trash"></i>
-                                </a>
-                                <a href="#" class="btn btn-sm btn-outline-success rounded-pill px-3" title="Опубликовать">
-                                    <i class="bi bi-send"></i>
-                                </a>
-                                <a href="#" class="btn btn-sm btn-outline-info rounded-pill px-3" title="Запланировать публикацию">
-                                    <i class="bi bi-calendar2-plus"></i>
-                                </a>
-                            </div>
-                            <p class="mb-1">Секреты дешёвых перелётов</p>
-                            <span class="badge bg-secondary mt-2">Черновик</span>
-                            <span class="badge bg-warning text-dark mt-2 d-none editing-badge">Редактируется</span>
-                        </div>
+                        <?php endforeach ?>
                     </div>
                     <!-- Timeline end -->
 
@@ -275,17 +209,17 @@ $this->registerJs(
     <<<JS
 (function () {
     var source = document.getElementById('publicationTextInput');
-    var preview = document.getElementById('publicationPreview');
-    if (!source || !preview) {
+    if (!source) {
         return;
     }
+    var preview = document.getElementById('publicationPreview');
     var update = function () {
-        preview.textContent = source.value || source.placeholder;
+        if (preview) {
+            preview.textContent = source.value || source.placeholder;
+        }
     };
     source.addEventListener('input', update);
     update();
-
-    var editingLog = null;
 
     var scrollToMiddle = function (log) {
         var scroller = log.closest('.scroll350');
@@ -302,6 +236,8 @@ $this->registerJs(
         }
     };
 
+    var editingLog = null;
+
     var setEditing = function (log) {
         if (editingLog === log) {
             return;
@@ -312,11 +248,14 @@ $this->registerJs(
         editingLog = log;
         log.querySelector('.editing-badge').classList.remove('d-none');
         source.value = log.getAttribute('data-text') || '';
-        update();
+        source.dispatchEvent(new Event('input'));
         scrollToMiddle(log);
     };
 
     document.querySelectorAll('.activity-log').forEach(function (log) {
+        log.addEventListener('dblclick', function () {
+            setEditing(log);
+        });
         log.querySelectorAll('a[title="Редактировать"], a[title="Запланировать публикацию"]').forEach(function (btn) {
             btn.addEventListener('click', function (event) {
                 event.preventDefault();
