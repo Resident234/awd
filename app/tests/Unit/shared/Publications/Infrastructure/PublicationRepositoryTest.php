@@ -51,20 +51,27 @@ final class PublicationRepositoryTest extends Unit
         $this->assertNull($posts[0]->telegramId);
     }
 
-    public function testAllPostsAndDraftsAreNewestFirst(): void
+    public function testAllPostsSortedByPublishedAtDescending(): void
+    {
+        $this->_repository->createPost('Поздний', [], '2026-09-10 22:00:00', '2026-09-10 10:00:00');
+        $this->_repository->createPost('Ранний', [], '2026-09-10 21:00:00', '2026-09-10 10:00:00');
+
+        $posts = $this->_repository->allPosts();
+
+        $this->assertSame('Поздний', $posts[0]->text);
+        $this->assertSame('Ранний', $posts[1]->text);
+    }
+
+    public function testAllDraftsSortedByUpdatedAtDescending(): void
     {
         $this->_repository->createDraft('Первый', [], '2026-09-10 10:00:00');
         $this->_repository->createDraft('Второй', [], '2026-09-10 11:00:00');
-        $this->_repository->createPost('Пост 1', [], '2026-09-10 21:00:00', '2026-09-10 10:00:00');
-        $this->_repository->createPost('Пост 2', [], '2026-09-10 22:00:00', '2026-09-10 10:00:00');
+        $this->_repository->updateDraft(1, 'Первый обновлён', [], '2026-09-10 12:00:00');
 
         $drafts = $this->_repository->allDrafts();
-        $posts = $this->_repository->allPosts();
 
-        $this->assertSame('Второй', $drafts[0]->text);
-        $this->assertSame('Первый', $drafts[1]->text);
-        $this->assertSame('Пост 2', $posts[0]->text);
-        $this->assertSame('Пост 1', $posts[1]->text);
+        $this->assertSame('Первый обновлён', $drafts[0]->text);
+        $this->assertSame('Второй', $drafts[1]->text);
     }
 
     public function testFindDueForPublishingReturnsOnlyDueUnpublished(): void

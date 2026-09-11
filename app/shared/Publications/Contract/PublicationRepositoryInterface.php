@@ -12,12 +12,13 @@ use app\shared\Publications\Dto\PublicationData;
 interface PublicationRepositoryInterface
 {
     /**
-     * @return PublicationData[] scheduled and published posts, newest first
+     * @return PublicationData[] scheduled and published posts,
+     * sorted by published_at descending
      */
     public function allPosts(): array;
 
     /**
-     * @return PublicationData[] drafts, newest first
+     * @return PublicationData[] drafts, sorted by updated_at descending
      */
     public function allDrafts(): array;
 

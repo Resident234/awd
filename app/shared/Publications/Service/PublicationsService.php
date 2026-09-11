@@ -32,7 +32,8 @@ final class PublicationsService
     }
 
     /**
-     * @return PublicationData[] scheduled and published posts, newest first
+     * @return PublicationData[] scheduled and published posts,
+     * sorted by published_at descending
      */
     public function posts(): array
     {
@@ -40,7 +41,7 @@ final class PublicationsService
     }
 
     /**
-     * @return PublicationData[] drafts, newest first
+     * @return PublicationData[] drafts, sorted by updated_at descending
      */
     public function drafts(): array
     {

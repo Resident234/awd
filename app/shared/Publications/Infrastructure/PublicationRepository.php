@@ -24,7 +24,7 @@ final class PublicationRepository implements PublicationRepositoryInterface
     {
         return $this->hydrateAll(
             'SELECT id, text, image_urls, telegram_id, published_at, created_at, updated_at'
-            . ' FROM {{%publications_post}} ORDER BY id DESC',
+            . ' FROM {{%publications_post}} ORDER BY published_at DESC, id DESC',
         );
     }
 
@@ -32,7 +32,7 @@ final class PublicationRepository implements PublicationRepositoryInterface
     {
         return $this->hydrateAll(
             'SELECT id, text, image_urls, NULL AS telegram_id, NULL AS published_at, created_at, updated_at'
-            . ' FROM {{%publications_draft}} ORDER BY id DESC',
+            . ' FROM {{%publications_draft}} ORDER BY updated_at DESC, id DESC',
         );
     }
 
