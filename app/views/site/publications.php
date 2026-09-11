@@ -121,9 +121,11 @@ $duePosts = array_values(array_filter(
                             ?>
                             <div class="activity-log" data-text="<?= Html::encode($post->text) ?>">
                                 <div class="d-flex align-items-center gap-2 mb-1">
-                                    <p class="mb-0">
-                                        <span class="text-primary">#<?= $post->id ?></span>
-                                    </p>
+                                    <?php if ($post->telegramId !== null): ?>
+                                        <p class="mb-0">
+                                            <span class="text-primary">#<?= $post->telegramId ?></span>
+                                        </p>
+                                    <?php endif ?>
                                     <a href="#" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Редактировать">
                                         <i class="bi bi-pencil-square"></i>
                                     </a>
