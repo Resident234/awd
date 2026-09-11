@@ -11,7 +11,8 @@ use yii\helpers\Html;
 
 $this->title = 'Публикации в канал';
 
-$defaultAt = gmdate('d/m/Y h:i A');
+$nextSlot = (int)ceil((time() + 60) / 600) * 600;
+$defaultAt = gmdate('d/m/Y h:i A', $nextSlot);
 
 /** @var \app\shared\Publications\Dto\PublicationData[] $duePosts */
 $duePosts = array_values(array_filter(
