@@ -145,9 +145,10 @@ class SiteController extends Controller
     }
 
     /**
-     * Saves a publication from the new post form: "Опубликовать" creates
-     * a scheduled post, "Сохранить" creates a draft. Neither action
-     * sends anything to Telegram directly.
+     * Saves a publication from the new post form: "Опубликовать" and
+     * "Сохранить" either create a new record or save an opened one —
+     * cross-table moves between posts, drafts and the edited archive
+     * are handled by the service. Nothing is sent to Telegram directly.
      *
      * @return Response
      */
@@ -155,15 +156,23 @@ class SiteController extends Controller
     {
         $text = (string)($this->request->post('publicationText', ''));
         $publishedAt = (string)($this->request->post('publicationAt', ''));
-        $saveDraft = $this->request->post('action') === 'draft';
+        $action = $this->request->post('action') === 'draft' ? 'draft' : 'publish';
+        $source = (string)($this->request->post('publicationSource', 'new'));
+        $sourceId = $this->request->post('publicationSourceId');
+        $sourceId = $sourceId === null || $sourceId === '' ? null : (int)$sourceId;
 
         try {
-            if ($saveDraft) {
-                $this->publications->saveDraft($text, []);
-                Yii::$app->session->setFlash('success', 'Черновик сохранён.');
+            if ($source === 'new') {
+                if ($action === 'draft') {
+                    $this->publications->saveDraft($text, []);
+                    Yii::$app->session->setFlash('success', 'Черновик сохранён.');
+                } else {
+                    $this->publications->schedulePost($text, [], $publishedAt);
+                    Yii::$app->session->setFlash('success', 'Публикация сохранена и будет отправлена в канал в заданное время.');
+                }
             } else {
-                $this->publications->schedulePost($text, [], $publishedAt);
-                Yii::$app->session->setFlash('success', 'Публикация сохранена и будет отправлена в канал в заданное время.');
+                $this->publications->saveFromForm($text, [], $publishedAt, $source, $sourceId, $action);
+                Yii::$app->session->setFlash('success', 'Изменения сохранены.');
             }
         } catch (InvalidArgumentException $e) {
             Yii::$app->session->setFlash('error', $e->getMessage());

@@ -11,6 +11,7 @@ use yii\helpers\Html;
 
 $this->title = 'Публикации в канал';
 
+
 $nextSlot = (int)ceil((time() + 60) / 600) * 600;
 $defaultAt = gmdate('d/m/Y h:i A', $nextSlot);
 
@@ -53,6 +54,8 @@ $duePosts = array_values(array_filter(
                 <form method="post" action="<?= \yii\helpers\Url::to(['site/publication-create']) ?>">
                     <input type="hidden" name="<?= Yii::$app->request->csrfParam ?>"
                            value="<?= Yii::$app->request->csrfToken ?>">
+                    <input type="hidden" name="publicationSource" id="publicationSource" value="new">
+                    <input type="hidden" name="publicationSourceId" id="publicationSourceId" value="">
 
                     <!-- Textarea -->
                     <div class="mb-3">
@@ -120,7 +123,16 @@ $duePosts = array_values(array_filter(
                             <?php
                             $isPublished = $post->telegramId !== null || ($post->publishedAt !== null && $post->publishedAt <= $now);
                             ?>
-                            <div class="activity-log" data-text="<?= Html::encode($post->text) ?>">
+                            <?php
+                            $postPublishedAt = '';
+                            if ($post->publishedAt !== null) {
+                                $postDate = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $post->publishedAt, new DateTimeZone('UTC'));
+                                $postPublishedAt = $postDate instanceof DateTimeImmutable ? $postDate->format('d/m/Y h:i A') : '';
+                            }
+                            ?>
+                            <div class="activity-log" data-text="<?= Html::encode($post->text) ?>"
+                                 data-source-type="post" data-source-id="<?= $post->id ?>"
+                                 data-published-at="<?= Html::encode($postPublishedAt) ?>">
                                 <div class="d-flex align-items-center gap-2 mb-1">
                                     <?php if ($post->telegramId !== null): ?>
                                         <p class="mb-0">
@@ -176,7 +188,8 @@ $duePosts = array_values(array_filter(
                             </p>
                         <?php endif ?>
                         <?php foreach ($drafts as $draft): ?>
-                            <div class="activity-log" data-text="<?= Html::encode($draft->text) ?>">
+                            <div class="activity-log" data-text="<?= Html::encode($draft->text) ?>"
+                                 data-source-type="draft" data-source-id="<?= $draft->id ?>">
                                 <div class="d-flex align-items-center gap-2 mb-1">
                                     <a href="#" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Редактировать">
                                         <i class="bi bi-pencil-square"></i>
@@ -241,6 +254,10 @@ $this->registerJs(
 
     var editingLog = null;
 
+    var sourceTypeInput = document.getElementById('publicationSource');
+    var sourceIdInput = document.getElementById('publicationSourceId');
+    var publishedAtInput = document.getElementById('publicationAt');
+
     var setEditing = function (log) {
         if (editingLog === log) {
             return;
@@ -253,7 +270,24 @@ $this->registerJs(
         source.value = log.getAttribute('data-text') || '';
         source.dispatchEvent(new Event('input'));
         scrollToMiddle(log);
+
+        if (sourceTypeInput && sourceIdInput) {
+            sourceTypeInput.value = log.getAttribute('data-source-type') || 'new';
+            sourceIdInput.value = log.getAttribute('data-source-id') || '';
+        }
+        if (publishedAtInput) {
+            publishedAtInput.value = log.getAttribute('data-published-at') || publishedAtInput.value;
+        }
     };
+
+    var resetForm = document.querySelector('form[action*="publication-create"]');
+    if (resetForm) {
+        resetForm.addEventListener('submit', function () {
+            if (sourceTypeInput && sourceIdInput && sourceTypeInput.value === 'new') {
+                sourceIdInput.value = '';
+            }
+        });
+    }
 
     document.querySelectorAll('.activity-log').forEach(function (log) {
         log.addEventListener('dblclick', function () {

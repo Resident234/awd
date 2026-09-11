@@ -51,6 +51,7 @@ final class LoginTest extends \Codeception\Test\Unit
                 '@gsu_travels',
                 new \app\shared\Telegram\Infrastructure\PublishedDescriptionRepository(\Yii::$app->getDb()),
             ),
+            \Yii::createObject(\app\shared\Publications\Service\PublicationsService::class),
         );
 
         $view = new View(['context' => $controller]);

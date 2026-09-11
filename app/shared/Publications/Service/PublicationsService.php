@@ -123,6 +123,125 @@ final class PublicationsService
     }
 
     /**
+     * Saves the form data of a post or draft opened for editing.
+     *
+     * Six cross-table scenarios depending on the source record and the
+     * pressed button:
+     *
+     *  - scheduled post + "Опубликовать": update the posts row in place;
+     *  - scheduled post + "Сохранить": move to drafts;
+     *  - published post + "Опубликовать": move to publications_edited;
+     *  - published post + "Сохранить": move to drafts;
+     *  - draft + "Опубликовать": move to posts;
+     *  - draft + "Сохранить": update the drafts row in place.
+     *
+     * created_at is always preserved; updated_at is set to the current
+     * time on every move or update.
+     *
+     * @param string[] $imageUrls
+     * @throws InvalidArgumentException when the text is empty, the date
+     * is invalid or the source record does not exist
+     */
+    public function saveFromForm(string $text, array $imageUrls, string $publishedAt, string $source, ?int $sourceId, string $action): void
+    {
+        $this->assertTextValid($text);
+        $now = $this->now();
+
+        if ($source === 'draft') {
+            $this->assertDraftExists($sourceId);
+            if ($action === 'draft') {
+                // 6) draft + "Сохранить": update in place.
+                $this->publications->updateDraft($sourceId, $text, $imageUrls, $now);
+
+                return;
+            }
+
+            // 5) draft + "Опубликовать": move to posts.
+            $draft = $this->publications->deleteDraft($sourceId);
+            $this->publications->insertPostWithHistory(
+                new PublicationData(
+                    $draft->id,
+                    $text,
+                    $imageUrls,
+                    null,
+                    $this->normalizeDate($publishedAt),
+                    $draft->createdAt,
+                    $draft->updatedAt,
+                ),
+                $now,
+            );
+
+            return;
+        }
+
+        $this->assertPostExists($sourceId);
+        $post = $this->publications->findPost($sourceId);
+        $isPublished = $post !== null && $post->telegramId !== null;
+
+        if ($isPublished) {
+            if ($action === 'publish') {
+                // 3) published post + "Опубликовать": archive to publications_edited.
+                $this->publications->archiveEdited($post, $now);
+                $this->publications->deletePost($sourceId);
+
+                return;
+            }
+
+            // 4) published post + "Сохранить": move to drafts.
+            $this->publications->deletePost($sourceId);
+            $this->publications->insertDraftWithHistory($post, $now);
+
+            return;
+        }
+
+        if ($action === 'publish') {
+            // 1) scheduled post + "Опубликовать": update in place.
+            $this->publications->updatePost($sourceId, $text, $imageUrls, $this->normalizeDate($publishedAt), $now);
+
+            return;
+        }
+
+        // 2) scheduled post + "Сохранить": move to drafts.
+        $this->publications->deletePost($sourceId);
+        $this->publications->insertDraftWithHistory(
+            new PublicationData(
+                $post->id,
+                $text,
+                $imageUrls,
+                null,
+                null,
+                $post->createdAt,
+                $post->updatedAt,
+            ),
+            $now,
+        );
+    }
+
+    /**
+     * @throws InvalidArgumentException when the record does not exist
+     */
+    private function assertPostExists(?int $id): void
+    {
+        if ($id === null || $this->publications->findPost($id) === null) {
+            throw new InvalidArgumentException(
+                $id === null ? 'Не указана редактируемая публикация.' : "Публикация #{$id} не найдена.",
+            );
+        }
+    }
+
+    /**
+     * @throws InvalidArgumentException when the record does not exist
+     */
+    private function assertDraftExists(?int $id): void
+    {
+        if ($id === null || $this->publications->findDraft($id) === null) {
+            throw new InvalidArgumentException(
+                $id === null ? 'Не указан редактируемый черновик.' : "Черновик #{$id} не найден.",
+            );
+        }
+    }
+
+    /**
      * @throws InvalidArgumentException when the text is empty or longer than 4096 chars
      */
     private function assertTextValid(string $text): void

@@ -27,6 +27,18 @@ return [
                     '@gsu_travels',
                     \Yii::createObject(\app\shared\Telegram\Contract\PublishedDescriptionRepositoryInterface::class),
                 ),
+            \app\shared\Publications\Contract\PublicationRepositoryInterface::class => static fn (): \app\shared\Publications\Infrastructure\PublicationRepository =>
+                new \app\shared\Publications\Infrastructure\PublicationRepository(\Yii::$app->getDb()),
+            \app\shared\Publications\Service\PublicationsService::class => static fn (): \app\shared\Publications\Service\PublicationsService =>
+                new \app\shared\Publications\Service\PublicationsService(
+                    \Yii::createObject(\app\shared\Publications\Contract\PublicationRepositoryInterface::class),
+                    null,
+                    new \app\shared\Telegram\Service\ChannelService(
+                        null,
+                        '@gsu_travels',
+                        \Yii::createObject(\app\shared\Telegram\Contract\PublishedDescriptionRepositoryInterface::class),
+                    ),
+                ),
         ],
     ],
     'components' => [
