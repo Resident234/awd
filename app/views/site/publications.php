@@ -135,6 +135,9 @@ $duePosts = array_values(array_filter(
                                             <i class="bi bi-send"></i>
                                         </a>
                                     <?php endif ?>
+                                    <a href="#" class="btn btn-sm btn-outline-warning rounded-pill px-3" title="Переместить в черновик">
+                                        <i class="bi bi-file-earmark-arrow-down"></i>
+                                    </a>
                                 </div>
                                 <p class="mb-1"><?= Html::encode($post->text) ?></p>
                                 <div class="activity-meta">
