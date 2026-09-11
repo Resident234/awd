@@ -38,7 +38,8 @@ interface PublicationRepositoryInterface
     public function findDueForPublishing(string $now): array;
 
     /**
-     * Stores the Telegram message id of a successfully published post.
+     * Stores the Telegram message id of a successfully published post
+     * and corrects published_at to the actual send time.
      */
-    public function storeTelegramId(int $id, int $telegramId, string $now): void;
+    public function storeTelegramId(int $id, int $telegramId, string $publishedAt, string $now): void;
 }

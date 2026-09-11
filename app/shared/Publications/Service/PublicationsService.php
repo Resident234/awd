@@ -92,7 +92,8 @@ final class PublicationsService
 
             try {
                 $telegramId = $this->publishToTelegram($post);
-                $this->publications->storeTelegramId($post->id, $telegramId, $this->now());
+                $sentAt = $this->now();
+                $this->publications->storeTelegramId($post->id, $telegramId, $sentAt, $sentAt);
                 $stats['published']++;
             } catch (TelegramApiException $e) {
                 $stats['failed']++;

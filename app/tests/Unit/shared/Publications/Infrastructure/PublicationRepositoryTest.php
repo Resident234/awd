@@ -17,10 +17,10 @@ final class PublicationRepositoryTest extends Unit
         parent::_before();
 
         Yii::$app->getDb()
-            ->createCommand('TRUNCATE TABLE {{%publications_draft}}')
+            ->createCommand('TRUNCATE TABLE {{%publications_draft}} RESTART IDENTITY')
             ->execute();
         Yii::$app->getDb()
-            ->createCommand('TRUNCATE TABLE {{%publications_post}}')
+            ->createCommand('TRUNCATE TABLE {{%publications_post}} RESTART IDENTITY')
             ->execute();
         $this->_repository = new PublicationRepository(Yii::$app->getDb());
     }
@@ -83,12 +83,18 @@ final class PublicationRepositoryTest extends Unit
     public function testFindDueSkipsPostsWithTelegramId(): void
     {
         $this->_repository->createPost('Опубликованный', [], '2026-09-09 12:00:00', '2026-09-09 10:00:00');
-        $this->_repository->storeTelegramId(1, 4242, '2026-09-09 12:05:00');
+        $this->_repository->storeTelegramId(1, 4242, '2026-09-09 12:05:00', '2026-09-09 12:05:30');
 
         $due = $this->_repository->findDueForPublishing('2026-09-10 20:00:00');
 
         $this->assertSame([], $due);
         $posts = $this->_repository->allPosts();
         $this->assertSame(4242, $posts[0]->telegramId);
+        $this->assertSame(
+            '2026-09-09 12:05:00',
+            $posts[0]->publishedAt,
+            'published_at must be corrected to the actual send time.',
+        );
+        $this->assertSame('2026-09-09 12:05:30', $posts[0]->updatedAt);
     }
 }

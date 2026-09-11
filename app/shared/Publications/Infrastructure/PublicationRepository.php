@@ -73,11 +73,15 @@ final class PublicationRepository implements PublicationRepositoryInterface
         );
     }
 
-    public function storeTelegramId(int $id, int $telegramId, string $now): void
+    public function storeTelegramId(int $id, int $telegramId, string $publishedAt, string $now): void
     {
         $this->db
             ->createCommand()
-            ->update('{{%publications_post}}', ['telegram_id' => $telegramId, 'updated_at' => $now], ['id' => $id])
+            ->update('{{%publications_post}}', [
+                'telegram_id' => $telegramId,
+                'published_at' => $publishedAt,
+                'updated_at' => $now,
+            ], ['id' => $id])
             ->execute();
     }
 
@@ -96,10 +100,7 @@ final class PublicationRepository implements PublicationRepositoryInterface
             static fn (array $row): PublicationData => new PublicationData(
                 (int)$row['id'],
                 (string)$row['text'],
-                array_map(
-                    static fn (mixed $url): string => (string)$url,
-                    is_array($row['image_urls']) ? $row['image_urls'] : [],
-                ),
+                self::decodeImageUrls($row['image_urls']),
                 $row['telegram_id'] === null ? null : (int)$row['telegram_id'],
                 $row['published_at'] === null ? null : (string)$row['published_at'],
                 (string)$row['created_at'],
@@ -107,5 +108,24 @@ final class PublicationRepository implements PublicationRepositoryInterface
             ),
             $rows,
         );
+    }
+
+    /**
+     * jsonb columns arrive as JSON strings; the Yii pgsql schema
+     * encodes array parameters on write, so arrays pass through.
+     *
+     * @return string[]
+     */
+    private static function decodeImageUrls(mixed $value): array
+    {
+        if (is_array($value)) {
+            return array_map(static fn (mixed $url): string => (string)$url, $value);
+        }
+
+        $decoded = json_decode((string)$value, true);
+
+        return is_array($decoded)
+            ? array_map(static fn (mixed $url): string => (string)$url, $decoded)
+            : [];
     }
 }
