@@ -58,6 +58,7 @@ class SiteController extends Controller
                 'actions' => [
                     'logout' => ['post'],
                     'publication-create' => ['post'],
+                    'publication-to-draft' => ['post'],
                 ],
             ],
         ];
@@ -174,6 +175,27 @@ class SiteController extends Controller
                 $this->publications->saveFromForm($text, [], $publishedAt, $source, $sourceId, $action);
                 Yii::$app->session->setFlash('success', 'Изменения сохранены.');
             }
+        } catch (InvalidArgumentException $e) {
+            Yii::$app->session->setFlash('error', $e->getMessage());
+        }
+
+        return $this->redirect(['publications']);
+    }
+
+    /**
+     * Moves a post to drafts by the "Переместить в черновик" button:
+     * the record leaves the posts table and appears in the drafts
+     * table with created_at preserved and updated_at set to now.
+     *
+     * @return Response
+     */
+    public function actionPublicationToDraft(): Response
+    {
+        $id = (string)($this->request->post('publicationId', ''));
+
+        try {
+            $this->publications->movePostToDraft((int)$id);
+            Yii::$app->session->setFlash('success', 'Публикация перемещена в черновики.');
         } catch (InvalidArgumentException $e) {
             Yii::$app->session->setFlash('error', $e->getMessage());
         }

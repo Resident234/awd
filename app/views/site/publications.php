@@ -150,9 +150,16 @@ $duePosts = array_values(array_filter(
                                             <i class="bi bi-send"></i>
                                         </a>
                                     <?php endif ?>
-                                    <a href="#" class="btn btn-sm btn-outline-warning rounded-pill px-3" title="Переместить в черновик">
-                                        <i class="bi bi-file-earmark-arrow-down"></i>
-                                    </a>
+                                    <form method="post" action="<?= \yii\helpers\Url::to(['site/publication-to-draft']) ?>"
+                                          class="d-inline" data-no-edit="1">
+                                        <input type="hidden" name="<?= Yii::$app->request->csrfParam ?>"
+                                               value="<?= Yii::$app->request->csrfToken ?>">
+                                        <input type="hidden" name="publicationId" value="<?= $post->id ?>">
+                                        <button type="submit" class="btn btn-sm btn-outline-warning rounded-pill px-3"
+                                                title="Переместить в черновик">
+                                            <i class="bi bi-file-earmark-arrow-down"></i>
+                                        </button>
+                                    </form>
                                 </div>
                                 <p class="mb-1"><?= Html::encode($post->text) ?></p>
                                 <div class="activity-meta">

@@ -219,6 +219,22 @@ final class PublicationsService
     }
 
     /**
+     * Moves a post (scheduled or published) to drafts directly,
+     * without opening the editing form.
+     *
+     * The post row is deleted from the posts table and inserted into
+     * the drafts table: created_at is preserved, updated_at is set
+     * to the current time (the moment of the move).
+     *
+     * @throws InvalidArgumentException when the post does not exist
+     */
+    public function movePostToDraft(int $id): void
+    {
+        $post = $this->publications->deletePost($id);
+        $this->publications->insertDraftWithHistory($post, $this->now());
+    }
+
+    /**
      * @throws InvalidArgumentException when the record does not exist
      */
     private function assertPostExists(?int $id): void
