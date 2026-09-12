@@ -146,9 +146,17 @@ $duePosts = array_values(array_filter(
                                         <i class="bi bi-trash"></i>
                                     </a>
                                     <?php if (!$isPublished): ?>
-                                        <a href="#" class="btn btn-sm btn-outline-success rounded-pill px-3" title="Опубликовать">
-                                            <i class="bi bi-send"></i>
-                                        </a>
+                                        <form method="post" action="<?= \yii\helpers\Url::to(['site/publication-publish']) ?>"
+                                              class="d-inline">
+                                            <input type="hidden" name="<?= Yii::$app->request->csrfParam ?>"
+                                                   value="<?= Yii::$app->request->csrfToken ?>">
+                                            <input type="hidden" name="publicationSource" value="post">
+                                            <input type="hidden" name="publicationId" value="<?= $post->id ?>">
+                                            <button type="submit" class="btn btn-sm btn-outline-success rounded-pill px-3"
+                                                    title="Опубликовать">
+                                                <i class="bi bi-send"></i>
+                                            </button>
+                                        </form>
                                     <?php endif ?>
                                     <form method="post" action="<?= \yii\helpers\Url::to(['site/publication-to-draft']) ?>"
                                           class="d-inline" data-no-edit="1">
@@ -204,9 +212,17 @@ $duePosts = array_values(array_filter(
                                     <a href="#" class="btn btn-sm btn-outline-danger rounded-pill px-3" title="Удалить">
                                         <i class="bi bi-trash"></i>
                                     </a>
-                                    <a href="#" class="btn btn-sm btn-outline-success rounded-pill px-3" title="Опубликовать">
-                                        <i class="bi bi-send"></i>
-                                    </a>
+                                    <form method="post" action="<?= \yii\helpers\Url::to(['site/publication-publish']) ?>"
+                                          class="d-inline">
+                                        <input type="hidden" name="<?= Yii::$app->request->csrfParam ?>"
+                                               value="<?= Yii::$app->request->csrfToken ?>">
+                                        <input type="hidden" name="publicationSource" value="draft">
+                                        <input type="hidden" name="publicationId" value="<?= $draft->id ?>">
+                                        <button type="submit" class="btn btn-sm btn-outline-success rounded-pill px-3"
+                                                title="Опубликовать">
+                                            <i class="bi bi-send"></i>
+                                        </button>
+                                    </form>
                                     <a href="#" class="btn btn-sm btn-outline-info rounded-pill px-3" title="Запланировать публикацию">
                                         <i class="bi bi-calendar2-plus"></i>
                                     </a>

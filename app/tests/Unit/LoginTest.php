@@ -47,6 +47,10 @@ final class LoginTest extends \Codeception\Test\Unit
                     public function pinChannelMessage(string $channelId, int $messageId): void
                     {
                     }
+
+                    public function deleteChannelMessage(string $channelId, int $messageId): void
+                    {
+                    }
                 },
                 '@gsu_travels',
                 new \app\shared\Telegram\Infrastructure\PublishedDescriptionRepository(\Yii::$app->getDb()),

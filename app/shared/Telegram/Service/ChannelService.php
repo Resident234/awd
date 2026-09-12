@@ -122,6 +122,15 @@ final class ChannelService
     }
 
     /**
+     * @throws TelegramApiException on API failure
+     * @throws RuntimeException when the bot token is not configured
+     */
+    public function deletePost(int $messageId): void
+    {
+        $this->client()->deleteChannelMessage($this->channelId, $messageId);
+    }
+
+    /**
      * @throws RuntimeException when the bot token is not configured
      */
     private function client(): TelegramChannelClientInterface

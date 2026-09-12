@@ -59,6 +59,7 @@ class SiteController extends Controller
                     'logout' => ['post'],
                     'publication-create' => ['post'],
                     'publication-to-draft' => ['post'],
+                    'publication-publish' => ['post'],
                 ],
             ],
         ];
@@ -175,6 +176,36 @@ class SiteController extends Controller
                 $this->publications->saveFromForm($text, [], $publishedAt, $source, $sourceId, $action);
                 Yii::$app->session->setFlash('success', 'Изменения сохранены.');
             }
+        } catch (InvalidArgumentException $e) {
+            Yii::$app->session->setFlash('error', $e->getMessage());
+        }
+
+        return $this->redirect(['publications']);
+    }
+
+    /**
+     * Publishes a record immediately by the "Опубликовать" button on a
+     * list item: a draft moves to the posts table, a scheduled post
+     * stops being scheduled — in both cases published_at and
+     * updated_at become the current time. Nothing is sent to Telegram
+     * directly; the periodic task picks the record up.
+     *
+     * @return Response
+     */
+    public function actionPublicationPublish(): Response
+    {
+        $id = (string)($this->request->post('publicationId', ''));
+        $source = (string)($this->request->post('publicationSource', ''));
+
+        try {
+            if ($source === 'draft') {
+                $this->publications->publishDraft((int)$id);
+            } elseif ($source === 'post') {
+                $this->publications->publishPostNow((int)$id);
+            } else {
+                throw new InvalidArgumentException('Не указана публикуемая запись.');
+            }
+            Yii::$app->session->setFlash('success', 'Публикация сохранена и будет отправлена в канал.');
         } catch (InvalidArgumentException $e) {
             Yii::$app->session->setFlash('error', $e->getMessage());
         }

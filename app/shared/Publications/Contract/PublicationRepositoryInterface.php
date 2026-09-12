@@ -92,4 +92,17 @@ interface PublicationRepositoryInterface
      * field values copied; updated_at is set to $now.
      */
     public function archiveEdited(PublicationData $post, string $now): void;
+
+    /**
+     * @return PublicationData[] soft-deleted posts with an empty
+     * deleted_at, i.e. records awaiting removal from the channel,
+     * ordered from the smallest id to the biggest one
+     */
+    public function findPendingChannelDeletion(): array;
+
+    /**
+     * Stamps the time a soft-deleted record was actually removed
+     * from the channel.
+     */
+    public function storeDeletedAt(int $id, string $deletedAt): void;
 }

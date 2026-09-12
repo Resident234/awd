@@ -132,4 +132,24 @@ final class TelegramController extends Controller
 
         return $stats['failed'] > 0 ? ExitCode::UNSPECIFIED_ERROR : ExitCode::OK;
     }
+
+    /**
+     * Remove all pending soft-deleted records from the channel:
+     * publications_deleted rows with an empty deleted_at are deleted
+     * from Telegram by their telegram_id, then stamped with the
+     * actual removal time.
+     */
+    public function actionDeleteDue(): int
+    {
+        $stats = $this->publications->deleteDue();
+
+        $this->stdout(sprintf(
+            "Processed: %d, deleted: %d, failed: %d\n",
+            $stats['processed'],
+            $stats['deleted'],
+            $stats['failed'],
+        ));
+
+        return $stats['failed'] > 0 ? ExitCode::UNSPECIFIED_ERROR : ExitCode::OK;
+    }
 }

@@ -109,6 +109,90 @@ final class PublicationsService
     }
 
     /**
+     * Removes all pending soft-deleted records from the channel:
+     * publications_deleted rows with an empty deleted_at are deleted
+     * from Telegram by their telegram_id, from the smallest id to
+     * the biggest one, and then stamped with the actual removal time.
+     *
+     * Each record is processed independently: a failure is logged and
+     * does not stop the remaining records; failed records keep an
+     * empty deleted_at and are retried on the next run.
+     *
+     * @return array{processed: int, deleted: int, failed: int}
+     */
+    public function deleteDue(): array
+    {
+        $stats = ['processed' => 0, 'deleted' => 0, 'failed' => 0];
+
+        foreach ($this->publications->findPendingChannelDeletion() as $record) {
+            $stats['processed']++;
+
+            try {
+                $this->deleteFromTelegram($record);
+                $this->publications->storeDeletedAt($record->id, $this->now());
+                $stats['deleted']++;
+            } catch (TelegramApiException | RuntimeException $e) {
+                $stats['failed']++;
+                $this->logger?->error(
+                    'Deleted publication {id} failed to leave Telegram: {error}',
+                    ['id' => $record->id, 'error' => $e->getMessage()],
+                );
+            }
+        }
+
+        return $stats;
+    }
+
+    /**
+     * Publishes a draft directly by the "Опубликовать" button in the
+     * drafts list, without opening the editing form.
+     *
+     * The draft row is deleted and inserted into the posts table:
+     * published_at and updated_at are set to the current time,
+     * created_at is preserved. The post is due immediately, so the
+     * periodic publishDue() task sends it to Telegram.
+     *
+     * @throws InvalidArgumentException when the draft does not exist
+     */
+    public function publishDraft(int $id): void
+    {
+        $draft = $this->publications->deleteDraft($id);
+        $now = $this->now();
+        $this->publications->insertPostWithHistory(
+            new PublicationData(
+                $draft->id,
+                $draft->text,
+                $draft->imageUrls,
+                null,
+                $now,
+                $draft->createdAt,
+                $draft->updatedAt,
+            ),
+            $now,
+        );
+    }
+
+    /**
+     * Makes a scheduled post due immediately by the "Опубликовать"
+     * button in the posts list, without opening the editing form.
+     *
+     * published_at and updated_at are set to the current time, so the
+     * periodic publishDue() task sends it to Telegram on its next run.
+     *
+     * @throws InvalidArgumentException when the post does not exist
+     */
+    public function publishPostNow(int $id): void
+    {
+        $post = $this->publications->findPost($id);
+        if ($post === null) {
+            throw new InvalidArgumentException("Публикация #{$id} не найдена.");
+        }
+
+        $now = $this->now();
+        $this->publications->updatePost($id, $post->text, $post->imageUrls, $now, $now);
+    }
+
+    /**
      * Publishes a single post through the Telegram channel service.
      *
      * @throws RuntimeException when the bot token is not configured
@@ -121,6 +205,27 @@ final class PublicationsService
         }
 
         return $this->channel->publishText($post->text);
+    }
+
+    /**
+     * Removes a soft-deleted record's message from the channel.
+     *
+     * @throws RuntimeException when the bot token is not configured
+     * @throws TelegramApiException on API failure
+     */
+    private function deleteFromTelegram(PublicationData $record): void
+    {
+        if (!method_exists($this->channel, 'deletePost')) {
+            throw new RuntimeException('Telegram-канал не сконфигурирован.');
+        }
+
+        if ($record->telegramId === null) {
+            throw new RuntimeException(
+                "Публикация #{$record->id} не имеет telegram_id — нечего удалять из канала.",
+            );
+        }
+
+        $this->channel->deletePost($record->telegramId);
     }
 
     /**

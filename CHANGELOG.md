@@ -85,6 +85,14 @@ docker compose exec app php yii member-parser/scan [--from=...] [--to=...] [--li
 
 ### Добавлено
 
+#### Периодическое удаление из канала
+
+- Миграция `m260912_000011`: `publications_deleted.deleted_at` становится nullable — пустое значение означает, что soft-deleted запись ещё не удалена из канала
+- Сценарий `PublicationsService::deleteDue()`: записи из `publications_deleted` с пустым `deleted_at` удаляются из канала по `telegram_id` (по возрастанию id), после чего в `deleted_at` ставится время фактического удаления; каждая запись обрабатывается независимо, сбой логируется и не останавливает остальные, неудачные повторяются на следующем запуске
+- Telegram-слой: `deleteChannelMessage` в контракте и Nutgram-адаптере (deleteMessage Bot API), `ChannelService::deletePost()`
+- Репозиторий публикаций: `findPendingChannelDeletion()`, `storeDeletedAt()`
+- Консольная команда `telegram/delete-due`; cron-задача в parser-контейнере с расписанием `TELEGRAM_DELETE_CRON_SCHEDULE` (по умолчанию `*/5 * * * *`)
+
 #### Модель данных публикаций
 
 - Таблица `publications_draft` (миграция `m260910_000008`): текст, изображения (`jsonb`, массив ссылок), дата-время создания, дата-время обновления — черновики до отправки в Telegram

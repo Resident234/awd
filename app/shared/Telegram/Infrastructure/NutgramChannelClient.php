@@ -79,6 +79,16 @@ final class NutgramChannelClient implements TelegramChannelClientInterface
         );
     }
 
+    public function deleteChannelMessage(string $channelId, int $messageId): void
+    {
+        $this->call(
+            static fn (Nutgram $bot): ?bool => $bot->deleteMessage(
+                chat_id: $channelId,
+                message_id: $messageId,
+            ),
+        );
+    }
+
     /**
      * @template T
      * @param callable(Nutgram): T $operation

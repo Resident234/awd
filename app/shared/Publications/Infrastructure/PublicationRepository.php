@@ -203,6 +203,24 @@ final class PublicationRepository implements PublicationRepositoryInterface
             ->execute();
     }
 
+    public function findPendingChannelDeletion(): array
+    {
+        return $this->hydrateAll(
+            'SELECT id, text, image_urls, telegram_id, published_at, created_at, updated_at'
+            . ' FROM {{%publications_deleted}}'
+            . ' WHERE deleted_at IS NULL'
+            . ' ORDER BY id ASC',
+        );
+    }
+
+    public function storeDeletedAt(int $id, string $deletedAt): void
+    {
+        $this->db
+            ->createCommand()
+            ->update('{{%publications_deleted}}', ['deleted_at' => $deletedAt], ['id' => $id])
+            ->execute();
+    }
+
     /**
      * @param array<string, int|string> $params
      */
