@@ -247,6 +247,34 @@ final class PublicationsService
     }
 
     /**
+     * Schedules a draft by the "Запланировать публикацию" modal:
+     * the draft moves to the posts table with the publication time
+     * from the modal's date-time field. created_at is preserved,
+     * updated_at is set to the current time; the periodic
+     * publishDue() task sends the post when the time comes.
+     *
+     * @throws InvalidArgumentException when the draft does not exist or the date is invalid
+     */
+    public function scheduleDraft(int $id, string $publishedAt): void
+    {
+        $this->assertDraftExists($id);
+        $draft = $this->publications->deleteDraft($id);
+        $now = $this->now();
+        $this->publications->insertPostWithHistory(
+            new PublicationData(
+                $draft->id,
+                $draft->text,
+                $draft->imageUrls,
+                null,
+                $this->normalizeDate($publishedAt),
+                $draft->createdAt,
+                $draft->updatedAt,
+            ),
+            $now,
+        );
+    }
+
+    /**
      * Makes a scheduled post due immediately by the "Опубликовать"
      * button in the posts list, without opening the editing form.
      *

@@ -61,6 +61,7 @@ class SiteController extends Controller
                     'publication-to-draft' => ['post'],
                     'publication-publish' => ['post'],
                     'publication-delete' => ['post'],
+                    'publication-schedule' => ['post'],
                 ],
             ],
         ];
@@ -228,6 +229,28 @@ class SiteController extends Controller
         try {
             $this->publications->movePostToDraft((int)$id);
             Yii::$app->session->setFlash('success', 'Публикация перемещена в черновики.');
+        } catch (InvalidArgumentException $e) {
+            Yii::$app->session->setFlash('error', $e->getMessage());
+        }
+
+        return $this->redirect(['publications']);
+    }
+
+    /**
+     * Schedules a draft by the "Запланировать публикацию" modal: the
+     * draft moves to the posts table with the publication time taken
+     * from the modal's date-time field.
+     *
+     * @return Response
+     */
+    public function actionPublicationSchedule(): Response
+    {
+        $id = (string)($this->request->post('publicationId', ''));
+        $publishedAt = (string)($this->request->post('publicationAt', ''));
+
+        try {
+            $this->publications->scheduleDraft($id === '' ? 0 : (int)$id, $publishedAt);
+            Yii::$app->session->setFlash('success', 'Публикация запланирована.');
         } catch (InvalidArgumentException $e) {
             Yii::$app->session->setFlash('error', $e->getMessage());
         }

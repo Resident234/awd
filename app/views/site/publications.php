@@ -230,7 +230,9 @@ $duePosts = array_values(array_filter(
                                             <i class="bi bi-send"></i>
                                         </button>
                                     </form>
-                                    <a href="#" class="btn btn-sm btn-outline-info rounded-pill px-3" title="Запланировать публикацию">
+                                    <a href="#" class="btn btn-sm btn-outline-info rounded-pill px-3" title="Запланировать публикацию"
+                                       data-bs-toggle="modal" data-bs-target="#scheduleModal"
+                                       data-draft-id="<?= $draft->id ?>">
                                         <i class="bi bi-calendar2-plus"></i>
                                     </a>
                                 </div>
@@ -249,6 +251,47 @@ $duePosts = array_values(array_filter(
     </div>
 </div>
 <!-- Row end -->
+
+<!-- Schedule modal -->
+<div class="modal fade" id="scheduleModal" tabindex="-1" aria-labelledby="scheduleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="scheduleModalLabel">
+                    Запланировать публикацию
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form method="post" action="<?= \yii\helpers\Url::to(['site/publication-schedule']) ?>"
+                      id="scheduleForm">
+                    <input type="hidden" name="<?= Yii::$app->request->csrfParam ?>"
+                           value="<?= Yii::$app->request->csrfToken ?>">
+                    <input type="hidden" name="publicationSource" value="draft">
+                    <input type="hidden" name="publicationId" id="scheduleDraftId" value="">
+                    <div class="mb-3">
+                        <label class="form-label" for="scheduleAt">Дата и время публикации</label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="bi bi-calendar4"></i>
+                            </span>
+                            <input type="text" id="scheduleAt" name="publicationAt"
+                                   class="form-control datepicker-time" value="<?= Html::encode($defaultAt) ?>">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    Отмена
+                </button>
+                <button type="submit" form="scheduleForm" class="btn btn-primary">
+                    <i class="bi bi-calendar2-plus me-1"></i>Запланировать
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <?php
 $this->registerJs(
@@ -323,13 +366,25 @@ $this->registerJs(
         log.addEventListener('dblclick', function () {
             setEditing(log);
         });
-        log.querySelectorAll('a[title="Редактировать"], a[title="Запланировать публикацию"]').forEach(function (btn) {
+        log.querySelectorAll('a[title="Редактировать"]').forEach(function (btn) {
             btn.addEventListener('click', function (event) {
                 event.preventDefault();
                 setEditing(log);
             });
         });
     });
+
+    var scheduleModal = document.getElementById('scheduleModal');
+    if (scheduleModal) {
+        scheduleModal.addEventListener('show.bs.modal', function (event) {
+            var trigger = event.relatedTarget;
+            var draftId = trigger ? trigger.getAttribute('data-draft-id') || '' : '';
+            var draftIdInput = document.getElementById('scheduleDraftId');
+            if (draftIdInput) {
+                draftIdInput.value = draftId;
+            }
+        });
+    }
 })();
 JS
 );
