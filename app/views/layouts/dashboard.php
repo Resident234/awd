@@ -25,6 +25,30 @@ $this->registerMetaTag(
         'content' => 'width=device-width, initial-scale=1',
     ],
 );
+
+// The ui-kit stylesheet keeps the sidebar toggle button mobile-only
+// (display:none on desktop) and has no desktop collapsed state. Show
+// the button on desktop and collapse the sidebar via the toggled class.
+$this->registerCss(
+    <<<CSS
+.app-header #toggle-sidebar {
+    display: flex;
+    width: 40px;
+    height: 30px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50px;
+}
+@media (min-width: 992px) {
+    .page-wrapper.toggled .sidebar-wrapper {
+        left: -255px;
+    }
+    .page-wrapper.toggled .main-container {
+        padding-left: 0;
+    }
+}
+CSS
+);
 ?>
 <?php $this->beginPage() ?>
 <!DOCTYPE html>

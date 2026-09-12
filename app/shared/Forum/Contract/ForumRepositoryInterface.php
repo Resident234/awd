@@ -44,4 +44,13 @@ interface ForumRepositoryInterface
      * Returns true when a new row was inserted.
      */
     public function saveMemberProfile(\app\shared\Forum\Dto\MemberData $member, string $now): bool;
+
+    /**
+     * Latest accessible topics (login_required = false) sorted by
+     * published_at descending, at most $topicLimit rows, each with its
+     * own latest posts (at most $postLimit, posted_at descending).
+     *
+     * @return array<int, array{topic: \app\shared\Forum\Dto\TopicData, posts: \app\shared\Forum\Dto\PostData[]}>
+     */
+    public function latestTopicsWithPosts(int $topicLimit, int $postLimit): array;
 }

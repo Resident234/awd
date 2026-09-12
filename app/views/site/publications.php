@@ -6,6 +6,7 @@ declare(strict_types=1);
 /** @var \app\shared\Publications\Dto\PublicationData[] $posts */
 /** @var \app\shared\Publications\Dto\PublicationData[] $drafts */
 /** @var \app\shared\Publications\Dto\PublicationData[] $deleted */
+/** @var array<int, array{topic: \app\shared\Forum\Dto\TopicData, posts: \app\shared\Forum\Dto\PostData[]}> $topics */
 /** @var string $now */
 
 use yii\helpers\Html;
@@ -35,7 +36,133 @@ $duePosts = array_values(array_filter(
 ?>
 <!-- Row start -->
 <div class="row">
-    <div class="col-xxl-7 col-sm-12 col-12">
+    <div class="col-xxl-3 col-sm-12 col-12">
+
+        <!-- Forum topics -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title">Форум</h5>
+            </div>
+            <div class="card-body">
+                <div class="scroll350">
+
+                    <!-- Forum topics widget start -->
+                    <div class="notification-center">
+                        <div class="threads">
+                            <?php if ($topics === []): ?>
+                                <p class="text-muted small mb-0 py-3">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    Топиков пока нет.
+                                </p>
+                            <?php endif ?>
+                            <?php foreach ($topics as $item): ?>
+                                <?php $topic = $item['topic']; ?>
+                                <div class="thread mb-4 pb-3 border-bottom">
+                                    <div class="d-flex align-items-start gap-3 mb-3">
+                                        <?php if ($topic->author?->avatarUrl !== null): ?>
+                                            <img src="<?= Html::encode($topic->author->avatarUrl) ?>" class="rounded-circle img-3x"
+                                                 alt="<?= Html::encode($topic->author->name) ?>">
+                                        <?php else: ?>
+                                            <span class="rounded-circle img-3x bg-primary-subtle d-flex align-items-center justify-content-center">
+                                                <i class="bi bi-person-fill text-primary"></i>
+                                            </span>
+                                        <?php endif ?>
+                                        <div class="flex-grow-1">
+                                            <div class="thread-header d-flex justify-content-between align-items-center mb-2">
+                                                <h6 class="fw-bold mb-0"><?= Html::encode($topic->title) ?></h6>
+                                                <span class="badge bg-primary">#<?= $topic->id ?></span>
+                                            </div>
+                                            <p class="mb-2"><?= Html::encode($topic->contentText) ?></p>
+                                            <?php if ($topic->contentHtml !== ''): ?>
+                                                <details class="mb-2">
+                                                    <summary class="text-muted small">
+                                                        <i class="bi bi-code-slash me-1"></i>HTML-исходник
+                                                    </summary>
+                                                    <pre class="small text-muted mb-0"
+                                                         style="white-space: pre-wrap; word-break: break-word;"><?= Html::encode($topic->contentHtml) ?></pre>
+                                                </details>
+                                            <?php endif ?>
+                                            <div class="thread-meta d-flex align-items-center text-muted small flex-wrap">
+                                                <span class="me-3"><i class="bi bi-person"></i>
+                                                    <?= Html::encode($topic->author?->name ?? 'Неизвестный автор') ?>
+                                                </span>
+                                                <span class="me-3"><i class="bi bi-clock"></i> <?= Html::encode($topic->publishedAt ?? '') ?></span>
+                                                <span class="me-3"><i class="bi bi-chat-dots"></i> <?= count($item['posts']) ?></span>
+                                                <span><i class="bi bi-link-45deg"></i>
+                                                    <a href="<?= Html::encode($topic->sourceUrl) ?>" target="_blank" rel="noopener"
+                                                       class="text-muted"><?= Html::encode($topic->sourceUrl) ?></a>
+                                                </span>
+                                            </div>
+                                            <?php if ($topic->imageUrls !== []): ?>
+                                                <div class="d-flex gap-1 mt-2 flex-wrap">
+                                                    <?php foreach ($topic->imageUrls as $imageUrl): ?>
+                                                        <a href="<?= Html::encode($imageUrl) ?>" target="_blank" rel="noopener">
+                                                            <img src="<?= Html::encode($imageUrl) ?>" class="rounded"
+                                                                 style="width: 72px; height: 72px; object-fit: cover;"
+                                                                 alt="Изображение темы">
+                                                        </a>
+                                                    <?php endforeach ?>
+                                                </div>
+                                            <?php endif ?>
+                                        </div>
+                                    </div>
+                                    <?php if ($item['posts'] !== []): ?>
+                                        <div class="thread-replies ms-5">
+                                            <?php foreach ($item['posts'] as $post): ?>
+                                                <div class="reply d-flex gap-3 mb-3">
+                                                    <?php if ($post->author?->avatarUrl !== null): ?>
+                                                        <img src="<?= Html::encode($post->author->avatarUrl) ?>" class="rounded-circle img-2x"
+                                                             alt="<?= Html::encode($post->author->name) ?>">
+                                                    <?php else: ?>
+                                                        <span class="rounded-circle img-2x bg-secondary-subtle d-flex align-items-center justify-content-center">
+                                                            <i class="bi bi-person-fill text-secondary"></i>
+                                                        </span>
+                                                    <?php endif ?>
+                                                    <div>
+                                                        <?php if ($post->title !== ''): ?>
+                                                            <h6 class="fw-bold mb-1"><?= Html::encode($post->title) ?></h6>
+                                                        <?php endif ?>
+                                                        <p class="mb-1"><?= Html::encode($post->contentText) ?></p>
+                                                        <?php if ($post->contentHtml !== ''): ?>
+                                                            <details class="mb-1">
+                                                                <summary class="text-muted small">
+                                                                    <i class="bi bi-code-slash me-1"></i>HTML-исходник
+                                                                </summary>
+                                                                <pre class="small text-muted mb-0"
+                                                                     style="white-space: pre-wrap; word-break: break-word;"><?= Html::encode($post->contentHtml) ?></pre>
+                                                            </details>
+                                                        <?php endif ?>
+                                                        <small class="text-muted">
+                                                            <?= Html::encode($post->author?->name ?? 'Неизвестный автор') ?>
+                                                            <?php if ($post->number !== null): ?>
+                                                                • пост #<?= $post->number ?>
+                                                            <?php endif ?>
+                                                            <?php if ($post->postedAt !== null): ?>
+                                                                • <?= Html::encode($post->postedAt) ?>
+                                                            <?php endif ?>
+                                                            •
+                                                            <a href="<?= Html::encode($post->sourceUrl) ?>" target="_blank" rel="noopener"
+                                                               class="text-muted"><?= Html::encode($post->sourceUrl) ?></a>
+                                                        </small>
+                                                    </div>
+                                                </div>
+                                            <?php endforeach ?>
+                                        </div>
+                                    <?php endif ?>
+                                </div>
+                            <?php endforeach ?>
+                        </div>
+                    </div>
+                    <!-- Forum topics widget end -->
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <div class="col-xxl-9 col-sm-12 col-12">
+        <div class="row">
+            <div class="col-xxl-8 col-sm-12 col-12">
 
         <!-- Publication preview -->
         <div class="card mb-4">
@@ -112,8 +239,8 @@ $duePosts = array_values(array_filter(
             </div>
         </div>
 
-    </div>
-    <div class="col-xxl-5 col-sm-12 col-12">
+            </div>
+            <div class="col-xxl-4 col-sm-12 col-12">
 
         <!-- Publications -->
         <div class="card mb-4">
@@ -325,6 +452,8 @@ $duePosts = array_values(array_filter(
             </div>
         </div>
 
+            </div>
+        </div>
     </div>
 </div>
 <!-- Row end -->

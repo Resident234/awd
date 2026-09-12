@@ -247,7 +247,7 @@ final class ForumRepository implements ForumRepositoryInterface
     }
 
     /**
-     * Upserts a member parsed from the memberlist profile pages. Unlike
+     * Upserts a member profile parsed from the memberlist pages. Unlike
      * saveMember() (which overwrites everything with post-block values),
      * this merges: fields the memberlist does not provide (thanks, countries,
      * reports) keep their stored values. Returns true for a new row.
@@ -284,5 +284,160 @@ final class ForumRepository implements ForumRepositoryInterface
             array_merge($values, ['raw_data' => new JsonExpression($member->rawData)])
         )->execute();
         return !$exists;
+    }
+
+    /**
+     * Latest accessible topics (login_required = false) sorted by
+     * published_at descending, at most $topicLimit rows. Each topic
+     * carries its own posts (at most $postLimit, posted_at descending,
+     * full field values) with author data hydrated from the joined
+     * member rows.
+     *
+     * @return array<int, array{topic: TopicData, posts: PostData[]}>
+     */
+    public function latestTopicsWithPosts(int $topicLimit, int $postLimit): array
+    {
+        $topicRows = $this->db
+            ->createCommand(
+                'SELECT t.id, t.source_url, t.title, t.published_at, t.content_html, t.content_text, t.image_urls,'
+                . ' m.id AS author_id, m.profile_url AS author_profile_url, m.name AS author_name,'
+                . ' m.avatar_url AS author_avatar_url, m.rank_name AS author_rank_name'
+                . ' FROM {{%topic}} t'
+                . ' LEFT JOIN {{%member}} m ON m.id = t.author_id'
+                . ' WHERE t.login_required = FALSE'
+                . ' ORDER BY t.published_at DESC NULLS LAST, t.id DESC'
+                . ' LIMIT :limit'
+            )
+            ->bindValue(':limit', $topicLimit)
+            ->queryAll(PDO::FETCH_ASSOC);
+
+        if ($topicRows === []) {
+            return [];
+        }
+
+        $topicIds = array_map(static fn (array $row): int => (int)$row['id'], $topicRows);
+        $postRows = $this->db
+            ->createCommand(
+                'SELECT p.id, p.topic_id, p.author_id, p.number, p.title, p.posted_at, p.content_html, p.content_text, p.source_url,'
+                . ' m.profile_url AS author_profile_url, m.name AS author_name,'
+                . ' m.avatar_url AS author_avatar_url, m.rank_name AS author_rank_name'
+                . ' FROM ('
+                . ' SELECT id, topic_id, author_id, number, title, posted_at, content_html, content_text, source_url,'
+                . ' ROW_NUMBER() OVER (PARTITION BY topic_id ORDER BY posted_at DESC NULLS LAST, id DESC) AS rn'
+                . ' FROM {{%post}}'
+                . ' WHERE topic_id IN (' . implode(',', $topicIds) . ')'
+                . ' ) p'
+                . ' LEFT JOIN {{%member}} m ON m.id = p.author_id'
+                . ' WHERE p.rn <= :postLimit'
+                . ' ORDER BY p.topic_id, p.posted_at DESC NULLS LAST, p.id DESC'
+            )
+            ->bindValue(':postLimit', $postLimit)
+            ->queryAll(PDO::FETCH_ASSOC);
+
+        $postsByTopic = [];
+        foreach ($postRows as $row) {
+            $author = $row['author_id'] === null ? null : new MemberData(
+                (int)$row['author_id'],
+                (string)($row['author_profile_url'] ?? ''),
+                (string)($row['author_name'] ?? ''),
+                $row['author_avatar_url'] === null ? null : (string)$row['author_avatar_url'],
+                $row['author_rank_name'] === null ? null : (string)$row['author_rank_name'],
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                [],
+            );
+            $postsByTopic[(int)$row['topic_id']][] = new PostData(
+                (int)$row['id'],
+                (int)$row['topic_id'],
+                $row['author_id'] === null ? null : (int)$row['author_id'],
+                $row['number'] === null ? null : (int)$row['number'],
+                (string)$row['title'],
+                $row['posted_at'] === null ? null : (string)$row['posted_at'],
+                (string)$row['content_html'],
+                (string)$row['content_text'],
+                (string)$row['source_url'],
+                $author,
+            );
+        }
+
+        $result = [];
+        foreach ($topicRows as $row) {
+            $result[] = [
+                'topic' => $this->hydrateTopicRow($row),
+                'posts' => $postsByTopic[(int)$row['id']] ?? [],
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function hydrateTopicRow(array $row): TopicData
+    {
+        return new TopicData(
+            (int)$row['id'],
+            (string)$row['source_url'],
+            (string)$row['title'],
+            $row['published_at'] === null ? null : (string)$row['published_at'],
+            (string)$row['content_html'],
+            (string)$row['content_text'],
+            self::decodeImageUrls($row['image_urls']),
+            $this->hydrateAuthorRow($row),
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function hydrateAuthorRow(array $row): ?MemberData
+    {
+        if ($row['author_id'] === null) {
+            return null;
+        }
+
+        return new MemberData(
+            (int)$row['author_id'],
+            (string)($row['author_profile_url'] ?? ''),
+            (string)($row['author_name'] ?? ''),
+            $row['author_avatar_url'] === null ? null : (string)$row['author_avatar_url'],
+            $row['author_rank_name'] === null ? null : (string)$row['author_rank_name'],
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            [],
+        );
+    }
+
+    /**
+     * jsonb columns arrive as JSON strings; arrays pass through.
+     *
+     * @return string[]
+     */
+    private static function decodeImageUrls(mixed $value): array
+    {
+        if (is_array($value)) {
+            return array_map(static fn (mixed $url): string => (string)$url, $value);
+        }
+
+        $decoded = json_decode((string)$value, true);
+
+        return is_array($decoded)
+            ? array_map(static fn (mixed $url): string => (string)$url, $decoded)
+            : [];
     }
 }

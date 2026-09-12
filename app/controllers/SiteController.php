@@ -7,6 +7,7 @@ namespace app\controllers;
 use Yii;
 use app\models\ContactForm;
 use app\models\LoginForm;
+use app\shared\Forum\Infrastructure\ForumRepository;
 use app\shared\Publications\Service\PublicationsService;
 use app\shared\Telegram\Infrastructure\TelegramApiException;
 use app\shared\Telegram\Service\ChannelService;
@@ -145,6 +146,7 @@ class SiteController extends Controller
             'posts' => $this->publications->posts(),
             'drafts' => $this->publications->drafts(),
             'deleted' => $this->publications->deleted(),
+            'topics' => (new ForumRepository(Yii::$app->getDb()))->latestTopicsWithPosts(10, 10),
             'now' => gmdate('Y-m-d H:i:s'),
         ]);
     }
