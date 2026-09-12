@@ -15,6 +15,17 @@ $this->title = 'Публикации в канал';
 $nextSlot = (int)ceil((time() + 60) / 600) * 600;
 $defaultAt = gmdate('d/m/Y h:i A', $nextSlot);
 
+$deleteForm = static function (int $id, string $source): string {
+    $csrf = '<input type="hidden" name="' . Yii::$app->request->csrfParam
+        . '" value="' . Yii::$app->request->csrfToken . '">';
+    return '<form method="post" action="' . \yii\helpers\Url::to(['site/publication-delete'])
+        . '" class="d-inline">' . $csrf
+        . '<input type="hidden" name="publicationSource" value="' . $source . '">'
+        . '<input type="hidden" name="publicationId" value="' . $id . '">'
+        . '<button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-3" '
+        . 'title="Удалить"><i class="bi bi-trash"></i></button></form>';
+};
+
 /** @var \app\shared\Publications\Dto\PublicationData[] $duePosts */
 $duePosts = array_values(array_filter(
     $posts,
@@ -142,9 +153,7 @@ $duePosts = array_values(array_filter(
                                     <a href="#" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Редактировать">
                                         <i class="bi bi-pencil-square"></i>
                                     </a>
-                                    <a href="#" class="btn btn-sm btn-outline-danger rounded-pill px-3" title="Удалить">
-                                        <i class="bi bi-trash"></i>
-                                    </a>
+                                    <?= $deleteForm($post->id, 'post') ?>
                                     <?php if (!$isPublished): ?>
                                         <form method="post" action="<?= \yii\helpers\Url::to(['site/publication-publish']) ?>"
                                               class="d-inline">
@@ -209,9 +218,7 @@ $duePosts = array_values(array_filter(
                                     <a href="#" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Редактировать">
                                         <i class="bi bi-pencil-square"></i>
                                     </a>
-                                    <a href="#" class="btn btn-sm btn-outline-danger rounded-pill px-3" title="Удалить">
-                                        <i class="bi bi-trash"></i>
-                                    </a>
+                                    <?= $deleteForm($draft->id, 'draft') ?>
                                     <form method="post" action="<?= \yii\helpers\Url::to(['site/publication-publish']) ?>"
                                           class="d-inline">
                                         <input type="hidden" name="<?= Yii::$app->request->csrfParam ?>"

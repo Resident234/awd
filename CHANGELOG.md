@@ -85,6 +85,13 @@ docker compose exec app php yii member-parser/scan [--from=...] [--to=...] [--li
 
 ### Добавлено
 
+#### Удаление публикаций и черновиков (soft-delete)
+
+- Миграция `m260912_000012`: `publications_deleted.published_at` становится nullable — черновики сохраняют пустое `published_at` при перемещении в архив
+- Кнопка «Удалить» в блоках «Публикации» и «Черновики» перемещает запись в `publications_deleted`: `created_at` и `published_at` сохраняют значения, `updated_at` — текущее время, `deleted_at` остаётся пустым
+- Действие `site/publication-delete` (POST), сервисные методы `PublicationsService::deletePost()` / `deleteDraft()`, метод репозитория `insertDeletedWithHistory()`
+- `PublicationsService::deleteDue()`: записи без `telegram_id` (черновики, запланированные посты) закрываются сразу без обращения к Telegram
+
 #### Периодическое редактирование в канале
 
 - Сценарий `PublicationsService::editDue()`: записи из `publications_edited` с пустым `edited_at` редактируются в канале по `telegram_id` — содержимое сообщения заменяется значением поля `text` (по возрастанию id), после чего в `edited_at` ставится время фактического изменения; каждая запись обрабатывается независимо, сбой логируется и не останавливает остальные, неудачные повторяются на следующем запуске

@@ -109,10 +109,12 @@ final class PublicationsService
     }
 
     /**
-     * Removes all pending soft-deleted records from the channel:
-     * publications_deleted rows with an empty deleted_at are deleted
-     * from Telegram by their telegram_id, from the smallest id to
-     * the biggest one, and then stamped with the actual removal time.
+     * Closes all pending soft-deleted records: publications_deleted
+     * rows with an empty deleted_at are deleted from Telegram by
+     * their telegram_id, from the smallest id to the biggest one, and
+     * then stamped with the actual removal time. Records without a
+     * telegram_id (drafts, scheduled posts) never had a message in
+     * the channel and are stamped right away.
      *
      * Each record is processed independently: a failure is logged and
      * does not stop the remaining records; failed records keep an
@@ -126,6 +128,13 @@ final class PublicationsService
 
         foreach ($this->publications->findPendingChannelDeletion() as $record) {
             $stats['processed']++;
+
+            if ($record->telegramId === null) {
+                $this->publications->storeDeletedAt($record->id, $this->now());
+                $stats['deleted']++;
+
+                continue;
+            }
 
             try {
                 $this->deleteFromTelegram($record);
@@ -177,6 +186,35 @@ final class PublicationsService
         }
 
         return $stats;
+    }
+
+    /**
+     * Soft-deletes a post by the "Удалить" button: the record moves
+     * to publications_deleted. created_at and published_at keep
+     * their values, updated_at is set to the current time, deleted_at
+     * stays empty — the periodic deleteDue() task removes the message
+     * from the channel (when it has one) and stamps deleted_at.
+     *
+     * @throws InvalidArgumentException when the post does not exist
+     */
+    public function deletePost(int $id): void
+    {
+        $post = $this->publications->deletePost($id);
+        $this->publications->insertDeletedWithHistory($post, $this->now());
+    }
+
+    /**
+     * Soft-deletes a draft by the "Удалить" button: the record moves
+     * to publications_deleted. created_at keeps its value (the draft
+     * has no published_at, it stays NULL), updated_at is set to the
+     * current time, deleted_at stays empty.
+     *
+     * @throws InvalidArgumentException when the draft does not exist
+     */
+    public function deleteDraft(int $id): void
+    {
+        $draft = $this->publications->deleteDraft($id);
+        $this->publications->insertDeletedWithHistory($draft, $this->now());
     }
 
     /**

@@ -60,6 +60,7 @@ class SiteController extends Controller
                     'publication-create' => ['post'],
                     'publication-to-draft' => ['post'],
                     'publication-publish' => ['post'],
+                    'publication-delete' => ['post'],
                 ],
             ],
         ];
@@ -227,6 +228,36 @@ class SiteController extends Controller
         try {
             $this->publications->movePostToDraft((int)$id);
             Yii::$app->session->setFlash('success', 'Публикация перемещена в черновики.');
+        } catch (InvalidArgumentException $e) {
+            Yii::$app->session->setFlash('error', $e->getMessage());
+        }
+
+        return $this->redirect(['publications']);
+    }
+
+    /**
+     * Soft-deletes a record by the "Удалить" button on a list item:
+     * the record leaves its table (posts or drafts) and moves to
+     * publications_deleted with created_at and published_at
+     * preserved, updated_at set to now and deleted_at left empty —
+     * the periodic task removes the channel message and stamps it.
+     *
+     * @return Response
+     */
+    public function actionPublicationDelete(): Response
+    {
+        $id = (string)($this->request->post('publicationId', ''));
+        $source = (string)($this->request->post('publicationSource', ''));
+
+        try {
+            if ($source === 'draft') {
+                $this->publications->deleteDraft((int)$id);
+            } elseif ($source === 'post') {
+                $this->publications->deletePost((int)$id);
+            } else {
+                throw new InvalidArgumentException('Не указана удаляемая запись.');
+            }
+            Yii::$app->session->setFlash('success', 'Запись удалена.');
         } catch (InvalidArgumentException $e) {
             Yii::$app->session->setFlash('error', $e->getMessage());
         }

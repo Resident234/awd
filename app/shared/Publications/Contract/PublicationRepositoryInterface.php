@@ -94,6 +94,14 @@ interface PublicationRepositoryInterface
     public function archiveEdited(PublicationData $post, string $now): void;
 
     /**
+     * Inserts a publications_deleted row preserving the original
+     * created_at and published_at; updated_at is set to $now,
+     * deleted_at stays empty until the periodic task confirms the
+     * channel removal.
+     */
+    public function insertDeletedWithHistory(PublicationData $record, string $now): void;
+
+    /**
      * @return PublicationData[] soft-deleted posts with an empty
      * deleted_at, i.e. records awaiting removal from the channel,
      * ordered from the smallest id to the biggest one

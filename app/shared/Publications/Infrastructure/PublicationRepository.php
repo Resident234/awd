@@ -213,6 +213,22 @@ final class PublicationRepository implements PublicationRepositoryInterface
         );
     }
 
+    public function insertDeletedWithHistory(PublicationData $record, string $now): void
+    {
+        $this->db
+            ->createCommand()
+            ->insert('{{%publications_deleted}}', [
+                'telegram_id' => $record->telegramId,
+                'text' => $record->text,
+                'image_urls' => $record->imageUrls,
+                'published_at' => $record->publishedAt,
+                'created_at' => $record->createdAt,
+                'updated_at' => $now,
+                'deleted_at' => null,
+            ])
+            ->execute();
+    }
+
     public function storeDeletedAt(int $id, string $deletedAt): void
     {
         $this->db
