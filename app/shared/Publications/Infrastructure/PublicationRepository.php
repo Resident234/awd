@@ -221,6 +221,24 @@ final class PublicationRepository implements PublicationRepositoryInterface
             ->execute();
     }
 
+    public function findPendingChannelEdits(): array
+    {
+        return $this->hydrateAll(
+            'SELECT id, text, image_urls, telegram_id, published_at, created_at, updated_at'
+            . ' FROM {{%publications_edited}}'
+            . ' WHERE edited_at IS NULL'
+            . ' ORDER BY id ASC',
+        );
+    }
+
+    public function storeEditedAt(int $id, string $editedAt): void
+    {
+        $this->db
+            ->createCommand()
+            ->update('{{%publications_edited}}', ['edited_at' => $editedAt], ['id' => $id])
+            ->execute();
+    }
+
     /**
      * @param array<string, int|string> $params
      */

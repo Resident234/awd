@@ -35,4 +35,9 @@ interface TelegramChannelClientInterface
      * @throws \app\shared\Telegram\Infrastructure\TelegramApiException
      */
     public function deleteChannelMessage(string $channelId, int $messageId): void;
+
+    /**
+     * @throws \app\shared\Telegram\Infrastructure\TelegramApiException
+     */
+    public function editChannelMessageText(string $channelId, int $messageId, string $text): void;
 }

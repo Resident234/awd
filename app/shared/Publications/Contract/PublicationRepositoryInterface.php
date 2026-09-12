@@ -105,4 +105,17 @@ interface PublicationRepositoryInterface
      * from the channel.
      */
     public function storeDeletedAt(int $id, string $deletedAt): void;
+
+    /**
+     * @return PublicationData[] archived edited posts with an empty
+     * edited_at, i.e. records awaiting the channel update, ordered
+     * from the smallest id to the biggest one
+     */
+    public function findPendingChannelEdits(): array;
+
+    /**
+     * Stamps the time an edited record's message was actually
+     * updated in the channel.
+     */
+    public function storeEditedAt(int $id, string $editedAt): void;
 }

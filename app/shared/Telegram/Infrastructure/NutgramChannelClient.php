@@ -89,6 +89,17 @@ final class NutgramChannelClient implements TelegramChannelClientInterface
         );
     }
 
+    public function editChannelMessageText(string $channelId, int $messageId, string $text): void
+    {
+        $this->call(
+            static fn (Nutgram $bot): bool => $bot->editMessageText(
+                text: $text,
+                chat_id: $channelId,
+                message_id: $messageId,
+            ) !== null,
+        );
+    }
+
     /**
      * @template T
      * @param callable(Nutgram): T $operation

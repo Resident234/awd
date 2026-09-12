@@ -54,6 +54,10 @@ final class LogoutTest extends \Codeception\Test\Unit
                     public function deleteChannelMessage(string $channelId, int $messageId): void
                     {
                     }
+
+                    public function editChannelMessageText(string $channelId, int $messageId, string $text): void
+                    {
+                    }
                 },
                 '@gsu_travels',
                 new \app\shared\Telegram\Infrastructure\PublishedDescriptionRepository(\Yii::$app->getDb()),

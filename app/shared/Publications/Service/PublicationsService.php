@@ -144,6 +144,42 @@ final class PublicationsService
     }
 
     /**
+     * Updates all pending archived edits in the channel:
+     * publications_edited rows with an empty edited_at get their
+     * message content replaced with the record's text field by the
+     * telegram_id, from the smallest id to the biggest one, and then
+     * stamped with the actual update time.
+     *
+     * Each record is processed independently: a failure is logged and
+     * does not stop the remaining records; failed records keep an
+     * empty edited_at and are retried on the next run.
+     *
+     * @return array{processed: int, edited: int, failed: int}
+     */
+    public function editDue(): array
+    {
+        $stats = ['processed' => 0, 'edited' => 0, 'failed' => 0];
+
+        foreach ($this->publications->findPendingChannelEdits() as $record) {
+            $stats['processed']++;
+
+            try {
+                $this->editInTelegram($record);
+                $this->publications->storeEditedAt($record->id, $this->now());
+                $stats['edited']++;
+            } catch (TelegramApiException | RuntimeException | InvalidArgumentException $e) {
+                $stats['failed']++;
+                $this->logger?->error(
+                    'Edited publication {id} failed to reach Telegram: {error}',
+                    ['id' => $record->id, 'error' => $e->getMessage()],
+                );
+            }
+        }
+
+        return $stats;
+    }
+
+    /**
      * Publishes a draft directly by the "Опубликовать" button in the
      * drafts list, without opening the editing form.
      *
@@ -226,6 +262,28 @@ final class PublicationsService
         }
 
         $this->channel->deletePost($record->telegramId);
+    }
+
+    /**
+     * Replaces an archived edit's message content in the channel
+     * with the record's text field.
+     *
+     * @throws RuntimeException when the bot token is not configured
+     * @throws TelegramApiException on API failure
+     */
+    private function editInTelegram(PublicationData $record): void
+    {
+        if (!method_exists($this->channel, 'editPostText')) {
+            throw new RuntimeException('Telegram-канал не сконфигурирован.');
+        }
+
+        if ($record->telegramId === null) {
+            throw new RuntimeException(
+                "Публикация #{$record->id} не имеет telegram_id — нечего редактировать в канале.",
+            );
+        }
+
+        $this->channel->editPostText($record->telegramId, $record->text);
     }
 
     /**

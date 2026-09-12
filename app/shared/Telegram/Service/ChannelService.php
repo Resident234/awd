@@ -131,6 +131,22 @@ final class ChannelService
     }
 
     /**
+     * @throws TelegramApiException on API failure
+     * @throws RuntimeException when the bot token is not configured
+     * @throws InvalidArgumentException when the text is empty or longer than 4096 chars
+     */
+    public function editPostText(int $messageId, string $text): void
+    {
+        if (mb_strlen($text) === 0 || mb_strlen($text) > self::TEXT_MAX_LENGTH) {
+            throw new InvalidArgumentException(
+                sprintf('Текст поста должен быть от 1 до %d символов.', self::TEXT_MAX_LENGTH),
+            );
+        }
+
+        $this->client()->editChannelMessageText($this->channelId, $messageId, $text);
+    }
+
+    /**
      * @throws RuntimeException when the bot token is not configured
      */
     private function client(): TelegramChannelClientInterface

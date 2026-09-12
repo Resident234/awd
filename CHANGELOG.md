@@ -85,6 +85,13 @@ docker compose exec app php yii member-parser/scan [--from=...] [--to=...] [--li
 
 ### Добавлено
 
+#### Периодическое редактирование в канале
+
+- Сценарий `PublicationsService::editDue()`: записи из `publications_edited` с пустым `edited_at` редактируются в канале по `telegram_id` — содержимое сообщения заменяется значением поля `text` (по возрастанию id), после чего в `edited_at` ставится время фактического изменения; каждая запись обрабатывается независимо, сбой логируется и не останавливает остальные, неудачные повторяются на следующем запуске
+- Telegram-слой: `editChannelMessageText` в контракте и Nutgram-адаптере (editMessageText Bot API), `ChannelService::editPostText()`
+- Репозиторий публикаций: `findPendingChannelEdits()`, `storeEditedAt()`
+- Консольная команда `telegram/edit-due`; cron-задача в parser-контейнере с расписанием `TELEGRAM_EDIT_CRON_SCHEDULE` (по умолчанию `*/5 * * * *`)
+
 #### Периодическое удаление из канала
 
 - Миграция `m260912_000011`: `publications_deleted.deleted_at` становится nullable — пустое значение означает, что soft-deleted запись ещё не удалена из канала

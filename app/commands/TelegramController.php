@@ -152,4 +152,24 @@ final class TelegramController extends Controller
 
         return $stats['failed'] > 0 ? ExitCode::UNSPECIFIED_ERROR : ExitCode::OK;
     }
+
+    /**
+     * Update all pending archived edits in the channel:
+     * publications_edited rows with an empty edited_at get their
+     * message content replaced with the record's text field, then
+     * stamped with the actual update time.
+     */
+    public function actionEditDue(): int
+    {
+        $stats = $this->publications->editDue();
+
+        $this->stdout(sprintf(
+            "Processed: %d, edited: %d, failed: %d\n",
+            $stats['processed'],
+            $stats['edited'],
+            $stats['failed'],
+        ));
+
+        return $stats['failed'] > 0 ? ExitCode::UNSPECIFIED_ERROR : ExitCode::OK;
+    }
 }
