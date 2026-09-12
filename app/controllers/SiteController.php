@@ -144,6 +144,7 @@ class SiteController extends Controller
         return $this->render('publications', [
             'posts' => $this->publications->posts(),
             'drafts' => $this->publications->drafts(),
+            'deleted' => $this->publications->deleted(),
             'now' => gmdate('Y-m-d H:i:s'),
         ]);
     }
@@ -204,6 +205,8 @@ class SiteController extends Controller
                 $this->publications->publishDraft((int)$id);
             } elseif ($source === 'post') {
                 $this->publications->publishPostNow((int)$id);
+            } elseif ($source === 'deleted') {
+                $this->publications->publishDeleted((int)$id);
             } else {
                 throw new InvalidArgumentException('Не указана публикуемая запись.');
             }
@@ -219,16 +222,24 @@ class SiteController extends Controller
      * Moves a post to drafts by the "Переместить в черновик" button:
      * the record leaves the posts table and appears in the drafts
      * table with created_at preserved and updated_at set to now.
+     * The same button on a soft-deleted record restores it from
+     * publications_deleted back to the drafts table.
      *
      * @return Response
      */
     public function actionPublicationToDraft(): Response
     {
         $id = (string)($this->request->post('publicationId', ''));
+        $source = (string)($this->request->post('publicationSource', ''));
 
         try {
-            $this->publications->movePostToDraft((int)$id);
-            Yii::$app->session->setFlash('success', 'Публикация перемещена в черновики.');
+            if ($source === 'deleted') {
+                $this->publications->moveDeletedToDraft((int)$id);
+                Yii::$app->session->setFlash('success', 'Удалённая запись перемещена в черновики.');
+            } else {
+                $this->publications->movePostToDraft((int)$id);
+                Yii::$app->session->setFlash('success', 'Публикация перемещена в черновики.');
+            }
         } catch (InvalidArgumentException $e) {
             Yii::$app->session->setFlash('error', $e->getMessage());
         }
@@ -237,9 +248,10 @@ class SiteController extends Controller
     }
 
     /**
-     * Schedules a draft by the "Запланировать публикацию" modal: the
-     * draft moves to the posts table with the publication time taken
-     * from the modal's date-time field.
+     * Schedules a draft or a soft-deleted record by the
+     * "Запланировать публикацию" modal: the record moves to the
+     * posts table with the publication time taken from the modal's
+     * date-time field.
      *
      * @return Response
      */
@@ -247,9 +259,14 @@ class SiteController extends Controller
     {
         $id = (string)($this->request->post('publicationId', ''));
         $publishedAt = (string)($this->request->post('publicationAt', ''));
+        $source = (string)($this->request->post('publicationSource', 'draft'));
 
         try {
-            $this->publications->scheduleDraft($id === '' ? 0 : (int)$id, $publishedAt);
+            if ($source === 'deleted') {
+                $this->publications->scheduleDeleted($id === '' ? 0 : (int)$id, $publishedAt);
+            } else {
+                $this->publications->scheduleDraft($id === '' ? 0 : (int)$id, $publishedAt);
+            }
             Yii::$app->session->setFlash('success', 'Публикация запланирована.');
         } catch (InvalidArgumentException $e) {
             Yii::$app->session->setFlash('error', $e->getMessage());

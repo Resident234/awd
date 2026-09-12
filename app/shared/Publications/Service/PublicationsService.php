@@ -49,6 +49,15 @@ final class PublicationsService
     }
 
     /**
+     * @return PublicationData[] soft-deleted records, sorted by
+     * updated_at descending
+     */
+    public function deleted(): array
+    {
+        return $this->publications->allDeleted();
+    }
+
+    /**
      * Saves the form data as a draft.
      *
      * @param string[] $imageUrls
@@ -365,6 +374,11 @@ final class PublicationsService
      *  - draft + "Опубликовать": move to posts;
      *  - draft + "Сохранить": update the drafts row in place.
      *
+     * A soft-deleted source record adds two more scenarios: the
+     * record leaves publications_deleted and returns as a post
+     * ("Опубликовать") or as a draft ("Сохранить"); the pending
+     * channel removal is cancelled with the archive row.
+     *
      * created_at is always preserved; updated_at is set to the current
      * time on every move or update.
      *
@@ -376,6 +390,45 @@ final class PublicationsService
     {
         $this->assertTextValid($text);
         $now = $this->now();
+
+        if ($source === 'deleted') {
+            $this->assertDeletedExists($sourceId);
+            $record = $this->publications->deleteDeleted($sourceId);
+
+            if ($action === 'draft') {
+                // deleted + "Сохранить": restore as a draft.
+                $this->publications->insertDraftWithHistory(
+                    new PublicationData(
+                        $record->id,
+                        $text,
+                        $imageUrls,
+                        null,
+                        null,
+                        $record->createdAt,
+                        $record->updatedAt,
+                    ),
+                    $now,
+                );
+
+                return;
+            }
+
+            // deleted + "Опубликовать": restore as a scheduled post.
+            $this->publications->insertPostWithHistory(
+                new PublicationData(
+                    $record->id,
+                    $text,
+                    $imageUrls,
+                    null,
+                    $this->normalizeDate($publishedAt),
+                    $record->createdAt,
+                    $record->updatedAt,
+                ),
+                $now,
+            );
+
+            return;
+        }
 
         if ($source === 'draft') {
             $this->assertDraftExists($sourceId);
@@ -461,6 +514,95 @@ final class PublicationsService
     {
         $post = $this->publications->deletePost($id);
         $this->publications->insertDraftWithHistory($post, $this->now());
+    }
+
+    /**
+     * Publishes a soft-deleted record immediately by the
+     * "Опубликовать" button in the deleted list, without opening the
+     * editing form.
+     *
+     * The publications_deleted row is removed and the record is
+     * inserted into the posts table: created_at is preserved,
+     * published_at and updated_at are set to the current time, the
+     * old telegram_id is dropped (the new message gets its own id
+     * after the periodic publishDue() task sends it).
+     *
+     * @throws InvalidArgumentException when the record does not exist
+     */
+    public function publishDeleted(int $id): void
+    {
+        $record = $this->publications->deleteDeleted($id);
+        $now = $this->now();
+        $this->publications->insertPostWithHistory(
+            new PublicationData(
+                $record->id,
+                $record->text,
+                $record->imageUrls,
+                null,
+                $now,
+                $record->createdAt,
+                $record->updatedAt,
+            ),
+            $now,
+        );
+    }
+
+    /**
+     * Schedules a soft-deleted record by the "Запланировать
+     * публикацию" modal: the record moves from publications_deleted
+     * to the posts table with the publication time from the modal's
+     * date-time field. created_at is preserved, updated_at is set to
+     * the current time, the old telegram_id is dropped; the periodic
+     * publishDue() task sends the post when the time comes.
+     *
+     * @throws InvalidArgumentException when the record does not exist or the date is invalid
+     */
+    public function scheduleDeleted(int $id, string $publishedAt): void
+    {
+        $record = $this->publications->deleteDeleted($id);
+        $now = $this->now();
+        $this->publications->insertPostWithHistory(
+            new PublicationData(
+                $record->id,
+                $record->text,
+                $record->imageUrls,
+                null,
+                $this->normalizeDate($publishedAt),
+                $record->createdAt,
+                $record->updatedAt,
+            ),
+            $now,
+        );
+    }
+
+    /**
+     * Moves a soft-deleted record to drafts directly by the
+     * "Перенести в черновик" button, without opening the editing
+     * form.
+     *
+     * The publications_deleted row is removed and the record is
+     * inserted into the drafts table: created_at is preserved,
+     * updated_at is set to the current time (the moment of the
+     * move), the old telegram_id is dropped.
+     *
+     * @throws InvalidArgumentException when the record does not exist
+     */
+    public function moveDeletedToDraft(int $id): void
+    {
+        $record = $this->publications->deleteDeleted($id);
+        $this->publications->insertDraftWithHistory($record, $this->now());
+    }
+
+    /**
+     * @throws InvalidArgumentException when the record does not exist
+     */
+    private function assertDeletedExists(?int $id): void
+    {
+        if ($id === null || $this->publications->findDeleted($id) === null) {
+            throw new InvalidArgumentException(
+                $id === null ? 'Не указана редактируемая удалённая запись.' : "Удалённая запись #{$id} не найдена.",
+            );
+        }
     }
 
     /**

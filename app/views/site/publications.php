@@ -5,6 +5,7 @@ declare(strict_types=1);
 /** @var yii\web\View $this */
 /** @var \app\shared\Publications\Dto\PublicationData[] $posts */
 /** @var \app\shared\Publications\Dto\PublicationData[] $drafts */
+/** @var \app\shared\Publications\Dto\PublicationData[] $deleted */
 /** @var string $now */
 
 use yii\helpers\Html;
@@ -232,12 +233,88 @@ $duePosts = array_values(array_filter(
                                     </form>
                                     <a href="#" class="btn btn-sm btn-outline-info rounded-pill px-3" title="Запланировать публикацию"
                                        data-bs-toggle="modal" data-bs-target="#scheduleModal"
-                                       data-draft-id="<?= $draft->id ?>">
+                                       data-source="draft" data-draft-id="<?= $draft->id ?>">
                                         <i class="bi bi-calendar2-plus"></i>
                                     </a>
                                 </div>
                                 <p class="mb-1"><?= Html::encode($draft->text) ?></p>
                                 <span class="badge bg-secondary mt-2">Черновик</span>
+                                <span class="badge bg-warning text-dark mt-2 d-none editing-badge">Редактируется</span>
+                            </div>
+                        <?php endforeach ?>
+                    </div>
+                    <!-- Timeline end -->
+
+                </div>
+            </div>
+        </div>
+
+        <!-- Deleted -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title">Удаленные</h5>
+            </div>
+            <div class="card-body">
+                <div class="scroll350">
+
+                    <!-- Timeline start -->
+                    <div class="m-0">
+                        <?php if ($deleted === []): ?>
+                            <p class="text-muted small mb-0 py-3">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Удаленных записей пока нет.
+                            </p>
+                        <?php endif ?>
+                        <?php foreach ($deleted as $deletedRecord): ?>
+                            <?php
+                            $deletedPublishedAt = '';
+                            if ($deletedRecord->publishedAt !== null) {
+                                $deletedDate = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $deletedRecord->publishedAt, new DateTimeZone('UTC'));
+                                $deletedPublishedAt = $deletedDate instanceof DateTimeImmutable ? $deletedDate->format('d/m/Y h:i A') : '';
+                            }
+                            ?>
+                            <div class="activity-log" data-text="<?= Html::encode($deletedRecord->text) ?>"
+                                 data-source-type="deleted" data-source-id="<?= $deletedRecord->id ?>"
+                                 data-published-at="<?= Html::encode($deletedPublishedAt) ?>">
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <a href="#" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Редактировать">
+                                        <i class="bi bi-pencil-square"></i>
+                                    </a>
+                                    <form method="post" action="<?= \yii\helpers\Url::to(['site/publication-publish']) ?>"
+                                          class="d-inline">
+                                        <input type="hidden" name="<?= Yii::$app->request->csrfParam ?>"
+                                               value="<?= Yii::$app->request->csrfToken ?>">
+                                        <input type="hidden" name="publicationSource" value="deleted">
+                                        <input type="hidden" name="publicationId" value="<?= $deletedRecord->id ?>">
+                                        <button type="submit" class="btn btn-sm btn-outline-success rounded-pill px-3"
+                                                title="Опубликовать">
+                                            <i class="bi bi-send"></i>
+                                        </button>
+                                    </form>
+                                    <a href="#" class="btn btn-sm btn-outline-info rounded-pill px-3" title="Запланировать публикацию"
+                                       data-bs-toggle="modal" data-bs-target="#scheduleModal"
+                                       data-source="deleted" data-draft-id="<?= $deletedRecord->id ?>">
+                                        <i class="bi bi-calendar2-plus"></i>
+                                    </a>
+                                    <form method="post" action="<?= \yii\helpers\Url::to(['site/publication-to-draft']) ?>"
+                                          class="d-inline" data-no-edit="1">
+                                        <input type="hidden" name="<?= Yii::$app->request->csrfParam ?>"
+                                               value="<?= Yii::$app->request->csrfToken ?>">
+                                        <input type="hidden" name="publicationSource" value="deleted">
+                                        <input type="hidden" name="publicationId" value="<?= $deletedRecord->id ?>">
+                                        <button type="submit" class="btn btn-sm btn-outline-warning rounded-pill px-3"
+                                                title="Перенести в черновик">
+                                            <i class="bi bi-file-earmark-arrow-down"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                                <p class="mb-1"><?= Html::encode($deletedRecord->text) ?></p>
+                                <div class="activity-meta">
+                                    <i class="bi bi-clock me-1"></i><?= Html::encode($deletedRecord->publishedAt ?? '') ?>
+                                </div>
+                                <span class="badge <?= $deletedRecord->deletedAt === null ? 'bg-danger' : 'bg-dark' ?> mt-2">
+                                    <?= $deletedRecord->deletedAt === null ? 'Удалено' : 'Удалено из канала' ?>
+                                </span>
                                 <span class="badge bg-warning text-dark mt-2 d-none editing-badge">Редактируется</span>
                             </div>
                         <?php endforeach ?>
@@ -267,7 +344,7 @@ $duePosts = array_values(array_filter(
                       id="scheduleForm">
                     <input type="hidden" name="<?= Yii::$app->request->csrfParam ?>"
                            value="<?= Yii::$app->request->csrfToken ?>">
-                    <input type="hidden" name="publicationSource" value="draft">
+                    <input type="hidden" name="publicationSource" id="scheduleSource" value="draft">
                     <input type="hidden" name="publicationId" id="scheduleDraftId" value="">
                     <div class="mb-3">
                         <label class="form-label" for="scheduleAt">Дата и время публикации</label>
@@ -378,10 +455,15 @@ $this->registerJs(
     if (scheduleModal) {
         scheduleModal.addEventListener('show.bs.modal', function (event) {
             var trigger = event.relatedTarget;
-            var draftId = trigger ? trigger.getAttribute('data-draft-id') || '' : '';
-            var draftIdInput = document.getElementById('scheduleDraftId');
-            if (draftIdInput) {
-                draftIdInput.value = draftId;
+            var recordId = trigger ? trigger.getAttribute('data-draft-id') || '' : '';
+            var source = trigger ? trigger.getAttribute('data-source') || 'draft' : 'draft';
+            var recordIdInput = document.getElementById('scheduleDraftId');
+            var sourceInput = document.getElementById('scheduleSource');
+            if (recordIdInput) {
+                recordIdInput.value = recordId;
+            }
+            if (sourceInput) {
+                sourceInput.value = source;
             }
         });
     }

@@ -94,6 +94,23 @@ interface PublicationRepositoryInterface
     public function archiveEdited(PublicationData $post, string $now): void;
 
     /**
+     * @return PublicationData[] soft-deleted records, sorted by
+     * updated_at descending
+     */
+    public function allDeleted(): array;
+
+    /**
+     * Finds a soft-deleted record by id.
+     */
+    public function findDeleted(int $id): ?PublicationData;
+
+    /**
+     * Deletes a publications_deleted row and returns it as it was
+     * before deletion (used when restoring a record).
+     */
+    public function deleteDeleted(int $id): PublicationData;
+
+    /**
      * Inserts a publications_deleted row preserving the original
      * created_at and published_at; updated_at is set to $now,
      * deleted_at stays empty until the periodic task confirms the

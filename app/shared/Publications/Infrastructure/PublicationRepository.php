@@ -203,6 +203,38 @@ final class PublicationRepository implements PublicationRepositoryInterface
             ->execute();
     }
 
+    public function allDeleted(): array
+    {
+        return $this->hydrateAll(
+            'SELECT id, text, image_urls, telegram_id, published_at, created_at, updated_at, deleted_at'
+            . ' FROM {{%publications_deleted}} ORDER BY updated_at DESC, id DESC',
+        );
+    }
+
+    public function findDeleted(int $id): ?PublicationData
+    {
+        return $this->hydrateOne(
+            'SELECT id, text, image_urls, telegram_id, published_at, created_at, updated_at, deleted_at'
+            . ' FROM {{%publications_deleted}} WHERE id = :id',
+            [':id' => $id],
+        );
+    }
+
+    public function deleteDeleted(int $id): PublicationData
+    {
+        $record = $this->findDeleted($id);
+        if ($record === null) {
+            throw new InvalidArgumentException("Удалённая запись #{$id} не найдена.");
+        }
+
+        $this->db
+            ->createCommand()
+            ->delete('{{%publications_deleted}}', ['id' => $id])
+            ->execute();
+
+        return $record;
+    }
+
     public function findPendingChannelDeletion(): array
     {
         return $this->hydrateAll(
@@ -277,6 +309,9 @@ final class PublicationRepository implements PublicationRepositoryInterface
             $row['published_at'] === null ? null : (string)$row['published_at'],
             (string)$row['created_at'],
             (string)$row['updated_at'],
+            array_key_exists('deleted_at', $row)
+                ? ($row['deleted_at'] === null ? null : (string)$row['deleted_at'])
+                : null,
         );
     }
 
@@ -300,6 +335,9 @@ final class PublicationRepository implements PublicationRepositoryInterface
                 $row['published_at'] === null ? null : (string)$row['published_at'],
                 (string)$row['created_at'],
                 (string)$row['updated_at'],
+                array_key_exists('deleted_at', $row)
+                    ? ($row['deleted_at'] === null ? null : (string)$row['deleted_at'])
+                    : null,
             ),
             $rows,
         );

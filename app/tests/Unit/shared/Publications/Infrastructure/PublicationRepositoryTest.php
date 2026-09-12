@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace app\tests\Unit\shared\Publications\Infrastructure;
 
+use app\shared\Publications\Dto\PublicationData;
 use app\shared\Publications\Infrastructure\PublicationRepository;
 use Codeception\Test\Unit;
+use InvalidArgumentException;
 use Yii;
 
 final class PublicationRepositoryTest extends Unit
@@ -21,6 +23,9 @@ final class PublicationRepositoryTest extends Unit
             ->execute();
         Yii::$app->getDb()
             ->createCommand('TRUNCATE TABLE {{%publications_post}} RESTART IDENTITY')
+            ->execute();
+        Yii::$app->getDb()
+            ->createCommand('TRUNCATE TABLE {{%publications_deleted}} RESTART IDENTITY')
             ->execute();
         $this->_repository = new PublicationRepository(Yii::$app->getDb());
     }
@@ -103,5 +108,85 @@ final class PublicationRepositoryTest extends Unit
             'published_at must be corrected to the actual send time.',
         );
         $this->assertSame('2026-09-09 12:05:30', $posts[0]->updatedAt);
+    }
+
+    public function testAllDeletedSortedByUpdatedAtDescending(): void
+    {
+        $post = new PublicationData(1, 'Пост', [], null, '2026-09-10 21:00:00', '2026-09-10 10:00:00', '2026-09-10 10:00:00');
+        $draft = new PublicationData(2, 'Черновик', [], null, null, '2026-09-10 09:00:00', '2026-09-10 09:00:00');
+        $this->_repository->insertDeletedWithHistory($post, '2026-09-10 12:00:00');
+        $this->_repository->insertDeletedWithHistory($draft, '2026-09-10 13:00:00');
+
+        $deleted = $this->_repository->allDeleted();
+
+        $this->assertCount(2, $deleted);
+        $this->assertSame('Черновик', $deleted[0]->text);
+        $this->assertNull($deleted[0]->publishedAt);
+        $this->assertNull($deleted[0]->deletedAt);
+        $this->assertSame('2026-09-10 13:00:00', $deleted[0]->updatedAt);
+        $this->assertSame('Пост', $deleted[1]->text);
+        $this->assertSame('2026-09-10 21:00:00', $deleted[1]->publishedAt);
+    }
+
+    public function testDeleteDeletedReturnsRecordAndRemovesRow(): void
+    {
+        $post = new PublicationData(1, 'Пост', [], 4242, '2026-09-10 21:00:00', '2026-09-10 10:00:00', '2026-09-10 10:00:00');
+        $this->_repository->insertDeletedWithHistory($post, '2026-09-10 12:00:00');
+
+        $record = $this->_repository->deleteDeleted(1);
+
+        $this->assertSame('Пост', $record->text);
+        $this->assertSame(4242, $record->telegramId);
+        $this->assertSame('2026-09-10 10:00:00', $record->createdAt);
+        $this->assertSame([], $this->_repository->allDeleted());
+    }
+
+    public function testDeleteDeletedThrowsWhenRecordNotFound(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        $this->_repository->deleteDeleted(999);
+    }
+
+    public function testRestoredDeletedRecordMovesToPosts(): void
+    {
+        $post = new PublicationData(1, 'Восстанавливаемый', [], 4242, '2026-09-10 21:00:00', '2026-09-10 10:00:00', '2026-09-10 10:00:00');
+        $this->_repository->insertDeletedWithHistory($post, '2026-09-10 12:00:00');
+
+        $record = $this->_repository->deleteDeleted(1);
+        $this->_repository->insertPostWithHistory(
+            new PublicationData(
+                $record->id,
+                $record->text,
+                $record->imageUrls,
+                null,
+                '2026-09-11 12:00:00',
+                $record->createdAt,
+                $record->updatedAt,
+            ),
+            '2026-09-11 12:00:00',
+        );
+
+        $posts = $this->_repository->allPosts();
+        $this->assertCount(1, $posts);
+        $this->assertSame('Восстанавливаемый', $posts[0]->text);
+        $this->assertNull($posts[0]->telegramId);
+        $this->assertSame('2026-09-11 12:00:00', $posts[0]->publishedAt);
+        $this->assertSame('2026-09-10 10:00:00', $posts[0]->createdAt);
+    }
+
+    public function testRestoredDeletedRecordMovesToDrafts(): void
+    {
+        $draft = new PublicationData(1, 'Восстанавливаемый черновик', [], null, null, '2026-09-10 09:00:00', '2026-09-10 09:00:00');
+        $this->_repository->insertDeletedWithHistory($draft, '2026-09-10 12:00:00');
+
+        $record = $this->_repository->deleteDeleted(1);
+        $this->_repository->insertDraftWithHistory($record, '2026-09-11 12:00:00');
+
+        $drafts = $this->_repository->allDrafts();
+        $this->assertCount(1, $drafts);
+        $this->assertSame('Восстанавливаемый черновик', $drafts[0]->text);
+        $this->assertNull($drafts[0]->publishedAt);
+        $this->assertSame('2026-09-10 09:00:00', $drafts[0]->createdAt);
     }
 }
