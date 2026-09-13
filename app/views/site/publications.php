@@ -114,10 +114,11 @@ CSS
                                                 </span>
                                                 <span class="me-3"><i class="bi bi-clock"></i> <?= Html::encode($topic->publishedAt ?? '') ?></span>
                                                 <span class="me-3"><i class="bi bi-chat-dots"></i> <?= count($item['posts']) ?></span>
-                                                <span><i class="bi bi-link-45deg"></i>
-                                                    <a href="<?= Html::encode($topic->sourceUrl) ?>" target="_blank" rel="noopener"
-                                                       class="text-muted"><?= Html::encode($topic->sourceUrl) ?></a>
-                                                </span>
+                                            </div>
+                                            <div class="thread-meta text-muted small mt-1">
+                                                <i class="bi bi-link-45deg"></i>
+                                                <a href="<?= Html::encode($topic->sourceUrl) ?>" target="_blank" rel="noopener"
+                                                   class="text-muted"><?= Html::encode($topic->sourceUrl) ?></a>
                                             </div>
                                             <?php if ($topic->imageUrls !== []): ?>
                                                 <div class="d-flex gap-1 mt-2 flex-wrap">
@@ -158,7 +159,7 @@ CSS
                                                                      style="white-space: pre-wrap; word-break: break-word;"><?= Html::encode($post->contentHtml) ?></pre>
                                                             </details>
                                                         <?php endif ?>
-                                                        <small class="text-muted">
+                                                        <small class="text-muted d-block">
                                                             <?= Html::encode($post->author?->name ?? 'Неизвестный автор') ?>
                                                             <?php if ($post->number !== null): ?>
                                                                 • пост #<?= $post->number ?>
@@ -166,7 +167,8 @@ CSS
                                                             <?php if ($post->postedAt !== null): ?>
                                                                 • <?= Html::encode($post->postedAt) ?>
                                                             <?php endif ?>
-                                                            •
+                                                        </small>
+                                                        <small class="text-muted d-block mt-1">
                                                             <a href="<?= Html::encode($post->sourceUrl) ?>" target="_blank" rel="noopener"
                                                                class="text-muted"><?= Html::encode($post->sourceUrl) ?></a>
                                                         </small>
