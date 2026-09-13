@@ -7,6 +7,7 @@ declare(strict_types=1);
 /** @var \app\shared\Publications\Dto\PublicationData[] $drafts */
 /** @var \app\shared\Publications\Dto\PublicationData[] $deleted */
 /** @var array<int, array{topic: \app\shared\Forum\Dto\TopicData, posts: \app\shared\Forum\Dto\PostData[]}> $topics */
+/** @var bool $withImagesOnly */
 /** @var string $now */
 
 use yii\helpers\Html;
@@ -40,12 +41,12 @@ $this->registerCss(
     display: flex;
     flex-direction: column;
 }
-.forum-column > .card {
+.forum-column > .card:last-child {
     flex: 1 1 auto;
     display: flex;
     flex-direction: column;
 }
-.forum-column > .card > .card-body {
+.forum-column > .card:last-child > .card-body {
     flex: 1 1 auto;
     min-height: 0;
     display: flex;
@@ -62,6 +63,29 @@ CSS
 <!-- Row start -->
 <div class="row">
     <div class="col-sm-6 col-6 forum-column">
+
+        <!-- Forum filters -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title">Фильтры</h5>
+            </div>
+            <div class="card-body">
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" role="switch" id="forumFilterWithImages"
+                           data-filter-url="<?= \yii\helpers\Url::to(['site/publications']) ?>"
+                        <?= $withImagesOnly ? 'checked' : '' ?>>
+                    <label class="form-check-label" for="forumFilterWithImages">С изображениями</label>
+                </div>
+            </div>
+            <div class="card-footer bg-transparent">
+                <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted">
+                        <i class="bi bi-funnel me-1"></i>
+                        Фильтры применяются к блоку «Форум»
+                    </small>
+                </div>
+            </div>
+        </div>
 
         <!-- Forum topics -->
         <div class="card mb-4">
@@ -561,6 +585,16 @@ CSS
 $this->registerJs(
     <<<JS
 (function () {
+    var withImagesSwitch = document.getElementById('forumFilterWithImages');
+    if (withImagesSwitch) {
+        withImagesSwitch.addEventListener('change', function () {
+            var url = withImagesSwitch.getAttribute('data-filter-url');
+            window.location.href = withImagesSwitch.checked
+                ? url + (url.indexOf('?') === -1 ? '?' : '&') + 'withImages=1'
+                : url;
+        });
+    }
+
     var source = document.getElementById('publicationTextInput');
     if (!source) {
         return;
