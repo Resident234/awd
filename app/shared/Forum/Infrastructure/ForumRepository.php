@@ -295,10 +295,17 @@ final class ForumRepository implements ForumRepositoryInterface
      * full field values) with author data hydrated from the joined
      * member rows.
      *
+     * With $withImagesOnly = true only topics that have images of their
+     * own or at least one post with images are returned; their post
+     * lists are also reduced to posts with images only.
+     *
      * @return array<int, array{topic: TopicData, posts: PostData[]}>
      */
-    public function latestTopicsWithPosts(int $topicLimit, int $postLimit): array
+    public function latestTopicsWithPosts(int $topicLimit, int $postLimit, bool $withImagesOnly = false): array
     {
+        $topicFilter = $withImagesOnly
+            ? ' AND (t.image_urls != \'[]\'::jsonb OR EXISTS (SELECT 1 FROM {{%post}} fp WHERE fp.topic_id = t.id AND fp.image_urls != \'[]\'::jsonb))'
+            : '';
         $topicRows = $this->db
             ->createCommand(
                 'SELECT t.id, t.source_url, t.title, t.published_at, t.content_html, t.content_text, t.image_urls,'
@@ -306,7 +313,7 @@ final class ForumRepository implements ForumRepositoryInterface
                 . ' m.avatar_url AS author_avatar_url, m.rank_name AS author_rank_name'
                 . ' FROM {{%topic}} t'
                 . ' LEFT JOIN {{%member}} m ON m.id = t.author_id'
-                . ' WHERE t.login_required = FALSE'
+                . ' WHERE t.login_required = FALSE' . $topicFilter
                 . ' ORDER BY t.published_at DESC NULLS LAST, t.id DESC'
                 . ' LIMIT :limit'
             )
@@ -318,6 +325,7 @@ final class ForumRepository implements ForumRepositoryInterface
         }
 
         $topicIds = array_map(static fn (array $row): int => (int)$row['id'], $topicRows);
+        $postFilter = $withImagesOnly ? ' AND p.image_urls != \'[]\'::jsonb' : '';
         $postRows = $this->db
             ->createCommand(
                 'SELECT p.id, p.topic_id, p.author_id, p.number, p.title, p.posted_at, p.content_html, p.content_text, p.source_url, p.image_urls,'
@@ -330,7 +338,7 @@ final class ForumRepository implements ForumRepositoryInterface
                 . ' WHERE topic_id IN (' . implode(',', $topicIds) . ')'
                 . ' ) p'
                 . ' LEFT JOIN {{%member}} m ON m.id = p.author_id'
-                . ' WHERE p.rn <= :postLimit'
+                . ' WHERE p.rn <= :postLimit' . $postFilter
                 . ' ORDER BY p.topic_id, p.posted_at DESC NULLS LAST, p.id DESC'
             )
             ->bindValue(':postLimit', $postLimit)
