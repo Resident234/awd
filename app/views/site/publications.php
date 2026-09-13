@@ -126,6 +126,9 @@ CSS
                                                             <?= $topic->publicationStatus === 'published' ? 'Опубликовано' : 'Просмотрено' ?>
                                                         </span>
                                                     <?php endif ?>
+                                                    <?php if ($topic->publicationTelegramId !== null): ?>
+                                                        <span class="badge rounded-pill bg-dark" title="telegram_id">TG: <?= Html::encode($topic->publicationTelegramId) ?></span>
+                                                    <?php endif ?>
                                                     <span class="badge bg-primary">#<?= $topic->id ?></span>
                                                 </span>
                                             </div>
@@ -191,15 +194,27 @@ CSS
                                                         <?php if ($post->title !== ''): ?>
                                                             <div class="d-flex justify-content-between align-items-center mb-1">
                                                                 <h6 class="fw-bold mb-0"><?= Html::encode($post->title) ?></h6>
+                                                                <span class="d-flex align-items-center gap-1">
+                                                                    <?php if ($post->publicationStatus !== null): ?>
+                                                                        <span class="badge <?= $post->publicationStatus === 'published' ? 'bg-success' : 'bg-secondary' ?> rounded-pill">
+                                                                            <?= $post->publicationStatus === 'published' ? 'Опубликовано' : 'Просмотрено' ?>
+                                                                        </span>
+                                                                    <?php endif ?>
+                                                                    <?php if ($post->publicationTelegramId !== null): ?>
+                                                                        <span class="badge rounded-pill bg-info text-dark" title="telegram_id">TG: <?= Html::encode($post->publicationTelegramId) ?></span>
+                                                                    <?php endif ?>
+                                                                </span>
+                                                            </div>
+                                                        <?php elseif ($post->publicationStatus !== null || $post->publicationTelegramId !== null): ?>
+                                                            <span class="d-inline-block mb-1">
                                                                 <?php if ($post->publicationStatus !== null): ?>
                                                                     <span class="badge <?= $post->publicationStatus === 'published' ? 'bg-success' : 'bg-secondary' ?> rounded-pill">
                                                                         <?= $post->publicationStatus === 'published' ? 'Опубликовано' : 'Просмотрено' ?>
                                                                     </span>
                                                                 <?php endif ?>
-                                                            </div>
-                                                        <?php elseif ($post->publicationStatus !== null): ?>
-                                                            <span class="badge <?= $post->publicationStatus === 'published' ? 'bg-success' : 'bg-secondary' ?> rounded-pill mb-1 d-inline-block">
-                                                                <?= $post->publicationStatus === 'published' ? 'Опубликовано' : 'Просмотрено' ?>
+                                                                <?php if ($post->publicationTelegramId !== null): ?>
+                                                                    <span class="badge rounded-pill bg-info text-dark" title="telegram_id">TG: <?= Html::encode($post->publicationTelegramId) ?></span>
+                                                                <?php endif ?>
                                                             </span>
                                                         <?php endif ?>
                                                         <p class="mb-1" style="white-space: pre-line; word-break: break-word;"><?= Html::encode($post->contentText) ?></p>

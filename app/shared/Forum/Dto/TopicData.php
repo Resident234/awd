@@ -17,6 +17,7 @@ final readonly class TopicData
         public ?MemberData $author,
         public bool $loginRequired = false,
         public ?string $publicationStatus = null,
+        public ?string $publicationTelegramId = null,
     ) {
     }
 

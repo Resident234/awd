@@ -380,6 +380,7 @@ final class ForumRepository implements ForumRepositoryInterface
                 $author,
                 self::decodeImageUrls($row['image_urls']),
                 self::publicationStatus($row['publication_map_id'], $row['publication_telegram_id']),
+                self::publicationTelegramId($row['publication_map_id'], $row['publication_telegram_id']),
             );
         }
 
@@ -410,6 +411,7 @@ final class ForumRepository implements ForumRepositoryInterface
             $this->hydrateAuthorRow($row),
             false,
             self::publicationStatus($row['publication_map_id'] ?? null, $row['publication_telegram_id'] ?? null),
+            self::publicationTelegramId($row['publication_map_id'] ?? null, $row['publication_telegram_id'] ?? null),
         );
     }
 
@@ -426,6 +428,20 @@ final class ForumRepository implements ForumRepositoryInterface
         $value = (string)$telegramId;
 
         return $value === '' || $value === '0' ? 'viewed' : 'published';
+    }
+
+    /**
+     * The telegram message id of a published record, null otherwise.
+     */
+    private static function publicationTelegramId(mixed $mapId, mixed $telegramId): ?string
+    {
+        if ($mapId === null || $telegramId === null) {
+            return null;
+        }
+
+        $value = (string)$telegramId;
+
+        return $value === '' || $value === '0' ? null : $value;
     }
 
     /**

@@ -26,6 +26,7 @@ final readonly class PostData
         public ?MemberData $author = null,
         public array $imageUrls = [],
         public ?string $publicationStatus = null,
+        public ?string $publicationTelegramId = null,
     ) {
     }
 }
