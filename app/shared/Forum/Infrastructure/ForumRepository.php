@@ -149,6 +149,7 @@ final class ForumRepository implements ForumRepositoryInterface
                 'content_html' => $post->contentHtml,
                 'content_text' => $post->contentText,
                 'source_url' => $post->sourceUrl,
+                'image_urls' => new JsonExpression($post->imageUrls),
                 'created_at' => $now,
                 'updated_at' => $now,
             ],
@@ -161,6 +162,7 @@ final class ForumRepository implements ForumRepositoryInterface
                 'content_html' => $post->contentHtml,
                 'content_text' => $post->contentText,
                 'source_url' => $post->sourceUrl,
+                'image_urls' => new JsonExpression($post->imageUrls),
                 'updated_at' => $now,
             ]
         )->execute();
@@ -318,11 +320,11 @@ final class ForumRepository implements ForumRepositoryInterface
         $topicIds = array_map(static fn (array $row): int => (int)$row['id'], $topicRows);
         $postRows = $this->db
             ->createCommand(
-                'SELECT p.id, p.topic_id, p.author_id, p.number, p.title, p.posted_at, p.content_html, p.content_text, p.source_url,'
+                'SELECT p.id, p.topic_id, p.author_id, p.number, p.title, p.posted_at, p.content_html, p.content_text, p.source_url, p.image_urls,'
                 . ' m.profile_url AS author_profile_url, m.name AS author_name,'
                 . ' m.avatar_url AS author_avatar_url, m.rank_name AS author_rank_name'
                 . ' FROM ('
-                . ' SELECT id, topic_id, author_id, number, title, posted_at, content_html, content_text, source_url,'
+                . ' SELECT id, topic_id, author_id, number, title, posted_at, content_html, content_text, source_url, image_urls,'
                 . ' ROW_NUMBER() OVER (PARTITION BY topic_id ORDER BY posted_at DESC NULLS LAST, id DESC) AS rn'
                 . ' FROM {{%post}}'
                 . ' WHERE topic_id IN (' . implode(',', $topicIds) . ')'
@@ -364,6 +366,7 @@ final class ForumRepository implements ForumRepositoryInterface
                 (string)$row['content_text'],
                 (string)$row['source_url'],
                 $author,
+                self::decodeImageUrls($row['image_urls']),
             );
         }
 

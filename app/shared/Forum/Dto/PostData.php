@@ -10,6 +10,9 @@ namespace app\shared\Forum\Dto;
  */
 final readonly class PostData
 {
+    /**
+     * @param string[] $imageUrls
+     */
     public function __construct(
         public int $id,
         public int $topicId,
@@ -21,6 +24,7 @@ final readonly class PostData
         public string $contentText,
         public string $sourceUrl,
         public ?MemberData $author = null,
+        public array $imageUrls = [],
     ) {
     }
 }

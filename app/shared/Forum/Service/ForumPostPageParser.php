@@ -119,6 +119,7 @@ final class ForumPostPageParser extends ForumPageDomParser
         }
         $contentHtml = $this->innerHtml($content);
         $contentText = $this->htmlToText($contentHtml);
+        $imageUrls = $this->collectImageUrls($xpath, $content, $pageUrl);
 
         $profile = $this->firstElement($xpath, [
             './/*[contains(concat(" ", normalize-space(@class), " "), " postprofile ")]',
@@ -136,6 +137,7 @@ final class ForumPostPageParser extends ForumPageDomParser
             $contentText,
             $this->absoluteUrl('viewtopic.php?p=' . $postId . '#p' . $postId, $pageUrl),
             $author,
+            $imageUrls,
         );
     }
 

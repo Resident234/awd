@@ -180,6 +180,25 @@ CSS
                                                             <a href="<?= Html::encode($post->sourceUrl) ?>" target="_blank" rel="noopener"
                                                                class="text-muted"><?= Html::encode($post->sourceUrl) ?></a>
                                                         </small>
+                                                        <?php if ($post->imageUrls !== []): ?>
+                                                            <div class="d-flex mt-2 flex-wrap align-items-start">
+                                                                <?php foreach ($post->imageUrls as $imageUrl): ?>
+                                                                    <a href="<?= Html::encode($imageUrl) ?>" target="_blank" rel="noopener">
+                                                                        <img src="<?= Html::encode($imageUrl) ?>" class="img-3x rounded-2 me-3"
+                                                                             style="object-fit: cover;"
+                                                                             alt="Изображение поста">
+                                                                    </a>
+                                                                <?php endforeach ?>
+                                                            </div>
+                                                            <div class="mt-1">
+                                                                <?php foreach ($post->imageUrls as $imageUrl): ?>
+                                                                    <div class="text-muted small">
+                                                                        <a href="<?= Html::encode($imageUrl) ?>" target="_blank" rel="noopener"
+                                                                           class="text-muted" style="word-break: break-all;"><?= Html::encode($imageUrl) ?></a>
+                                                                    </div>
+                                                                <?php endforeach ?>
+                                                            </div>
+                                                        <?php endif ?>
                                                     </div>
                                                 </div>
                                             <?php endforeach ?>

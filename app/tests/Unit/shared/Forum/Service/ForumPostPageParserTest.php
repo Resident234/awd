@@ -29,7 +29,7 @@ final class ForumPostPageParserTest extends Unit
         <h3><a href="#p11860687">Re: Freedom Finance Казахстан: переводы денег и работа карт за границей</a></h3>
         <div style="float: right;">Сообщение: <a href="./viewtopic.php?p=11860687&amp;sid=abc#p11860687">#4495</a></div>
         <p class="author"><a href="./viewtopic.php?p=11860687&amp;sid=abc#p11860687"><img src="./styles/prosilver/imageset/icon_post_target.gif" alt="Сообщение" /></a> <strong><a href="#postform" id="poster11860687" title="Вставить имя пользователя" onclick="insert_text('[b]@nnet.[/b], '); return false;">@nnet.</a></strong> &raquo; 04 июл 2024, 17:50 </p>
-        <div class="content">Текст первого поста<br />вторая строка</div>
+        <div class="content">Текст первого поста<br />вторая строка<img src="./download/file.php?id=123" alt="Вложение" /><img data-src="https://imgur.com/pic1.png" src="./images/spacer.gif" /></div>
     </div>
     <dl class="postprofile" id="profile11860687">
         <dt>
@@ -96,6 +96,7 @@ HTML;
         $this->assertSame('2024-07-04 17:50:00', $first->postedAt);
         $this->assertStringContainsString('Текст первого поста', $first->contentText);
         $this->assertSame('https://forum.awd.ru/viewtopic.php?p=11860687#p11860687', $first->sourceUrl);
+        $this->assertSame(['https://imgur.com/pic1.png'], $first->imageUrls);
 
         $author = $first->author;
         $this->assertNotNull($author);
@@ -120,6 +121,7 @@ HTML;
         $this->assertSame('участник', $second->author->rankName);
         $this->assertSame(55, $second->author->messagesCount);
         $this->assertStringContainsString('images/avatars/upload/nophoto_811438.jpg', (string)$second->author->avatarUrl);
+        $this->assertSame([], $second->imageUrls);
     }
 
     public function testParsesNextPageUrlFromPagination(): void

@@ -213,4 +213,30 @@ abstract class ForumPageDomParser
         $text = (string)preg_replace('/\R{3,}/u', "\n\n", $text);
         return trim($text);
     }
+
+    /**
+     * Collects unique absolute image URLs from a content block:
+     * data-src wins over src, only direct image links are kept.
+     *
+     * @return string[]
+     */
+    protected function collectImageUrls(DOMXPath $xpath, DOMElement $content, string $sourceUrl): array
+    {
+        $urls = [];
+        foreach ($xpath->query('.//img', $content) ?: [] as $image) {
+            if (!$image instanceof DOMElement) {
+                continue;
+            }
+            $src = trim($image->getAttribute('data-src') ?: $image->getAttribute('src'));
+            if ($src === '') {
+                continue;
+            }
+            $absolute = $this->absoluteUrl($src, $sourceUrl);
+            if (!preg_match('~\.(?:gif|jpe?g|png|webp)(?:[?#]|$)~ui', $absolute)) {
+                continue;
+            }
+            $urls[] = $absolute;
+        }
+        return array_values(array_unique($urls));
+    }
 }
