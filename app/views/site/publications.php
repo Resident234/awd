@@ -85,10 +85,11 @@ CSS
                                 <div class="thread mb-4 pb-3 border-bottom">
                                     <div class="d-flex align-items-start gap-3 mb-3">
                                         <?php if ($topic->author?->avatarUrl !== null): ?>
-                                            <img src="<?= Html::encode($topic->author->avatarUrl) ?>" class="rounded-circle img-3x"
+                                            <img src="<?= Html::encode($topic->author->avatarUrl) ?>"
+                                                 class="rounded-circle img-3x flex-shrink-0"
                                                  alt="<?= Html::encode($topic->author->name) ?>">
                                         <?php else: ?>
-                                            <span class="rounded-circle img-3x bg-primary-subtle d-flex align-items-center justify-content-center">
+                                            <span class="rounded-circle img-3x flex-shrink-0 bg-primary-subtle d-flex align-items-center justify-content-center">
                                                 <i class="bi bi-person-fill text-primary"></i>
                                             </span>
                                         <?php endif ?>
