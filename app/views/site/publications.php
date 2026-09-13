@@ -147,21 +147,24 @@ CSS
                                             <?php if ($topic->imageUrls !== []): ?>
                                                 <div class="d-flex mt-2 flex-wrap align-items-start">
                                                     <?php foreach ($topic->imageUrls as $imageUrl): ?>
-                                                        <a href="<?= Html::encode($imageUrl) ?>" target="_blank" rel="noopener">
+                                                        <a href="<?= Html::encode($imageUrl) ?>" target="_blank" rel="noopener" class="d-inline-block mb-3">
                                                             <img src="<?= Html::encode($imageUrl) ?>" class="img-3x rounded-2 me-3"
                                                                  style="object-fit: cover;"
                                                                  alt="Изображение темы">
                                                         </a>
                                                     <?php endforeach ?>
                                                 </div>
-                                                <div class="mt-1">
+                                                <details class="mt-1">
+                                                    <summary class="text-muted small">
+                                                        <i class="bi bi-link-45deg me-1"></i>Ссылки на изображения (<?= count($topic->imageUrls) ?>)
+                                                    </summary>
                                                     <?php foreach ($topic->imageUrls as $imageUrl): ?>
                                                         <div class="text-muted small">
                                                             <a href="<?= Html::encode($imageUrl) ?>" target="_blank" rel="noopener"
                                                                class="text-muted" style="word-break: break-all;"><?= Html::encode($imageUrl) ?></a>
                                                         </div>
                                                     <?php endforeach ?>
-                                                </div>
+                                                </details>
                                             <?php endif ?>
                                         </div>
                                     </div>
@@ -207,21 +210,24 @@ CSS
                                                         <?php if ($post->imageUrls !== []): ?>
                                                             <div class="d-flex mt-2 flex-wrap align-items-start">
                                                                 <?php foreach ($post->imageUrls as $imageUrl): ?>
-                                                                    <a href="<?= Html::encode($imageUrl) ?>" target="_blank" rel="noopener">
+                                                                    <a href="<?= Html::encode($imageUrl) ?>" target="_blank" rel="noopener" class="d-inline-block mb-3">
                                                                         <img src="<?= Html::encode($imageUrl) ?>" class="img-3x rounded-2 me-3"
                                                                              style="object-fit: cover;"
                                                                              alt="Изображение поста">
                                                                     </a>
                                                                 <?php endforeach ?>
                                                             </div>
-                                                            <div class="mt-1">
+                                                            <details class="mt-1">
+                                                                <summary class="text-muted small">
+                                                                    <i class="bi bi-link-45deg me-1"></i>Ссылки на изображения (<?= count($post->imageUrls) ?>)
+                                                                </summary>
                                                                 <?php foreach ($post->imageUrls as $imageUrl): ?>
                                                                     <div class="text-muted small">
                                                                         <a href="<?= Html::encode($imageUrl) ?>" target="_blank" rel="noopener"
                                                                            class="text-muted" style="word-break: break-all;"><?= Html::encode($imageUrl) ?></a>
                                                                     </div>
                                                                 <?php endforeach ?>
-                                                            </div>
+                                                            </details>
                                                         <?php endif ?>
                                                     </div>
                                                 </div>
