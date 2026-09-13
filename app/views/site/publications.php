@@ -98,7 +98,7 @@ CSS
                                                 <h6 class="fw-bold mb-0"><?= Html::encode($topic->title) ?></h6>
                                                 <span class="badge bg-primary">#<?= $topic->id ?></span>
                                             </div>
-                                            <p class="mb-2"><?= Html::encode($topic->contentText) ?></p>
+                                            <p class="mb-2" style="white-space: pre-line; word-break: break-word;"><?= Html::encode($topic->contentText) ?></p>
                                             <?php if ($topic->contentHtml !== ''): ?>
                                                 <details class="mb-2">
                                                     <summary class="text-muted small">
@@ -149,7 +149,7 @@ CSS
                                                         <?php if ($post->title !== ''): ?>
                                                             <h6 class="fw-bold mb-1"><?= Html::encode($post->title) ?></h6>
                                                         <?php endif ?>
-                                                        <p class="mb-1"><?= Html::encode($post->contentText) ?></p>
+                                                        <p class="mb-1" style="white-space: pre-line; word-break: break-word;"><?= Html::encode($post->contentText) ?></p>
                                                         <?php if ($post->contentHtml !== ''): ?>
                                                             <details class="mb-1">
                                                                 <summary class="text-muted small">
