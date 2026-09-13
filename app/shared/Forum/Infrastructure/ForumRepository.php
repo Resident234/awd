@@ -295,6 +295,11 @@ final class ForumRepository implements ForumRepositoryInterface
      * full field values) with author data hydrated from the joined
      * member rows.
      *
+     * Publication filter: only topics without a publications_topic_map
+     * record are listed, plus mapped (viewed/published) topics that
+     * still have at least one post without a publications_post_map
+     * record. The post lists contain only posts without a map record.
+     *
      * With $withImagesOnly = true only topics that have images of their
      * own or at least one post with images are returned; their post
      * lists are also reduced to posts with images only.
@@ -303,9 +308,15 @@ final class ForumRepository implements ForumRepositoryInterface
      */
     public function latestTopicsWithPosts(int $topicLimit, int $postLimit, bool $withImagesOnly = false): array
     {
-        $topicFilter = $withImagesOnly
+        $topicFilter = ($withImagesOnly
             ? ' AND (t.image_urls != \'[]\'::jsonb OR EXISTS (SELECT 1 FROM {{%post}} fp WHERE fp.topic_id = t.id AND fp.image_urls != \'[]\'::jsonb))'
-            : '';
+            : '')
+            . ' AND (ptm.topic_id IS NULL OR EXISTS ('
+            . 'SELECT 1 FROM {{%post}} fp'
+            . ' WHERE fp.topic_id = t.id'
+            . ' AND NOT EXISTS (SELECT 1 FROM {{%publications_post_map}} fpm WHERE fpm.post_id = fp.id)'
+            . ($withImagesOnly ? ' AND fp.image_urls != \'[]\'::jsonb' : '')
+            . '))';
         $topicRows = $this->db
             ->createCommand(
                 'SELECT t.id, t.source_url, t.title, t.published_at, t.content_html, t.content_text, t.image_urls,'
@@ -335,10 +346,11 @@ final class ForumRepository implements ForumRepositoryInterface
                 . ' m.avatar_url AS author_avatar_url, m.rank_name AS author_rank_name,'
                 . ' ppm.post_id AS publication_map_id, ppm.telegram_id AS publication_telegram_id'
                 . ' FROM ('
-                . ' SELECT id, topic_id, author_id, number, title, posted_at, content_html, content_text, source_url, image_urls,'
-                . ' ROW_NUMBER() OVER (PARTITION BY topic_id ORDER BY posted_at DESC NULLS LAST, id DESC) AS rn'
-                . ' FROM {{%post}}'
-                . ' WHERE topic_id IN (' . implode(',', $topicIds) . ')'
+                . ' SELECT bp.id, bp.topic_id, bp.author_id, bp.number, bp.title, bp.posted_at, bp.content_html, bp.content_text, bp.source_url, bp.image_urls,'
+                . ' ROW_NUMBER() OVER (PARTITION BY bp.topic_id ORDER BY bp.posted_at DESC NULLS LAST, bp.id DESC) AS rn'
+                . ' FROM {{%post}} bp'
+                . ' WHERE bp.topic_id IN (' . implode(',', $topicIds) . ')'
+                . ' AND NOT EXISTS (SELECT 1 FROM {{%publications_post_map}} fpm WHERE fpm.post_id = bp.id)'
                 . ' ) p'
                 . ' LEFT JOIN {{%member}} m ON m.id = p.author_id'
                 . ' LEFT JOIN {{%publications_post_map}} ppm ON ppm.post_id = p.id'
