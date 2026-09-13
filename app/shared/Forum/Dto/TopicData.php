@@ -16,6 +16,7 @@ final readonly class TopicData
         public array $imageUrls,
         public ?MemberData $author,
         public bool $loginRequired = false,
+        public ?string $publicationStatus = null,
     ) {
     }
 

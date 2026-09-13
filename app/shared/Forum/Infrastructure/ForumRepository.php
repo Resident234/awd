@@ -310,9 +310,11 @@ final class ForumRepository implements ForumRepositoryInterface
             ->createCommand(
                 'SELECT t.id, t.source_url, t.title, t.published_at, t.content_html, t.content_text, t.image_urls,'
                 . ' m.id AS author_id, m.profile_url AS author_profile_url, m.name AS author_name,'
-                . ' m.avatar_url AS author_avatar_url, m.rank_name AS author_rank_name'
+                . ' m.avatar_url AS author_avatar_url, m.rank_name AS author_rank_name,'
+                . ' ptm.topic_id AS publication_map_id, ptm.telegram_id AS publication_telegram_id'
                 . ' FROM {{%topic}} t'
                 . ' LEFT JOIN {{%member}} m ON m.id = t.author_id'
+                . ' LEFT JOIN {{%publications_topic_map}} ptm ON ptm.topic_id = t.id'
                 . ' WHERE t.login_required = FALSE' . $topicFilter
                 . ' ORDER BY t.published_at DESC NULLS LAST, t.id DESC'
                 . ' LIMIT :limit'
@@ -330,7 +332,8 @@ final class ForumRepository implements ForumRepositoryInterface
             ->createCommand(
                 'SELECT p.id, p.topic_id, p.author_id, p.number, p.title, p.posted_at, p.content_html, p.content_text, p.source_url, p.image_urls,'
                 . ' m.profile_url AS author_profile_url, m.name AS author_name,'
-                . ' m.avatar_url AS author_avatar_url, m.rank_name AS author_rank_name'
+                . ' m.avatar_url AS author_avatar_url, m.rank_name AS author_rank_name,'
+                . ' ppm.post_id AS publication_map_id, ppm.telegram_id AS publication_telegram_id'
                 . ' FROM ('
                 . ' SELECT id, topic_id, author_id, number, title, posted_at, content_html, content_text, source_url, image_urls,'
                 . ' ROW_NUMBER() OVER (PARTITION BY topic_id ORDER BY posted_at DESC NULLS LAST, id DESC) AS rn'
@@ -338,6 +341,7 @@ final class ForumRepository implements ForumRepositoryInterface
                 . ' WHERE topic_id IN (' . implode(',', $topicIds) . ')'
                 . ' ) p'
                 . ' LEFT JOIN {{%member}} m ON m.id = p.author_id'
+                . ' LEFT JOIN {{%publications_post_map}} ppm ON ppm.post_id = p.id'
                 . ' WHERE p.rn <= :postLimit' . $postFilter
                 . ' ORDER BY p.topic_id, p.posted_at DESC NULLS LAST, p.id DESC'
             )
@@ -375,6 +379,7 @@ final class ForumRepository implements ForumRepositoryInterface
                 (string)$row['source_url'],
                 $author,
                 self::decodeImageUrls($row['image_urls']),
+                self::publicationStatus($row['publication_map_id'], $row['publication_telegram_id']),
             );
         }
 
@@ -403,7 +408,24 @@ final class ForumRepository implements ForumRepositoryInterface
             (string)$row['content_text'],
             self::decodeImageUrls($row['image_urls']),
             $this->hydrateAuthorRow($row),
+            false,
+            self::publicationStatus($row['publication_map_id'] ?? null, $row['publication_telegram_id'] ?? null),
         );
+    }
+
+    /**
+     * Map rows: no map record = not seen (null), record with empty
+     * telegram_id = viewed, record with telegram_id = published.
+     */
+    private static function publicationStatus(mixed $mapId, mixed $telegramId): ?string
+    {
+        if ($mapId === null) {
+            return null;
+        }
+
+        $value = (string)$telegramId;
+
+        return $value === '' || $value === '0' ? 'viewed' : 'published';
     }
 
     /**

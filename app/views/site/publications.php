@@ -120,7 +120,14 @@ CSS
                                         <div class="flex-grow-1">
                                             <div class="thread-header d-flex justify-content-between align-items-center mb-2">
                                                 <h6 class="fw-bold mb-0"><?= Html::encode($topic->title) ?></h6>
-                                                <span class="badge bg-primary">#<?= $topic->id ?></span>
+                                                <span class="d-flex align-items-center gap-1">
+                                                    <?php if ($topic->publicationStatus !== null): ?>
+                                                        <span class="badge <?= $topic->publicationStatus === 'published' ? 'bg-success' : 'bg-secondary' ?> rounded-pill">
+                                                            <?= $topic->publicationStatus === 'published' ? 'Опубликовано' : 'Просмотрено' ?>
+                                                        </span>
+                                                    <?php endif ?>
+                                                    <span class="badge bg-primary">#<?= $topic->id ?></span>
+                                                </span>
                                             </div>
                                             <p class="mb-2" style="white-space: pre-line; word-break: break-word;"><?= Html::encode($topic->contentText) ?></p>
                                             <?php if ($topic->contentHtml !== ''): ?>
@@ -182,7 +189,18 @@ CSS
                                                     <?php endif ?>
                                                     <div>
                                                         <?php if ($post->title !== ''): ?>
-                                                            <h6 class="fw-bold mb-1"><?= Html::encode($post->title) ?></h6>
+                                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                                <h6 class="fw-bold mb-0"><?= Html::encode($post->title) ?></h6>
+                                                                <?php if ($post->publicationStatus !== null): ?>
+                                                                    <span class="badge <?= $post->publicationStatus === 'published' ? 'bg-success' : 'bg-secondary' ?> rounded-pill">
+                                                                        <?= $post->publicationStatus === 'published' ? 'Опубликовано' : 'Просмотрено' ?>
+                                                                    </span>
+                                                                <?php endif ?>
+                                                            </div>
+                                                        <?php elseif ($post->publicationStatus !== null): ?>
+                                                            <span class="badge <?= $post->publicationStatus === 'published' ? 'bg-success' : 'bg-secondary' ?> rounded-pill mb-1 d-inline-block">
+                                                                <?= $post->publicationStatus === 'published' ? 'Опубликовано' : 'Просмотрено' ?>
+                                                            </span>
                                                         <?php endif ?>
                                                         <p class="mb-1" style="white-space: pre-line; word-break: break-word;"><?= Html::encode($post->contentText) ?></p>
                                                         <?php if ($post->contentHtml !== ''): ?>

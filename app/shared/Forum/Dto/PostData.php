@@ -25,6 +25,7 @@ final readonly class PostData
         public string $sourceUrl,
         public ?MemberData $author = null,
         public array $imageUrls = [],
+        public ?string $publicationStatus = null,
     ) {
     }
 }
