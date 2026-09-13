@@ -33,10 +33,35 @@ $duePosts = array_values(array_filter(
     $posts,
     static fn (\app\shared\Publications\Dto\PublicationData $post): bool => $post->telegramId !== null,
 ));
+
+$this->registerCss(
+    <<<CSS
+.forum-column {
+    display: flex;
+    flex-direction: column;
+}
+.forum-column > .card {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+}
+.forum-column > .card > .card-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+.forum-column .scroll350 {
+    height: auto;
+    flex: 1 1 0;
+    min-height: 0;
+}
+CSS
+);
 ?>
 <!-- Row start -->
 <div class="row">
-    <div class="col-xxl-3 col-sm-12 col-12">
+    <div class="col-sm-6 col-6 forum-column">
 
         <!-- Forum topics -->
         <div class="card mb-4">
@@ -47,7 +72,7 @@ $duePosts = array_values(array_filter(
                 <div class="scroll350">
 
                     <!-- Forum topics widget start -->
-                    <div class="notification-center">
+                    <div class="notification-center h-100">
                         <div class="threads">
                             <?php if ($topics === []): ?>
                                 <p class="text-muted small mb-0 py-3">
@@ -160,9 +185,7 @@ $duePosts = array_values(array_filter(
         </div>
 
     </div>
-    <div class="col-xxl-9 col-sm-12 col-12">
-        <div class="row">
-            <div class="col-xxl-8 col-sm-12 col-12">
+    <div class="col-sm-6 col-6">
 
         <!-- Publication preview -->
         <div class="card mb-4">
@@ -239,8 +262,9 @@ $duePosts = array_values(array_filter(
             </div>
         </div>
 
-            </div>
-            <div class="col-xxl-4 col-sm-12 col-12">
+    </div>
+
+    <div class="col-sm-4">
 
         <!-- Publications -->
         <div class="card mb-4">
@@ -323,6 +347,9 @@ $duePosts = array_values(array_filter(
             </div>
         </div>
 
+    </div>
+    <div class="col-sm-4">
+
         <!-- Drafts -->
         <div class="card mb-4">
             <div class="card-header">
@@ -375,6 +402,9 @@ $duePosts = array_values(array_filter(
                 </div>
             </div>
         </div>
+
+    </div>
+    <div class="col-sm-4">
 
         <!-- Deleted -->
         <div class="card mb-4">
@@ -452,8 +482,6 @@ $duePosts = array_values(array_filter(
             </div>
         </div>
 
-            </div>
-        </div>
     </div>
 </div>
 <!-- Row end -->
