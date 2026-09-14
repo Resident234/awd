@@ -56,4 +56,18 @@ interface ForumRepositoryInterface
      * @return array<int, array{topic: \app\shared\Forum\Dto\TopicData, posts: \app\shared\Forum\Dto\PostData[]}>
      */
     public function latestTopicsWithPosts(int $topicLimit, int $postLimit, bool $withImagesOnly = false, bool $withPostsOnly = false): array;
+
+    /**
+     * Marks a forum topic as viewed by the "Просмотрено" button:
+     * inserts a publications_topic_map row with an empty telegram_id
+     * (or keeps an existing one untouched).
+     */
+    public function markTopicViewed(int $topicId): void;
+
+    /**
+     * Marks a forum post as viewed by the "Просмотрено" button:
+     * inserts a publications_post_map row with an empty telegram_id
+     * (or keeps an existing one untouched).
+     */
+    public function markPostViewed(int $postId): void;
 }

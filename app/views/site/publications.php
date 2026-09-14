@@ -30,6 +30,24 @@ $deleteForm = static function (int $id, string $source): string {
         . 'title="Удалить"><i class="bi bi-trash"></i></button></form>';
 };
 
+$viewedForm = static function (int $id, string $type): string {
+    $csrf = '<input type="hidden" name="' . Yii::$app->request->csrfParam
+        . '" value="' . Yii::$app->request->csrfToken . '">';
+    return '<form method="post" action="' . \yii\helpers\Url::to(['site/forum-viewed'])
+        . '" class="d-inline">' . $csrf
+        . '<input type="hidden" name="forumEntityType" value="' . $type . '">'
+        . '<input type="hidden" name="forumEntityId" value="' . $id . '">'
+        . '<button type="submit" class="btn btn-outline-primary btn-sm">'
+        . '<i class="bi bi-check2-square me-1"></i>Просмотрено</button></form>';
+};
+
+$publishButton = static function (string $text, ?string $publishedAt = null): string {
+    $dataPublishedAt = $publishedAt === null ? '' : ' data-published-at="' . Html::encode($publishedAt) . '"';
+    return '<button type="button" class="btn btn-outline-primary btn-sm forum-publish-btn" data-text="'
+        . Html::encode($text) . '"' . $dataPublishedAt . '>'
+        . '<i class="bi bi-send me-1"></i>Опубликовать</button>';
+};
+
 /** @var \app\shared\Publications\Dto\PublicationData[] $duePosts */
 $duePosts = array_values(array_filter(
     $posts,
@@ -161,6 +179,10 @@ CSS
                                                 <a href="<?= Html::encode($topic->sourceUrl) ?>" target="_blank" rel="noopener"
                                                    class="text-muted"><?= Html::encode($topic->sourceUrl) ?></a>
                                             </div>
+                                            <div class="d-flex align-items-center gap-2 mt-2 mb-1 flex-wrap">
+                                                <?= $viewedForm($topic->id, 'topic') ?>
+                                                <?= $publishButton($topic->contentText) ?>
+                                            </div>
                                             <?php if ($topic->imageUrls !== []): ?>
                                                 <div class="d-flex mt-2 flex-wrap align-items-start">
                                                     <?php foreach ($topic->imageUrls as $imageUrl): ?>
@@ -247,6 +269,10 @@ CSS
                                                             <a href="<?= Html::encode($post->sourceUrl) ?>" target="_blank" rel="noopener"
                                                                class="text-muted"><?= Html::encode($post->sourceUrl) ?></a>
                                                         </small>
+                                                        <div class="d-flex align-items-center gap-2 mt-2 mb-1 flex-wrap">
+                                                            <?= $viewedForm($post->id, 'post') ?>
+                                                            <?= $publishButton($post->contentText) ?>
+                                                        </div>
                                                         <?php if ($post->imageUrls !== []): ?>
                                                             <div class="d-flex mt-2 flex-wrap align-items-start">
                                                                 <?php foreach ($post->imageUrls as $imageUrl): ?>
@@ -727,6 +753,22 @@ $this->registerJs(
                 event.preventDefault();
                 setEditing(log);
             });
+        });
+    });
+
+    document.querySelectorAll('.forum-publish-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            source.value = btn.getAttribute('data-text') || '';
+            source.dispatchEvent(new Event('input'));
+            if (sourceTypeInput && sourceIdInput) {
+                sourceTypeInput.value = 'new';
+                sourceIdInput.value = '';
+            }
+            if (publishedAtInput) {
+                publishedAtInput.value = btn.getAttribute('data-published-at') || publishedAtInput.value;
+            }
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            source.focus();
         });
     });
 

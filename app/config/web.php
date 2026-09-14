@@ -31,6 +31,8 @@ $config = [
                     null,
                     \Yii::createObject(\app\shared\Telegram\Service\ChannelService::class),
                 ),
+            \app\shared\Forum\Contract\ForumRepositoryInterface::class => static fn (): \app\shared\Forum\Infrastructure\ForumRepository =>
+                new \app\shared\Forum\Infrastructure\ForumRepository(\Yii::$app->getDb()),
         ],
     ],
     'aliases' => [

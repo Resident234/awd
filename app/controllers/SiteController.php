@@ -7,7 +7,7 @@ namespace app\controllers;
 use Yii;
 use app\models\ContactForm;
 use app\models\LoginForm;
-use app\shared\Forum\Infrastructure\ForumRepository;
+use app\shared\Forum\Contract\ForumRepositoryInterface;
 use app\shared\Publications\Service\PublicationsService;
 use app\shared\Telegram\Infrastructure\TelegramApiException;
 use app\shared\Telegram\Service\ChannelService;
@@ -32,6 +32,7 @@ class SiteController extends Controller
         private readonly Security $security,
         private readonly ChannelService $telegramChannel,
         private readonly PublicationsService $publications,
+        private readonly ForumRepositoryInterface $forum,
         $config = [],
     ) {
         parent::__construct($id, $module, $config);
@@ -63,6 +64,7 @@ class SiteController extends Controller
                     'publication-publish' => ['post'],
                     'publication-delete' => ['post'],
                     'publication-schedule' => ['post'],
+                    'forum-viewed' => ['post'],
                 ],
             ],
         ];
@@ -149,11 +151,41 @@ class SiteController extends Controller
             'posts' => $this->publications->posts(),
             'drafts' => $this->publications->drafts(),
             'deleted' => $this->publications->deleted(),
-            'topics' => (new ForumRepository(Yii::$app->getDb()))->latestTopicsWithPosts(10, 10, $withImagesOnly, $withPostsOnly),
+            'topics' => $this->forum->latestTopicsWithPosts(10, 10, $withImagesOnly, $withPostsOnly),
             'withImagesOnly' => $withImagesOnly,
             'withPostsOnly' => $withPostsOnly,
             'now' => gmdate('Y-m-d H:i:s'),
         ]);
+    }
+
+    /**
+     * Marks a forum topic or post as viewed by the "Просмотрено"
+     * button: inserts a publications_topic_map / publications_post_map
+     * row with an empty telegram_id, so the element stops showing up
+     * among the unprocessed ones.
+     *
+     * @return Response
+     */
+    public function actionForumViewed(): Response
+    {
+        $id = (string)($this->request->post('forumEntityId', ''));
+        $type = (string)($this->request->post('forumEntityType', ''));
+
+        try {
+            if ($type === 'topic') {
+                $this->forum->markTopicViewed((int)$id);
+                Yii::$app->session->setFlash('success', 'Топик отмечен как просмотренный.');
+            } elseif ($type === 'post') {
+                $this->forum->markPostViewed((int)$id);
+                Yii::$app->session->setFlash('success', 'Пост отмечен как просмотренный.');
+            } else {
+                throw new InvalidArgumentException('Не указан элемент форума.');
+            }
+        } catch (InvalidArgumentException $e) {
+            Yii::$app->session->setFlash('error', $e->getMessage());
+        }
+
+        return $this->redirect(['publications']);
     }
 
     /**

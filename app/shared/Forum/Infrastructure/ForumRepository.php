@@ -414,6 +414,46 @@ final class ForumRepository implements ForumRepositoryInterface
     }
 
     /**
+     * Marks a forum topic as viewed by the "Просмотрено" button:
+     * inserts a publications_topic_map row with an empty telegram_id.
+     * An existing map row is left untouched — a topic already
+     * published to the channel keeps its telegram_id.
+     */
+    public function markTopicViewed(int $topicId): void
+    {
+        $exists = $this->db
+            ->createCommand('SELECT 1 FROM {{%publications_topic_map}} WHERE topic_id = :id')
+            ->bindValue(':id', $topicId)
+            ->queryScalar() !== false;
+        if (!$exists) {
+            $this->db
+                ->createCommand()
+                ->insert('{{%publications_topic_map}}', ['topic_id' => $topicId, 'telegram_id' => null])
+                ->execute();
+        }
+    }
+
+    /**
+     * Marks a forum post as viewed by the "Просмотрено" button:
+     * inserts a publications_post_map row with an empty telegram_id.
+     * An existing map row is left untouched — a post already
+     * published to the channel keeps its telegram_id.
+     */
+    public function markPostViewed(int $postId): void
+    {
+        $exists = $this->db
+            ->createCommand('SELECT 1 FROM {{%publications_post_map}} WHERE post_id = :id')
+            ->bindValue(':id', $postId)
+            ->queryScalar() !== false;
+        if (!$exists) {
+            $this->db
+                ->createCommand()
+                ->insert('{{%publications_post_map}}', ['post_id' => $postId, 'telegram_id' => null])
+                ->execute();
+        }
+    }
+
+    /**
      * @param array<string, mixed> $row
      */
     private function hydrateTopicRow(array $row): TopicData
