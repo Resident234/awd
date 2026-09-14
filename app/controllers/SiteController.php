@@ -143,13 +143,15 @@ class SiteController extends Controller
         $this->layout = 'dashboard';
 
         $withImagesOnly = (string)$this->request->get('withImages', '') === '1';
+        $withPostsOnly = (string)$this->request->get('withPosts', '') === '1';
 
         return $this->render('publications', [
             'posts' => $this->publications->posts(),
             'drafts' => $this->publications->drafts(),
             'deleted' => $this->publications->deleted(),
-            'topics' => (new ForumRepository(Yii::$app->getDb()))->latestTopicsWithPosts(10, 10, $withImagesOnly),
+            'topics' => (new ForumRepository(Yii::$app->getDb()))->latestTopicsWithPosts(10, 10, $withImagesOnly, $withPostsOnly),
             'withImagesOnly' => $withImagesOnly,
+            'withPostsOnly' => $withPostsOnly,
             'now' => gmdate('Y-m-d H:i:s'),
         ]);
     }

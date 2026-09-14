@@ -304,13 +304,19 @@ final class ForumRepository implements ForumRepositoryInterface
      * own or at least one post with images are returned; their post
      * lists are also reduced to posts with images only.
      *
+     * With $withPostsOnly = true only topics that have at least one
+     * post in the post table are returned.
+     *
      * @return array<int, array{topic: TopicData, posts: PostData[]}>
      */
-    public function latestTopicsWithPosts(int $topicLimit, int $postLimit, bool $withImagesOnly = false): array
+    public function latestTopicsWithPosts(int $topicLimit, int $postLimit, bool $withImagesOnly = false, bool $withPostsOnly = false): array
     {
         $topicFilter = ($withImagesOnly
             ? ' AND (t.image_urls != \'[]\'::jsonb OR EXISTS (SELECT 1 FROM {{%post}} fp WHERE fp.topic_id = t.id AND fp.image_urls != \'[]\'::jsonb))'
             : '')
+            . ($withPostsOnly
+                ? ' AND EXISTS (SELECT 1 FROM {{%post}} pp WHERE pp.topic_id = t.id)'
+                : '')
             . ' AND (ptm.topic_id IS NULL OR EXISTS ('
             . 'SELECT 1 FROM {{%post}} fp'
             . ' WHERE fp.topic_id = t.id'

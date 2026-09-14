@@ -8,6 +8,7 @@ declare(strict_types=1);
 /** @var \app\shared\Publications\Dto\PublicationData[] $deleted */
 /** @var array<int, array{topic: \app\shared\Forum\Dto\TopicData, posts: \app\shared\Forum\Dto\PostData[]}> $topics */
 /** @var bool $withImagesOnly */
+/** @var bool $withPostsOnly */
 /** @var string $now */
 
 use yii\helpers\Html;
@@ -70,11 +71,17 @@ CSS
                 <h5 class="card-title">Фильтры</h5>
             </div>
             <div class="card-body">
-                <div class="form-check form-switch mb-0">
+                <div class="form-check form-switch mb-3">
                     <input class="form-check-input" type="checkbox" role="switch" id="forumFilterWithImages"
                            data-filter-url="<?= \yii\helpers\Url::to(['site/publications']) ?>"
                         <?= $withImagesOnly ? 'checked' : '' ?>>
                     <label class="form-check-label" for="forumFilterWithImages">С изображениями</label>
+                </div>
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" role="switch" id="forumFilterWithPosts"
+                           data-filter-url="<?= \yii\helpers\Url::to(['site/publications']) ?>"
+                        <?= $withPostsOnly ? 'checked' : '' ?>>
+                    <label class="form-check-label" for="forumFilterWithPosts">С привязанными постами</label>
                 </div>
             </div>
             <div class="card-footer bg-transparent">
@@ -624,15 +631,27 @@ CSS
 $this->registerJs(
     <<<JS
 (function () {
-    var withImagesSwitch = document.getElementById('forumFilterWithImages');
-    if (withImagesSwitch) {
-        withImagesSwitch.addEventListener('change', function () {
-            var url = withImagesSwitch.getAttribute('data-filter-url');
-            window.location.href = withImagesSwitch.checked
-                ? url + (url.indexOf('?') === -1 ? '?' : '&') + 'withImages=1'
-                : url;
-        });
-    }
+    var applyFilters = function () {
+        var imagesSwitch = document.getElementById('forumFilterWithImages');
+        var postsSwitch = document.getElementById('forumFilterWithPosts');
+        var base = (imagesSwitch || postsSwitch).getAttribute('data-filter-url');
+        var params = [];
+        if (imagesSwitch && imagesSwitch.checked) {
+            params.push('withImages=1');
+        }
+        if (postsSwitch && postsSwitch.checked) {
+            params.push('withPosts=1');
+        }
+        window.location.href = params.length === 0
+            ? base
+            : base + (base.indexOf('?') === -1 ? '?' : '&') + params.join('&');
+    };
+    ['forumFilterWithImages', 'forumFilterWithPosts'].forEach(function (id) {
+        var element = document.getElementById(id);
+        if (element) {
+            element.addEventListener('change', applyFilters);
+        }
+    });
 
     var source = document.getElementById('publicationTextInput');
     if (!source) {

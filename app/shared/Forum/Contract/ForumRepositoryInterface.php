@@ -50,9 +50,10 @@ interface ForumRepositoryInterface
      * published_at descending, at most $topicLimit rows, each with its
      * own latest posts (at most $postLimit, posted_at descending).
      * With $withImagesOnly = true only topics/posts having non-empty
-     * image_urls are returned.
+     * image_urls are returned. With $withPostsOnly = true only topics
+     * having at least one post are returned.
      *
      * @return array<int, array{topic: \app\shared\Forum\Dto\TopicData, posts: \app\shared\Forum\Dto\PostData[]}>
      */
-    public function latestTopicsWithPosts(int $topicLimit, int $postLimit, bool $withImagesOnly = false): array;
+    public function latestTopicsWithPosts(int $topicLimit, int $postLimit, bool $withImagesOnly = false, bool $withPostsOnly = false): array;
 }
