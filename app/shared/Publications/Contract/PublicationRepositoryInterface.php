@@ -23,14 +23,15 @@ interface PublicationRepositoryInterface
     public function allDrafts(): array;
 
     /**
-     * Creates a draft from the form data.
+     * Creates a draft from the form data. Returns the new row id.
      */
-    public function createDraft(string $text, array $imageUrls, string $now): void;
+    public function createDraft(string $text, array $imageUrls, string $now): int;
 
     /**
-     * Creates a scheduled (or immediately due) post from the form data.
+     * Creates a scheduled (or immediately due) post from the form
+     * data. Returns the new row id.
      */
-    public function createPost(string $text, array $imageUrls, string $publishedAt, string $now): void;
+    public function createPost(string $text, array $imageUrls, string $publishedAt, string $now): int;
 
     /**
      * @return PublicationData[] posts with an empty telegram_id and a due
@@ -79,13 +80,15 @@ interface PublicationRepositoryInterface
     /**
      * Inserts a post row preserving the original created_at (used when
      * moving records between the posts, drafts and edited tables).
+     * Returns the new row id.
      */
-    public function insertPostWithHistory(PublicationData $post, string $now): void;
+    public function insertPostWithHistory(PublicationData $post, string $now): int;
 
     /**
      * Inserts a draft row preserving the original created_at.
+     * Returns the new row id.
      */
-    public function insertDraftWithHistory(PublicationData $draft, string $now): void;
+    public function insertDraftWithHistory(PublicationData $draft, string $now): int;
 
     /**
      * Archives a published post row into publications_edited with all
@@ -114,9 +117,9 @@ interface PublicationRepositoryInterface
      * Inserts a publications_deleted row preserving the original
      * created_at and published_at; updated_at is set to $now,
      * deleted_at stays empty until the periodic task confirms the
-     * channel removal.
+     * channel removal. Returns the new row id.
      */
-    public function insertDeletedWithHistory(PublicationData $record, string $now): void;
+    public function insertDeletedWithHistory(PublicationData $record, string $now): int;
 
     /**
      * @return PublicationData[] soft-deleted posts with an empty

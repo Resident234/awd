@@ -41,10 +41,9 @@ $viewedForm = static function (int $id, string $type): string {
         . '<i class="bi bi-check2-square me-1"></i>Просмотрено</button></form>';
 };
 
-$publishButton = static function (string $text, ?string $publishedAt = null): string {
-    $dataPublishedAt = $publishedAt === null ? '' : ' data-published-at="' . Html::encode($publishedAt) . '"';
+$publishButton = static function (string $text, string $forumType, int $forumId): string {
     return '<button type="button" class="btn btn-outline-primary btn-sm forum-publish-btn" data-text="'
-        . Html::encode($text) . '"' . $dataPublishedAt . '>'
+        . Html::encode($text) . '" data-forum-type="' . $forumType . '" data-forum-id="' . $forumId . '">'
         . '<i class="bi bi-send me-1"></i>Опубликовать</button>';
 };
 
@@ -181,7 +180,7 @@ CSS
                                             </div>
                                             <div class="d-flex align-items-center gap-2 mt-2 mb-1 flex-wrap">
                                                 <?= $viewedForm($topic->id, 'topic') ?>
-                                                <?= $publishButton($topic->contentText) ?>
+                                                <?= $publishButton($topic->contentText, 'topic', $topic->id) ?>
                                             </div>
                                             <?php if ($topic->imageUrls !== []): ?>
                                                 <div class="d-flex mt-2 flex-wrap align-items-start">
@@ -271,7 +270,7 @@ CSS
                                                         </small>
                                                         <div class="d-flex align-items-center gap-2 mt-2 mb-1 flex-wrap">
                                                             <?= $viewedForm($post->id, 'post') ?>
-                                                            <?= $publishButton($post->contentText) ?>
+                                                            <?= $publishButton($post->contentText, 'post', $post->id) ?>
                                                         </div>
                                                         <?php if ($post->imageUrls !== []): ?>
                                                             <div class="d-flex mt-2 flex-wrap align-items-start">
@@ -344,6 +343,8 @@ CSS
                            value="<?= Yii::$app->request->csrfToken ?>">
                     <input type="hidden" name="publicationSource" id="publicationSource" value="new">
                     <input type="hidden" name="publicationSourceId" id="publicationSourceId" value="">
+                    <input type="hidden" name="forumEntityType" id="forumEntityType" value="">
+                    <input type="hidden" name="forumEntityId" id="forumEntityId" value="">
 
                     <!-- Textarea -->
                     <div class="mb-3">
@@ -684,6 +685,8 @@ $this->registerJs(
         return;
     }
     var preview = document.getElementById('publicationPreview');
+    var forumTypeInput = document.getElementById('forumEntityType');
+    var forumIdInput = document.getElementById('forumEntityId');
     var update = function () {
         if (preview) {
             preview.textContent = source.value || source.placeholder;
@@ -733,6 +736,10 @@ $this->registerJs(
         if (publishedAtInput) {
             publishedAtInput.value = log.getAttribute('data-published-at') || publishedAtInput.value;
         }
+        if (forumTypeInput && forumIdInput) {
+            forumTypeInput.value = '';
+            forumIdInput.value = '';
+        }
     };
 
     var resetForm = document.querySelector('form[action*="publication-create"]');
@@ -740,6 +747,9 @@ $this->registerJs(
         resetForm.addEventListener('submit', function () {
             if (sourceTypeInput && sourceIdInput && sourceTypeInput.value === 'new') {
                 sourceIdInput.value = '';
+            }
+            if (forumTypeInput && forumIdInput && forumTypeInput.value === '') {
+                forumIdInput.value = '';
             }
         });
     }
@@ -763,6 +773,10 @@ $this->registerJs(
             if (sourceTypeInput && sourceIdInput) {
                 sourceTypeInput.value = 'new';
                 sourceIdInput.value = '';
+            }
+            if (forumTypeInput && forumIdInput) {
+                forumTypeInput.value = btn.getAttribute('data-forum-type') || '';
+                forumIdInput.value = btn.getAttribute('data-forum-id') || '';
             }
             if (publishedAtInput) {
                 publishedAtInput.value = btn.getAttribute('data-published-at') || publishedAtInput.value;

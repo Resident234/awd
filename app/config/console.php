@@ -63,7 +63,13 @@ $config = [
                     new \app\shared\Publications\Infrastructure\PublicationRepository(\Yii::$app->getDb()),
                     new \app\shared\Forum\Infrastructure\YiiPsrLoggerAdapter(\Yii::$app->getLog()->getLogger()),
                     \Yii::createObject(\app\shared\Telegram\Service\ChannelService::class),
+                    \Yii::createObject(\app\shared\Forum\Contract\ForumPublicationMapGatewayInterface::class),
+                    \Yii::createObject(\app\shared\Publications\Contract\PublicationForumLinkStoreInterface::class),
                 ),
+            \app\shared\Forum\Contract\ForumPublicationMapGatewayInterface::class => static fn (): \app\shared\Forum\Infrastructure\ForumRepository =>
+                new \app\shared\Forum\Infrastructure\ForumRepository(\Yii::$app->getDb()),
+            \app\shared\Publications\Contract\PublicationForumLinkStoreInterface::class => static fn (): \app\shared\Publications\Infrastructure\CachePublicationForumLinkStore =>
+                new \app\shared\Publications\Infrastructure\CachePublicationForumLinkStore(\Yii::$app->getCache()),
             \app\shared\Forum\Contract\ForumHttpClientInterface::class => static fn (): \app\shared\Forum\Infrastructure\ForumHttpClient =>
                 new \app\shared\Forum\Infrastructure\ForumHttpClient(
                     30,

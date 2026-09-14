@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace app\shared\Forum\Infrastructure;
 
+use app\shared\Forum\Contract\ForumPublicationMapGatewayInterface;
 use app\shared\Forum\Contract\ForumRepositoryInterface;
 use app\shared\Forum\Dto\MemberData;
 use app\shared\Forum\Dto\PostData;
@@ -16,7 +17,7 @@ use yii\db\JsonExpression;
  * PostgreSQL storage for the forum parser. All SQL lives here:
  * upper layers receive and return DTOs and plain arrays only.
  */
-final class ForumRepository implements ForumRepositoryInterface
+final class ForumRepository implements ForumRepositoryInterface, ForumPublicationMapGatewayInterface
 {
     public function __construct(private readonly Connection $db)
     {
@@ -421,16 +422,7 @@ final class ForumRepository implements ForumRepositoryInterface
      */
     public function markTopicViewed(int $topicId): void
     {
-        $exists = $this->db
-            ->createCommand('SELECT 1 FROM {{%publications_topic_map}} WHERE topic_id = :id')
-            ->bindValue(':id', $topicId)
-            ->queryScalar() !== false;
-        if (!$exists) {
-            $this->db
-                ->createCommand()
-                ->insert('{{%publications_topic_map}}', ['topic_id' => $topicId, 'telegram_id' => null])
-                ->execute();
-        }
+        $this->insertMapRowIfMissing('{{%publications_topic_map}}', 'topic_id', $topicId);
     }
 
     /**
@@ -441,14 +433,75 @@ final class ForumRepository implements ForumRepositoryInterface
      */
     public function markPostViewed(int $postId): void
     {
+        $this->insertMapRowIfMissing('{{%publications_post_map}}', 'post_id', $postId);
+    }
+
+    /**
+     * Writes the publications_topic_map row of a topic when a
+     * publication created from the topic is saved (empty telegram_id)
+     * or reaches the Telegram channel (stamps the telegram_id of the
+     * channel message).
+     */
+    public function storeTopicMapTelegramId(int $topicId, ?int $telegramId): void
+    {
+        $this->storeMapTelegramId('{{%publications_topic_map}}', 'topic_id', $topicId, $telegramId);
+    }
+
+    /**
+     * Writes the publications_post_map row of a forum post when a
+     * publication created from the post is saved (empty telegram_id)
+     * or reaches the Telegram channel (stamps the telegram_id of the
+     * channel message).
+     */
+    public function storePostMapTelegramId(int $postId, ?int $telegramId): void
+    {
+        $this->storeMapTelegramId('{{%publications_post_map}}', 'post_id', $postId, $telegramId);
+    }
+
+    /**
+     * Inserts a map row with an empty telegram_id unless it already
+     * exists; an existing telegram_id is never overwritten.
+     */
+    private function insertMapRowIfMissing(string $table, string $column, int $entityId): void
+    {
         $exists = $this->db
-            ->createCommand('SELECT 1 FROM {{%publications_post_map}} WHERE post_id = :id')
-            ->bindValue(':id', $postId)
+            ->createCommand("SELECT 1 FROM {$table} WHERE {$column} = :id")
+            ->bindValue(':id', $entityId)
             ->queryScalar() !== false;
+
         if (!$exists) {
             $this->db
                 ->createCommand()
-                ->insert('{{%publications_post_map}}', ['post_id' => $postId, 'telegram_id' => null])
+                ->insert($table, [$column => $entityId, 'telegram_id' => null])
+                ->execute();
+        }
+    }
+
+    /**
+     * A null telegram_id only inserts a missing row (an existing
+     * telegram_id is preserved); a non-null value upserts the row and
+     * stamps the telegram_id of the channel message.
+     */
+    private function storeMapTelegramId(string $table, string $column, int $entityId, ?int $telegramId): void
+    {
+        $exists = $this->db
+            ->createCommand("SELECT 1 FROM {$table} WHERE {$column} = :id")
+            ->bindValue(':id', $entityId)
+            ->queryScalar() !== false;
+
+        if (!$exists) {
+            $this->db
+                ->createCommand()
+                ->insert($table, [$column => $entityId, 'telegram_id' => $telegramId])
+                ->execute();
+
+            return;
+        }
+
+        if ($telegramId !== null) {
+            $this->db
+                ->createCommand()
+                ->update($table, ['telegram_id' => $telegramId], [$column => $entityId])
                 ->execute();
         }
     }

@@ -38,12 +38,21 @@ return [
                         '@gsu_travels',
                         \Yii::createObject(\app\shared\Telegram\Contract\PublishedDescriptionRepositoryInterface::class),
                     ),
+                    \Yii::createObject(\app\shared\Forum\Contract\ForumPublicationMapGatewayInterface::class),
+                    \Yii::createObject(\app\shared\Publications\Contract\PublicationForumLinkStoreInterface::class),
                 ),
             \app\shared\Forum\Contract\ForumRepositoryInterface::class => static fn (): \app\shared\Forum\Infrastructure\ForumRepository =>
                 new \app\shared\Forum\Infrastructure\ForumRepository(\Yii::$app->getDb()),
+            \app\shared\Forum\Contract\ForumPublicationMapGatewayInterface::class => static fn (): \app\shared\Forum\Infrastructure\ForumRepository =>
+                new \app\shared\Forum\Infrastructure\ForumRepository(\Yii::$app->getDb()),
+            \app\shared\Publications\Contract\PublicationForumLinkStoreInterface::class => static fn (): \app\shared\Publications\Infrastructure\CachePublicationForumLinkStore =>
+                new \app\shared\Publications\Infrastructure\CachePublicationForumLinkStore(\Yii::$app->getCache()),
         ],
     ],
     'components' => [
+        'cache' => [
+            'class' => \yii\caching\ArrayCache::class,
+        ],
         'db' => $db,
         'mailer' => [
             'class' => \yii\symfonymailer\Mailer::class,

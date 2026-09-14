@@ -7,7 +7,7 @@ namespace app\shared\Forum\Contract;
 /**
  * Storage boundary for the forum parser.
  */
-interface ForumRepositoryInterface
+interface ForumRepositoryInterface extends ForumPublicationMapGatewayInterface
 {
     public function activeConfig(string $code): ?array;
 
@@ -60,14 +60,17 @@ interface ForumRepositoryInterface
     /**
      * Marks a forum topic as viewed by the "Просмотрено" button:
      * inserts a publications_topic_map row with an empty telegram_id
-     * (or keeps an existing one untouched).
+     * (an existing row is left untouched). The viewed element is not
+     * published to the channel by itself, so the telegram_id stays
+     * empty unless a publication created from it is later sent to
+     * the channel.
      */
     public function markTopicViewed(int $topicId): void;
 
     /**
      * Marks a forum post as viewed by the "Просмотрено" button:
      * inserts a publications_post_map row with an empty telegram_id
-     * (or keeps an existing one untouched).
+     * (an existing row is left untouched).
      */
     public function markPostViewed(int $postId): void;
 }

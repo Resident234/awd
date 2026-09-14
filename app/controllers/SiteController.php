@@ -8,6 +8,7 @@ use Yii;
 use app\models\ContactForm;
 use app\models\LoginForm;
 use app\shared\Forum\Contract\ForumRepositoryInterface;
+use app\shared\Publications\Dto\ForumPublicationRef;
 use app\shared\Publications\Service\PublicationsService;
 use app\shared\Telegram\Infrastructure\TelegramApiException;
 use app\shared\Telegram\Service\ChannelService;
@@ -204,14 +205,15 @@ class SiteController extends Controller
         $source = (string)($this->request->post('publicationSource', 'new'));
         $sourceId = $this->request->post('publicationSourceId');
         $sourceId = $sourceId === null || $sourceId === '' ? null : (int)$sourceId;
+        $forumRef = $this->forumRefFromRequest();
 
         try {
             if ($source === 'new') {
                 if ($action === 'draft') {
-                    $this->publications->saveDraft($text, []);
+                    $this->publications->saveDraft($text, [], $forumRef);
                     Yii::$app->session->setFlash('success', 'Черновик сохранён.');
                 } else {
-                    $this->publications->schedulePost($text, [], $publishedAt);
+                    $this->publications->schedulePost($text, [], $publishedAt, $forumRef);
                     Yii::$app->session->setFlash('success', 'Публикация сохранена и будет отправлена в канал в заданное время.');
                 }
             } else {
@@ -223,6 +225,23 @@ class SiteController extends Controller
         }
 
         return $this->redirect(['publications']);
+    }
+
+    /**
+     * The hidden forum source fields filled by the "Опубликовать"
+     * button on a forum topic or post: tells the service which map
+     * row to link the new publication with.
+     */
+    private function forumRefFromRequest(): ?ForumPublicationRef
+    {
+        $type = (string)($this->request->post('forumEntityType', ''));
+        $id = (string)($this->request->post('forumEntityId', ''));
+
+        if (!in_array($type, ['topic', 'post'], true) || $id === '') {
+            return null;
+        }
+
+        return new ForumPublicationRef($type, (int)$id);
     }
 
     /**

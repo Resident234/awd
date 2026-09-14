@@ -36,31 +36,25 @@ final class PublicationRepository implements PublicationRepositoryInterface
         );
     }
 
-    public function createDraft(string $text, array $imageUrls, string $now): void
+    public function createDraft(string $text, array $imageUrls, string $now): int
     {
-        $this->db
-            ->createCommand()
-            ->insert('{{%publications_draft}}', [
-                'text' => $text,
-                'image_urls' => $imageUrls,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ])
-            ->execute();
+        return $this->insertReturningId('{{%publications_draft}}', [
+            'text' => $text,
+            'image_urls' => $imageUrls,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
     }
 
-    public function createPost(string $text, array $imageUrls, string $publishedAt, string $now): void
+    public function createPost(string $text, array $imageUrls, string $publishedAt, string $now): int
     {
-        $this->db
-            ->createCommand()
-            ->insert('{{%publications_post}}', [
-                'text' => $text,
-                'image_urls' => $imageUrls,
-                'published_at' => $publishedAt,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ])
-            ->execute();
+        return $this->insertReturningId('{{%publications_post}}', [
+            'text' => $text,
+            'image_urls' => $imageUrls,
+            'published_at' => $publishedAt,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
     }
 
     public function findDueForPublishing(string $now): array
@@ -159,32 +153,26 @@ final class PublicationRepository implements PublicationRepositoryInterface
         return $draft;
     }
 
-    public function insertPostWithHistory(PublicationData $post, string $now): void
+    public function insertPostWithHistory(PublicationData $post, string $now): int
     {
-        $this->db
-            ->createCommand()
-            ->insert('{{%publications_post}}', [
-                'telegram_id' => $post->telegramId,
-                'text' => $post->text,
-                'image_urls' => $post->imageUrls,
-                'published_at' => $post->publishedAt ?? $now,
-                'created_at' => $post->createdAt,
-                'updated_at' => $now,
-            ])
-            ->execute();
+        return $this->insertReturningId('{{%publications_post}}', [
+            'telegram_id' => $post->telegramId,
+            'text' => $post->text,
+            'image_urls' => $post->imageUrls,
+            'published_at' => $post->publishedAt ?? $now,
+            'created_at' => $post->createdAt,
+            'updated_at' => $now,
+        ]);
     }
 
-    public function insertDraftWithHistory(PublicationData $draft, string $now): void
+    public function insertDraftWithHistory(PublicationData $draft, string $now): int
     {
-        $this->db
-            ->createCommand()
-            ->insert('{{%publications_draft}}', [
-                'text' => $draft->text,
-                'image_urls' => $draft->imageUrls,
-                'created_at' => $draft->createdAt,
-                'updated_at' => $now,
-            ])
-            ->execute();
+        return $this->insertReturningId('{{%publications_draft}}', [
+            'text' => $draft->text,
+            'image_urls' => $draft->imageUrls,
+            'created_at' => $draft->createdAt,
+            'updated_at' => $now,
+        ]);
     }
 
     public function archiveEdited(PublicationData $post, string $now): void
@@ -245,20 +233,17 @@ final class PublicationRepository implements PublicationRepositoryInterface
         );
     }
 
-    public function insertDeletedWithHistory(PublicationData $record, string $now): void
+    public function insertDeletedWithHistory(PublicationData $record, string $now): int
     {
-        $this->db
-            ->createCommand()
-            ->insert('{{%publications_deleted}}', [
-                'telegram_id' => $record->telegramId,
-                'text' => $record->text,
-                'image_urls' => $record->imageUrls,
-                'published_at' => $record->publishedAt,
-                'created_at' => $record->createdAt,
-                'updated_at' => $now,
-                'deleted_at' => null,
-            ])
-            ->execute();
+        return $this->insertReturningId('{{%publications_deleted}}', [
+            'telegram_id' => $record->telegramId,
+            'text' => $record->text,
+            'image_urls' => $record->imageUrls,
+            'published_at' => $record->publishedAt,
+            'created_at' => $record->createdAt,
+            'updated_at' => $now,
+            'deleted_at' => null,
+        ]);
     }
 
     public function storeDeletedAt(int $id, string $deletedAt): void
@@ -285,6 +270,29 @@ final class PublicationRepository implements PublicationRepositoryInterface
             ->createCommand()
             ->update('{{%publications_edited}}', ['edited_at' => $editedAt], ['id' => $id])
             ->execute();
+    }
+
+    /**
+     * Inserts a row and returns the id the database gave it.
+     *
+     * @param array<string, mixed> $columns
+     */
+    private function insertReturningId(string $table, array $columns): int
+    {
+        $this->db
+            ->createCommand()
+            ->insert($table, $columns)
+            ->execute();
+
+        return (int)$this->db->getLastInsertID($this->sequenceName($table));
+    }
+
+    /**
+     * id serial columns produce a "<table>_id_seq" sequence name.
+     */
+    private function sequenceName(string $table): string
+    {
+        return trim($table, '{}%') . '_id_seq';
     }
 
     /**

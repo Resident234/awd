@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace app\shared\Publications\Service;
 
+use app\shared\Forum\Contract\ForumPublicationMapGatewayInterface;
+use app\shared\Publications\Contract\PublicationForumLinkStoreInterface;
 use app\shared\Publications\Contract\PublicationRepositoryInterface;
+use app\shared\Publications\Dto\ForumPublicationRef;
 use app\shared\Publications\Dto\PublicationData;
 use app\shared\Telegram\Infrastructure\TelegramApiException;
 use DateTimeImmutable;
@@ -28,6 +31,8 @@ final class PublicationsService
         private readonly PublicationRepositoryInterface $publications,
         private ?LoggerInterface $logger,
         private readonly object $channel,
+        private readonly ?ForumPublicationMapGatewayInterface $forumMap = null,
+        private readonly ?PublicationForumLinkStoreInterface $forumLinks = null,
     ) {
     }
 
@@ -58,28 +63,36 @@ final class PublicationsService
     }
 
     /**
-     * Saves the form data as a draft.
+     * Saves the form data as a draft. When the form was filled from a
+     * forum topic or post, a map row with an empty telegram_id is
+     * inserted and the "forum entity - publication" link is remembered
+     * in the temporary store.
      *
      * @param string[] $imageUrls
      * @throws InvalidArgumentException when the text is empty
      */
-    public function saveDraft(string $text, array $imageUrls): void
+    public function saveDraft(string $text, array $imageUrls, ?ForumPublicationRef $forumRef = null): void
     {
         $this->assertTextValid($text);
-        $this->publications->createDraft($text, $imageUrls, $this->now());
+        $id = $this->publications->createDraft($text, $imageUrls, $this->now());
+        $this->bindForumRef($id, $forumRef);
     }
 
     /**
      * Saves the form data as a scheduled (or immediately due) post.
+     * When the form was filled from a forum topic or post, a map row
+     * with an empty telegram_id is inserted and the
+     * "forum entity - publication" link is remembered.
      *
      * @param string[] $imageUrls
      * @throws InvalidArgumentException when the text is empty or the date is invalid
      */
-    public function schedulePost(string $text, array $imageUrls, string $publishedAt): void
+    public function schedulePost(string $text, array $imageUrls, string $publishedAt, ?ForumPublicationRef $forumRef = null): void
     {
         $this->assertTextValid($text);
         $normalized = $this->normalizeDate($publishedAt);
-        $this->publications->createPost($text, $imageUrls, $normalized, $this->now());
+        $id = $this->publications->createPost($text, $imageUrls, $normalized, $this->now());
+        $this->bindForumRef($id, $forumRef);
     }
 
     /**
@@ -104,6 +117,7 @@ final class PublicationsService
                 $telegramId = $this->publishToTelegram($post);
                 $sentAt = $this->now();
                 $this->publications->storeTelegramId($post->id, $telegramId, $sentAt, $sentAt);
+                $this->stampForumMapTelegramId($post->id, $telegramId);
                 $stats['published']++;
             } catch (TelegramApiException $e) {
                 $stats['failed']++;
@@ -209,7 +223,8 @@ final class PublicationsService
     public function deletePost(int $id): void
     {
         $post = $this->publications->deletePost($id);
-        $this->publications->insertDeletedWithHistory($post, $this->now());
+        $deletedId = $this->publications->insertDeletedWithHistory($post, $this->now());
+        $this->moveForumLink($id, $deletedId);
     }
 
     /**
@@ -223,7 +238,8 @@ final class PublicationsService
     public function deleteDraft(int $id): void
     {
         $draft = $this->publications->deleteDraft($id);
-        $this->publications->insertDeletedWithHistory($draft, $this->now());
+        $deletedId = $this->publications->insertDeletedWithHistory($draft, $this->now());
+        $this->moveForumLink($id, $deletedId);
     }
 
     /**
@@ -241,7 +257,7 @@ final class PublicationsService
     {
         $draft = $this->publications->deleteDraft($id);
         $now = $this->now();
-        $this->publications->insertPostWithHistory(
+        $postId = $this->publications->insertPostWithHistory(
             new PublicationData(
                 $draft->id,
                 $draft->text,
@@ -253,6 +269,7 @@ final class PublicationsService
             ),
             $now,
         );
+        $this->moveForumLink($id, $postId);
     }
 
     /**
@@ -269,7 +286,7 @@ final class PublicationsService
         $this->assertDraftExists($id);
         $draft = $this->publications->deleteDraft($id);
         $now = $this->now();
-        $this->publications->insertPostWithHistory(
+        $postId = $this->publications->insertPostWithHistory(
             new PublicationData(
                 $draft->id,
                 $draft->text,
@@ -281,6 +298,7 @@ final class PublicationsService
             ),
             $now,
         );
+        $this->moveForumLink($id, $postId);
     }
 
     /**
@@ -397,7 +415,7 @@ final class PublicationsService
 
             if ($action === 'draft') {
                 // deleted + "Сохранить": restore as a draft.
-                $this->publications->insertDraftWithHistory(
+                $draftId = $this->publications->insertDraftWithHistory(
                     new PublicationData(
                         $record->id,
                         $text,
@@ -409,12 +427,13 @@ final class PublicationsService
                     ),
                     $now,
                 );
+                $this->moveForumLink((int)$sourceId, $draftId);
 
                 return;
             }
 
             // deleted + "Опубликовать": restore as a scheduled post.
-            $this->publications->insertPostWithHistory(
+            $postId = $this->publications->insertPostWithHistory(
                 new PublicationData(
                     $record->id,
                     $text,
@@ -426,6 +445,7 @@ final class PublicationsService
                 ),
                 $now,
             );
+            $this->moveForumLink((int)$sourceId, $postId);
 
             return;
         }
@@ -441,7 +461,7 @@ final class PublicationsService
 
             // 5) draft + "Опубликовать": move to posts.
             $draft = $this->publications->deleteDraft($sourceId);
-            $this->publications->insertPostWithHistory(
+            $postId = $this->publications->insertPostWithHistory(
                 new PublicationData(
                     $draft->id,
                     $text,
@@ -453,6 +473,7 @@ final class PublicationsService
                 ),
                 $now,
             );
+            $this->moveForumLink((int)$sourceId, $postId);
 
             return;
         }
@@ -466,13 +487,15 @@ final class PublicationsService
                 // 3) published post + "Опубликовать": archive to publications_edited.
                 $this->publications->archiveEdited($post, $now);
                 $this->publications->deletePost($sourceId);
+                $this->dropForumLink((int)$sourceId);
 
                 return;
             }
 
             // 4) published post + "Сохранить": move to drafts.
             $this->publications->deletePost($sourceId);
-            $this->publications->insertDraftWithHistory($post, $now);
+            $draftId = $this->publications->insertDraftWithHistory($post, $now);
+            $this->moveForumLink((int)$sourceId, $draftId);
 
             return;
         }
@@ -486,7 +509,7 @@ final class PublicationsService
 
         // 2) scheduled post + "Сохранить": move to drafts.
         $this->publications->deletePost($sourceId);
-        $this->publications->insertDraftWithHistory(
+        $draftId = $this->publications->insertDraftWithHistory(
             new PublicationData(
                 $post->id,
                 $text,
@@ -498,6 +521,7 @@ final class PublicationsService
             ),
             $now,
         );
+        $this->moveForumLink((int)$sourceId, $draftId);
     }
 
     /**
@@ -513,7 +537,8 @@ final class PublicationsService
     public function movePostToDraft(int $id): void
     {
         $post = $this->publications->deletePost($id);
-        $this->publications->insertDraftWithHistory($post, $this->now());
+        $draftId = $this->publications->insertDraftWithHistory($post, $this->now());
+        $this->moveForumLink($id, $draftId);
     }
 
     /**
@@ -533,7 +558,7 @@ final class PublicationsService
     {
         $record = $this->publications->deleteDeleted($id);
         $now = $this->now();
-        $this->publications->insertPostWithHistory(
+        $postId = $this->publications->insertPostWithHistory(
             new PublicationData(
                 $record->id,
                 $record->text,
@@ -545,6 +570,7 @@ final class PublicationsService
             ),
             $now,
         );
+        $this->moveForumLink($id, $postId);
     }
 
     /**
@@ -561,7 +587,7 @@ final class PublicationsService
     {
         $record = $this->publications->deleteDeleted($id);
         $now = $this->now();
-        $this->publications->insertPostWithHistory(
+        $postId = $this->publications->insertPostWithHistory(
             new PublicationData(
                 $record->id,
                 $record->text,
@@ -573,6 +599,7 @@ final class PublicationsService
             ),
             $now,
         );
+        $this->moveForumLink($id, $postId);
     }
 
     /**
@@ -590,7 +617,74 @@ final class PublicationsService
     public function moveDeletedToDraft(int $id): void
     {
         $record = $this->publications->deleteDeleted($id);
-        $this->publications->insertDraftWithHistory($record, $this->now());
+        $draftId = $this->publications->insertDraftWithHistory($record, $this->now());
+        $this->moveForumLink($id, $draftId);
+    }
+
+    /**
+     * Binds a freshly saved publication to its forum source: inserts
+     * a map row with an empty telegram_id (the element stops showing
+     * up among the unprocessed ones) and remembers the link until the
+     * publication reaches the channel.
+     */
+    private function bindForumRef(int $publicationId, ?ForumPublicationRef $ref): void
+    {
+        if ($ref === null || $this->forumMap === null) {
+            return;
+        }
+
+        if ($ref->isTopic()) {
+            $this->forumMap->storeTopicMapTelegramId($ref->id, null);
+        } elseif ($ref->isPost()) {
+            $this->forumMap->storePostMapTelegramId($ref->id, null);
+        } else {
+            return;
+        }
+
+        $this->forumLinks?->remember($publicationId, $ref);
+    }
+
+    /**
+     * Writes the telegram_id into the map row of the forum entity the
+     * publication was created from; the temporary link is consumed.
+     */
+    private function stampForumMapTelegramId(int $publicationId, int $telegramId): void
+    {
+        $ref = $this->forumLinks?->find($publicationId);
+
+        if ($ref === null || $this->forumMap === null) {
+            return;
+        }
+
+        if ($ref->isTopic()) {
+            $this->forumMap->storeTopicMapTelegramId($ref->id, $telegramId);
+        } elseif ($ref->isPost()) {
+            $this->forumMap->storePostMapTelegramId($ref->id, $telegramId);
+        }
+
+        $this->forumLinks->forget($publicationId);
+    }
+
+    /**
+     * Moves the temporary forum link to the new row id a record got
+     * after being moved between the publication tables.
+     */
+    private function moveForumLink(int $fromPublicationId, int $toPublicationId): void
+    {
+        if ($fromPublicationId === $toPublicationId) {
+            return;
+        }
+
+        $this->forumLinks?->move($fromPublicationId, $toPublicationId);
+    }
+
+    /**
+     * Drops the temporary forum link of a record that left the
+     * publication flow entirely (e.g. it was deleted).
+     */
+    private function dropForumLink(int $publicationId): void
+    {
+        $this->forumLinks?->forget($publicationId);
     }
 
     /**
