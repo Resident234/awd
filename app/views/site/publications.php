@@ -190,10 +190,10 @@ CSS
                                             <?php foreach ($item['posts'] as $post): ?>
                                                 <div class="reply d-flex gap-3 mb-3">
                                                     <?php if ($post->author?->avatarUrl !== null): ?>
-                                                        <img src="<?= Html::encode($post->author->avatarUrl) ?>" class="rounded-circle img-2x"
+                                                        <img src="<?= Html::encode($post->author->avatarUrl) ?>" class="rounded-circle img-2x flex-shrink-0"
                                                              alt="<?= Html::encode($post->author->name) ?>">
                                                     <?php else: ?>
-                                                        <span class="rounded-circle img-2x bg-secondary-subtle d-flex align-items-center justify-content-center">
+                                                        <span class="rounded-circle img-2x flex-shrink-0 bg-secondary-subtle d-flex align-items-center justify-content-center">
                                                             <i class="bi bi-person-fill text-secondary"></i>
                                                         </span>
                                                     <?php endif ?>
