@@ -114,6 +114,59 @@ final class ChannelService
     }
 
     /**
+     * Publishes a post with its photos: a single photo becomes a
+     * photo message with the caption, two to ten photos become an
+     * album (the caption goes on the first photo). The caption is
+     * cropped to CAPTION_MAX_LENGTH; when it does not fit entirely,
+     * the full text is additionally sent as a separate text message
+     * after the photos. The message id of the first photo message is
+     * returned.
+     *
+     * @param string[] $photoUrls
+     * @throws TelegramApiException on API failure
+     * @throws InvalidArgumentException when the text is empty or the photo list is empty
+     */
+    public function publishPhotos(string $text, array $photoUrls): int
+    {
+        if (mb_strlen($text) === 0) {
+            throw new InvalidArgumentException('Текст поста не может быть пустым.');
+        }
+
+        $photoUrls = array_values(array_filter(
+            $photoUrls,
+            static fn (string $url): bool => $url !== '',
+        ));
+        if ($photoUrls === []) {
+            throw new InvalidArgumentException('Список изображений пуст.');
+        }
+
+        $caption = mb_substr($text, 0, self::CAPTION_MAX_LENGTH);
+        $firstMessageId = 0;
+
+        foreach (array_chunk($photoUrls, 10) as $chunk) {
+            if (count($chunk) === 1) {
+                $messageId = $this->client()
+                    ->sendPhotoMessage($this->channelId, $chunk[0], $caption)
+                    ->messageId;
+            } else {
+                $messageId = $this->client()
+                    ->sendPhotoGroupMessage($this->channelId, $chunk, $caption)
+                    ->messageId;
+            }
+
+            if ($firstMessageId === 0) {
+                $firstMessageId = $messageId;
+            }
+        }
+
+        if (mb_strlen($text) > self::CAPTION_MAX_LENGTH) {
+            $this->client()->sendTextMessage($this->channelId, $text);
+        }
+
+        return $firstMessageId;
+    }
+
+    /**
      * @throws TelegramApiException on API failure
      */
     public function pinPost(int $messageId): void

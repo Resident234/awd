@@ -206,18 +206,19 @@ class SiteController extends Controller
         $sourceId = $this->request->post('publicationSourceId');
         $sourceId = $sourceId === null || $sourceId === '' ? null : (int)$sourceId;
         $forumRef = $this->forumRefFromRequest();
+        $imageUrls = $this->imageUrlsFromRequest();
 
         try {
             if ($source === 'new') {
                 if ($action === 'draft') {
-                    $this->publications->saveDraft($text, [], $forumRef);
+                    $this->publications->saveDraft($text, $imageUrls, $forumRef);
                     Yii::$app->session->setFlash('success', 'Черновик сохранён.');
                 } else {
-                    $this->publications->schedulePost($text, [], $publishedAt, $forumRef);
+                    $this->publications->schedulePost($text, $imageUrls, $publishedAt, $forumRef);
                     Yii::$app->session->setFlash('success', 'Публикация сохранена и будет отправлена в канал в заданное время.');
                 }
             } else {
-                $this->publications->saveFromForm($text, [], $publishedAt, $source, $sourceId, $action);
+                $this->publications->saveFromForm($text, $imageUrls, $publishedAt, $source, $sourceId, $action);
                 Yii::$app->session->setFlash('success', 'Изменения сохранены.');
             }
         } catch (InvalidArgumentException $e) {
@@ -225,6 +226,24 @@ class SiteController extends Controller
         }
 
         return $this->redirect(['publications']);
+    }
+
+    /**
+     * The attached images field of the publication form: one URL per
+     * line, empty lines are dropped.
+     *
+     * @return string[]
+     */
+    private function imageUrlsFromRequest(): array
+    {
+        $raw = (string)($this->request->post('publicationImages', ''));
+
+        $urls = array_map(
+            static fn (string $line): string => trim($line),
+            explode("\n", str_replace("\r\n", "\n", $raw)),
+        );
+
+        return array_values(array_filter($urls, static fn (string $url): bool => $url !== ''));
     }
 
     /**

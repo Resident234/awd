@@ -322,13 +322,20 @@ final class PublicationsService
     }
 
     /**
-     * Publishes a single post through the Telegram channel service.
+     * Publishes a single post through the Telegram channel service:
+     * with photos it goes as a photo album (the caption on the first
+     * photo, the full text as a separate message when it does not fit
+     * the caption limit), without photos as a plain text message.
      *
      * @throws RuntimeException when the bot token is not configured
      * @throws TelegramApiException on API failure
      */
     private function publishToTelegram(PublicationData $post): int
     {
+        if ($post->imageUrls !== [] && method_exists($this->channel, 'publishPhotos')) {
+            return $this->channel->publishPhotos($post->text, $post->imageUrls);
+        }
+
         if (!method_exists($this->channel, 'publishText')) {
             throw new RuntimeException('Telegram-канал не сконфигурирован.');
         }

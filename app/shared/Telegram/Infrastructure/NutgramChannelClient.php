@@ -10,6 +10,7 @@ use app\shared\Telegram\Dto\PostResult;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
+use SergiX44\Nutgram\Telegram\Types\Input\InputMediaPhoto;
 use SergiX44\Nutgram\Telegram\Types\Message\Message;
 use Throwable;
 
@@ -67,6 +68,31 @@ final class NutgramChannelClient implements TelegramChannelClientInterface
         );
 
         return new PostResult($message->message_id, $message->date);
+    }
+
+    public function sendPhotoGroupMessage(string $channelId, array $photoUrls, string $caption): PostResult
+    {
+        $media = [];
+        foreach (array_values($photoUrls) as $index => $url) {
+            $media[] = new InputMediaPhoto(
+                media: $url,
+                caption: $index === 0 ? $caption : null,
+            );
+        }
+
+        $messages = $this->call(
+            static fn (Nutgram $bot): ?array => $bot->sendMediaGroup(
+                media: $media,
+                chat_id: $channelId,
+            ),
+        );
+
+        $first = $messages[0] ?? null;
+        if ($first === null) {
+            throw new TelegramApiException('Telegram API returned an empty media group.');
+        }
+
+        return new PostResult($first->message_id, $first->date);
     }
 
     public function pinChannelMessage(string $channelId, int $messageId): void

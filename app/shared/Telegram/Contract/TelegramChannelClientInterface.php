@@ -27,6 +27,16 @@ interface TelegramChannelClientInterface
     public function sendPhotoMessage(string $channelId, string $photoPath, string $caption): PostResult;
 
     /**
+     * Sends a group of photos as a single album message; the caption
+     * is attached to the first photo. Returns the first message of
+     * the group.
+     *
+     * @param string[] $photoUrls
+     * @throws \app\shared\Telegram\Infrastructure\TelegramApiException
+     */
+    public function sendPhotoGroupMessage(string $channelId, array $photoUrls, string $caption): PostResult;
+
+    /**
      * @throws \app\shared\Telegram\Infrastructure\TelegramApiException
      */
     public function pinChannelMessage(string $channelId, int $messageId): void;

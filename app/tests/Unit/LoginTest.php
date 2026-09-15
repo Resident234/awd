@@ -44,6 +44,14 @@ final class LoginTest extends \Codeception\Test\Unit
                         throw new \RuntimeException('not needed in this test');
                     }
 
+                    public function sendPhotoGroupMessage(
+                        string $channelId,
+                        array $photoUrls,
+                        string $caption,
+                    ): \app\shared\Telegram\Dto\PostResult {
+                        throw new \RuntimeException('not needed in this test');
+                    }
+
                     public function pinChannelMessage(string $channelId, int $messageId): void
                     {
                     }

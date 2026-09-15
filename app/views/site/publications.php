@@ -41,10 +41,31 @@ $viewedForm = static function (int $id, string $type): string {
         . '<i class="bi bi-check2-square me-1"></i>Просмотрено</button></form>';
 };
 
-$publishButton = static function (string $text, string $forumType, int $forumId): string {
+$publishButton = static function (string $text, string $forumType, int $forumId, array $imageUrls = []): string {
+    $imagesAttr = $imageUrls === [] ? '' : ' data-image-urls="' . Html::encode(implode("\n", $imageUrls)) . '"';
     return '<button type="button" class="btn btn-outline-primary btn-sm forum-publish-btn" data-text="'
-        . Html::encode($text) . '" data-forum-type="' . $forumType . '" data-forum-id="' . $forumId . '">'
+        . Html::encode($text) . '" data-forum-type="' . $forumType . '" data-forum-id="' . $forumId . '"'
+        . $imagesAttr . '>'
         . '<i class="bi bi-send me-1"></i>Опубликовать</button>';
+};
+
+$stackedImages = static function (array $imageUrls, int $limit = 4): string {
+    if ($imageUrls === []) {
+        return '';
+    }
+
+    $shown = array_slice($imageUrls, 0, $limit);
+    $html = '<div class="stacked-images sm mt-2">';
+    foreach ($shown as $url) {
+        $html .= '<img src="' . Html::encode($url) . '" alt="Изображение публикации">';
+    }
+    $rest = count($imageUrls) - count($shown);
+    if ($rest > 0) {
+        $html .= '<span class="plus bg-danger">+' . $rest . '</span>';
+    }
+    $html .= '</div>';
+
+    return $html;
 };
 
 /** @var \app\shared\Publications\Dto\PublicationData[] $duePosts */
@@ -180,7 +201,7 @@ CSS
                                             </div>
                                             <div class="d-flex align-items-center gap-2 mt-2 mb-1 flex-wrap">
                                                 <?= $viewedForm($topic->id, 'topic') ?>
-                                                <?= $publishButton($topic->contentText, 'topic', $topic->id) ?>
+                                                <?= $publishButton($topic->contentText, 'topic', $topic->id, $topic->imageUrls) ?>
                                             </div>
                                             <?php if ($topic->imageUrls !== []): ?>
                                                 <div class="d-flex mt-2 flex-wrap align-items-start">
@@ -270,7 +291,7 @@ CSS
                                                         </small>
                                                         <div class="d-flex align-items-center gap-2 mt-2 mb-1 flex-wrap">
                                                             <?= $viewedForm($post->id, 'post') ?>
-                                                            <?= $publishButton($post->contentText, 'post', $post->id) ?>
+                                                            <?= $publishButton($post->contentText, 'post', $post->id, $post->imageUrls) ?>
                                                         </div>
                                                         <?php if ($post->imageUrls !== []): ?>
                                                             <div class="d-flex mt-2 flex-wrap align-items-start">
@@ -321,6 +342,7 @@ CSS
                 <p class="mb-0" id="publicationPreview" data-source="publicationTextInput">
                     Введите текст публикации — он отобразится здесь до отправки в канал TRVL.
                 </p>
+                <div class="stacked-images mt-2 d-none" id="publicationPreviewImages"></div>
             </div>
             <div class="card-footer bg-transparent">
                 <div class="d-flex justify-content-between align-items-center">
@@ -353,6 +375,20 @@ CSS
                                   rows="6"
                                   maxlength="4096"
                                   placeholder="Введите текст публикации"></textarea>
+                    </div>
+
+                    <!-- Attached images -->
+                    <div class="mb-3">
+                        <label for="publicationImages" class="form-label">
+                            <i class="bi bi-images me-1"></i>Изображения публикации
+                        </label>
+                        <textarea class="form-control" id="publicationImages" name="publicationImages"
+                                  rows="3"
+                                  placeholder="По одному URL изображения в строке&#10;https://example.com/photo1.jpg&#10;https://example.com/photo2.jpg"></textarea>
+                        <div class="stacked-images mt-2 d-none" id="publicationImagesPreview"></div>
+                        <small class="text-muted">
+                            Изображения отправляются в канал вместе с текстом публикации (первое — с подписью)
+                        </small>
                     </div>
 
                     <!-- Publication date & time -->
@@ -422,7 +458,8 @@ CSS
                             ?>
                             <div class="activity-log" data-text="<?= Html::encode($post->text) ?>"
                                  data-source-type="post" data-source-id="<?= $post->id ?>"
-                                 data-published-at="<?= Html::encode($postPublishedAt) ?>">
+                                 data-published-at="<?= Html::encode($postPublishedAt) ?>"
+                                 data-image-urls="<?= Html::encode(implode("\n", $post->imageUrls)) ?>">
                                 <div class="d-flex align-items-center gap-2 mb-1">
                                     <?php if ($post->telegramId !== null): ?>
                                         <p class="mb-0">
@@ -458,6 +495,7 @@ CSS
                                     </form>
                                 </div>
                                 <p class="mb-1"><?= Html::encode($post->text) ?></p>
+                                <?= $stackedImages($post->imageUrls) ?>
                                 <div class="activity-meta">
                                     <i class="bi bi-clock me-1"></i><?= Html::encode($post->publishedAt ?? '') ?>
                                 </div>
@@ -495,7 +533,8 @@ CSS
                         <?php endif ?>
                         <?php foreach ($drafts as $draft): ?>
                             <div class="activity-log" data-text="<?= Html::encode($draft->text) ?>"
-                                 data-source-type="draft" data-source-id="<?= $draft->id ?>">
+                                 data-source-type="draft" data-source-id="<?= $draft->id ?>"
+                                 data-image-urls="<?= Html::encode(implode("\n", $draft->imageUrls)) ?>">
                                 <div class="d-flex align-items-center gap-2 mb-1">
                                     <a href="#" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Редактировать">
                                         <i class="bi bi-pencil-square"></i>
@@ -519,6 +558,7 @@ CSS
                                     </a>
                                 </div>
                                 <p class="mb-1"><?= Html::encode($draft->text) ?></p>
+                                <?= $stackedImages($draft->imageUrls) ?>
                                 <span class="badge bg-secondary mt-2">Черновик</span>
                                 <span class="badge bg-warning text-dark mt-2 d-none editing-badge">Редактируется</span>
                             </div>
@@ -559,7 +599,8 @@ CSS
                             ?>
                             <div class="activity-log" data-text="<?= Html::encode($deletedRecord->text) ?>"
                                  data-source-type="deleted" data-source-id="<?= $deletedRecord->id ?>"
-                                 data-published-at="<?= Html::encode($deletedPublishedAt) ?>">
+                                 data-published-at="<?= Html::encode($deletedPublishedAt) ?>"
+                                 data-image-urls="<?= Html::encode(implode("\n", $deletedRecord->imageUrls)) ?>">
                                 <div class="d-flex align-items-center gap-2 mb-1">
                                     <a href="#" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Редактировать">
                                         <i class="bi bi-pencil-square"></i>
@@ -593,6 +634,7 @@ CSS
                                     </form>
                                 </div>
                                 <p class="mb-1"><?= Html::encode($deletedRecord->text) ?></p>
+                                <?= $stackedImages($deletedRecord->imageUrls) ?>
                                 <div class="activity-meta">
                                     <i class="bi bi-clock me-1"></i><?= Html::encode($deletedRecord->publishedAt ?? '') ?>
                                 </div>
@@ -687,13 +729,59 @@ $this->registerJs(
     var preview = document.getElementById('publicationPreview');
     var forumTypeInput = document.getElementById('forumEntityType');
     var forumIdInput = document.getElementById('forumEntityId');
+    var imagesInput = document.getElementById('publicationImages');
+    var imagesPreview = document.getElementById('publicationImagesPreview');
+    var previewImages = document.getElementById('publicationPreviewImages');
+
+    var parseImageUrls = function (raw) {
+        return (raw || '').split('\\n').map(function (line) {
+            return line.trim();
+        }).filter(function (line) {
+            return line !== '';
+        });
+    };
+
+    var renderImagesPreview = function (container, urls) {
+        if (!container) {
+            return;
+        }
+        container.innerHTML = '';
+        if (!urls.length) {
+            container.classList.add('d-none');
+            return;
+        }
+        urls.slice(0, 10).forEach(function (url) {
+            var img = document.createElement('img');
+            img.src = url;
+            img.alt = 'Изображение публикации';
+            container.appendChild(img);
+        });
+        if (urls.length > 10) {
+            var plus = document.createElement('span');
+            plus.className = 'plus bg-danger';
+            plus.textContent = '+' + (urls.length - 10);
+            container.appendChild(plus);
+        }
+        container.classList.remove('d-none');
+    };
+
+    var updateImages = function () {
+        var urls = parseImageUrls(imagesInput ? imagesInput.value : '');
+        renderImagesPreview(imagesPreview, urls);
+        renderImagesPreview(previewImages, urls);
+    };
+
     var update = function () {
         if (preview) {
             preview.textContent = source.value || source.placeholder;
         }
     };
     source.addEventListener('input', update);
+    if (imagesInput) {
+        imagesInput.addEventListener('input', updateImages);
+    }
     update();
+    updateImages();
 
     var scrollToMiddle = function (log) {
         var scroller = log.closest('.scroll350');
@@ -727,6 +815,10 @@ $this->registerJs(
         log.querySelector('.editing-badge').classList.remove('d-none');
         source.value = log.getAttribute('data-text') || '';
         source.dispatchEvent(new Event('input'));
+        if (imagesInput) {
+            imagesInput.value = log.getAttribute('data-image-urls') || '';
+            updateImages();
+        }
         scrollToMiddle(log);
 
         if (sourceTypeInput && sourceIdInput) {
@@ -770,6 +862,10 @@ $this->registerJs(
         btn.addEventListener('click', function () {
             source.value = btn.getAttribute('data-text') || '';
             source.dispatchEvent(new Event('input'));
+            if (imagesInput) {
+                imagesInput.value = btn.getAttribute('data-image-urls') || '';
+                updateImages();
+            }
             if (sourceTypeInput && sourceIdInput) {
                 sourceTypeInput.value = 'new';
                 sourceIdInput.value = '';
