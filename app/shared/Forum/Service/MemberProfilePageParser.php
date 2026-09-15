@@ -125,6 +125,7 @@ final class MemberProfilePageParser extends ForumPageDomParser
                 if ($child->nodeType !== XML_ELEMENT_NODE) {
                     continue;
                 }
+                 /** @var DOMElement $child */
                 if ($child->tagName === 'dt') {
                     $dt = $child;
                 } elseif ($child->tagName === 'dd' && $dt !== null) {
