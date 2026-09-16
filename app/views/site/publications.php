@@ -122,7 +122,10 @@ CSS
                     <label class="form-check-label" for="forumFilterWithPosts">С привязанными постами</label>
                 </div>
                 <div class="mb-0">
-                    <label for="forumFilterImagesCount" class="form-label small">Кол-во изображений</label>
+                    <label for="forumFilterImagesCount" class="form-label small">
+                        Кол-во изображений
+                        <span id="forumFilterImagesCountValue" class="ms-2 fw-bold text-primary"><?= $imagesCount > 0 ? (int)$imagesCount : '∞' ?></span>
+                    </label>
                     <input type="range" class="form-range" id="forumFilterImagesCount"
                            data-filter-url="<?= \yii\helpers\Url::to(['site/publications']) ?>"
                            min="0" max="100" value="<?= $imagesCount > 0 ? (int)$imagesCount : 0 ?>">
@@ -909,6 +912,21 @@ $this->registerJs(
             if (sourceInput) {
                 sourceInput.value = source;
             }
+        });
+    }
+
+    // Real-time value display for images count range slider
+    var imagesCountSlider = document.getElementById('forumFilterImagesCount');
+    var imagesCountValue = document.getElementById('forumFilterImagesCountValue');
+    if (imagesCountSlider && imagesCountValue) {
+        function updateImagesCountDisplay(value) {
+            imagesCountValue.textContent = value == 0 ? '∞' : value;
+        }
+        // Initial display
+        updateImagesCountDisplay(imagesCountSlider.value);
+        // Real-time update on input
+        imagesCountSlider.addEventListener('input', function () {
+            updateImagesCountDisplay(this.value);
         });
     }
 })();
