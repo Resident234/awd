@@ -65,6 +65,7 @@ $config = [
                     \Yii::createObject(\app\shared\Telegram\Service\ChannelService::class),
                     \Yii::createObject(\app\shared\Forum\Contract\ForumPublicationMapGatewayInterface::class),
                     \Yii::createObject(\app\shared\Publications\Contract\PublicationForumLinkStoreInterface::class),
+                    \Yii::createObject(\app\shared\Forum\Contract\ForumHttpClientInterface::class),
                 ),
             \app\shared\Forum\Contract\ForumPublicationMapGatewayInterface::class => static fn (): \app\shared\Forum\Infrastructure\ForumRepository =>
                 new \app\shared\Forum\Infrastructure\ForumRepository(\Yii::$app->getDb()),

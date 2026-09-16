@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace app\shared\Publications\Service;
 
+use app\shared\Forum\Contract\ForumHttpClientInterface;
 use app\shared\Forum\Contract\ForumPublicationMapGatewayInterface;
 use app\shared\Publications\Contract\PublicationForumLinkStoreInterface;
 use app\shared\Publications\Contract\PublicationRepositoryInterface;
@@ -33,6 +34,7 @@ final class PublicationsService
         private readonly object $channel,
         private readonly ?ForumPublicationMapGatewayInterface $forumMap = null,
         private readonly ?PublicationForumLinkStoreInterface $forumLinks = null,
+        private readonly ?ForumHttpClientInterface $forumHttpClient = null,
     ) {
     }
 
@@ -332,6 +334,11 @@ final class PublicationsService
      */
     private function publishToTelegram(PublicationData $post): int
     {
+        // If we have images and forum HTTP client, download images and upload as files
+        if ($post->imageUrls !== [] && $this->forumHttpClient !== null && method_exists($this->channel, 'publishPhotos')) {
+            return $this->channel->publishPhotos($post->text, $this->prepareImageUrlsForTelegram($post->imageUrls));
+        }
+
         if ($post->imageUrls !== [] && method_exists($this->channel, 'publishPhotos')) {
             return $this->channel->publishPhotos($post->text, $post->imageUrls);
         }
@@ -341,6 +348,99 @@ final class PublicationsService
         }
 
         return $this->channel->publishText($post->text);
+    }
+
+    /**
+     * Prepares image URLs for Telegram publishing.
+     * If forum HTTP client is available, downloads forum images and returns local file paths
+     * that will be uploaded to Telegram as multipart/form-data.
+     *
+     * @param string[] $imageUrls
+     * @return string[] - local file paths or original URLs
+     */
+    private function prepareImageUrlsForTelegram(array $imageUrls): array
+    {
+        if ($this->forumHttpClient === null) {
+            return $imageUrls;
+        }
+
+        $preparedUrls = [];
+        foreach ($imageUrls as $url) {
+            // Check if URL is from forum.awd.ru which requires authentication
+            if (str_starts_with($url, 'https://forum.awd.ru/') || str_starts_with($url, 'http://forum.awd.ru/')) {
+                try {
+                    $localPath = $this->downloadForumImage($url);
+                    if ($localPath !== null) {
+                        $preparedUrls[] = $localPath;
+                        continue;
+                    }
+                } catch (\Throwable $e) {
+                    $this->logger?->warning('Failed to download forum image, will try direct URL: {error}', [
+                        'url' => $url,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+            // For other URLs, use as-is (Telegram will try to fetch)
+            $preparedUrls[] = $url;
+        }
+
+        return $preparedUrls;
+    }
+
+    /**
+     * Downloads an image from forum.awd.ru using authenticated HTTP client.
+     *
+     * @return string|null - local file path or null on failure
+     */
+    private function downloadForumImage(string $url): ?string
+    {
+        try {
+            $content = $this->forumHttpClient->get($url);
+
+            // Determine file extension from URL or Content-Type
+            $extension = $this->guessImageExtension($url, $content);
+            $tempFile = sys_get_temp_dir() . '/forum_img_' . bin2hex(random_bytes(8)) . '.' . $extension;
+
+            if (file_put_contents($tempFile, $content) === false) {
+                $this->logger?->error('Failed to save downloaded forum image to temp file', ['url' => $url]);
+                return null;
+            }
+
+            return $tempFile;
+        } catch (\Throwable $e) {
+            $this->logger?->error('Error downloading forum image', ['url' => $url, 'error' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+    /**
+     * Guesses image extension from URL or content.
+     */
+    private function guessImageExtension(string $url, string $content): string
+    {
+        // Try to get from URL
+        $path = parse_url($url, PHP_URL_PATH);
+        if ($path !== false) {
+            $ext = pathinfo($path, PATHINFO_EXTENSION);
+            if ($ext !== '') {
+                return strtolower($ext);
+            }
+        }
+
+        // Try to detect from content (magic bytes)
+        if (strlen($content) >= 12) {
+            // JPEG
+            if (substr($content, 0, 3) === "\xFF\xD8\xFF") return 'jpg';
+            // PNG
+            if (substr($content, 0, 8) === "\x89\x50\x4E\x47\x0D\x0A\x1A\x0A") return 'png';
+            // GIF
+            if (substr($content, 0, 6) === "GIF87a" || substr($content, 0, 6) === "GIF89a") return 'gif';
+            // WebP
+            if (substr($content, 0, 12) === "RIFF" && substr($content, 8, 4) === "WEBP") return 'webp';
+        }
+
+        return 'jpg'; // default
     }
 
     /**

@@ -11,6 +11,7 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
 use SergiX44\Nutgram\Telegram\Types\Input\InputMediaPhoto;
+use SergiX44\Nutgram\Telegram\Types\Internal\InputFile;
 use SergiX44\Nutgram\Telegram\Types\Message\Message;
 use Throwable;
 
@@ -59,10 +60,13 @@ final class NutgramChannelClient implements TelegramChannelClientInterface
 
     public function sendPhotoMessage(string $channelId, string $photoPath, string $caption): PostResult
     {
+        // Check if it's a local file path
+        $photo = $this->isLocalFile($photoPath) ? new InputFile($photoPath) : $photoPath;
+
         $message = $this->call(
             static fn (Nutgram $bot): ?Message => $bot->sendPhoto(
                 chat_id: $channelId,
-                photo: $photoPath,
+                photo: $photo,
                 caption: $caption,
             ),
         );
@@ -74,8 +78,10 @@ final class NutgramChannelClient implements TelegramChannelClientInterface
     {
         $media = [];
         foreach (array_values($photoUrls) as $index => $url) {
+            // Check if it's a local file path
+            $mediaUrl = $this->isLocalFile($url) ? new InputFile($url) : $url;
             $media[] = new InputMediaPhoto(
-                media: $url,
+                media: $mediaUrl,
                 caption: $index === 0 ? $caption : null,
             );
         }
@@ -93,6 +99,15 @@ final class NutgramChannelClient implements TelegramChannelClientInterface
         }
 
         return new PostResult($first->message_id, $first->date);
+    }
+
+    /**
+     * Check if the given path is a local file.
+     */
+    private function isLocalFile(string $path): bool
+    {
+        // Check if it's an absolute path or relative path that exists
+        return file_exists($path) || (str_starts_with($path, '/') && file_exists($path));
     }
 
     public function pinChannelMessage(string $channelId, int $messageId): void
