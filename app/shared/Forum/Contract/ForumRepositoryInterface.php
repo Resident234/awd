@@ -51,11 +51,12 @@ interface ForumRepositoryInterface extends ForumPublicationMapGatewayInterface
      * own latest posts (at most $postLimit, posted_at descending).
      * With $withImagesOnly = true only topics/posts having non-empty
      * image_urls are returned. With $withPostsOnly = true only topics
-     * having at least one post are returned.
+     * having at least one post are returned. With $imagesCount > 0 only
+     * topics/posts having exactly $imagesCount images are returned.
      *
      * @return array<int, array{topic: \app\shared\Forum\Dto\TopicData, posts: \app\shared\Forum\Dto\PostData[]}>
      */
-    public function latestTopicsWithPosts(int $topicLimit, int $postLimit, bool $withImagesOnly = false, bool $withPostsOnly = false): array;
+    public function latestTopicsWithPosts(int $topicLimit, int $postLimit, bool $withImagesOnly = false, bool $withPostsOnly = false, int $imagesCount = 0): array;
 
     /**
      * Marks a forum topic as viewed by the "Просмотрено" button:

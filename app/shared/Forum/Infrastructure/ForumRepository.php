@@ -308,15 +308,20 @@ final class ForumRepository implements ForumRepositoryInterface, ForumPublicatio
      * With $withPostsOnly = true only topics that have at least one
      * post in the post table are returned.
      *
+     * With $imagesCount > 0 only topics/posts having exactly $imagesCount images are returned.
+     *
      * @return array<int, array{topic: TopicData, posts: PostData[]}>
      */
-    public function latestTopicsWithPosts(int $topicLimit, int $postLimit, bool $withImagesOnly = false, bool $withPostsOnly = false): array
+    public function latestTopicsWithPosts(int $topicLimit, int $postLimit, bool $withImagesOnly = false, bool $withPostsOnly = false, int $imagesCount = 0): array
     {
         $topicFilter = ($withImagesOnly
             ? ' AND (t.image_urls != \'[]\'::jsonb OR EXISTS (SELECT 1 FROM {{%post}} fp WHERE fp.topic_id = t.id AND fp.image_urls != \'[]\'::jsonb))'
             : '')
             . ($withPostsOnly
                 ? ' AND EXISTS (SELECT 1 FROM {{%post}} pp WHERE pp.topic_id = t.id)'
+                : '')
+            . ($imagesCount > 0
+                ? ' AND COALESCE(jsonb_array_length(t.image_urls), 0) = ' . $imagesCount
                 : '')
             . ' AND (ptm.topic_id IS NULL OR EXISTS ('
             . 'SELECT 1 FROM {{%post}} fp'
@@ -345,7 +350,8 @@ final class ForumRepository implements ForumRepositoryInterface, ForumPublicatio
         }
 
         $topicIds = array_map(static fn (array $row): int => (int)$row['id'], $topicRows);
-        $postFilter = $withImagesOnly ? ' AND p.image_urls != \'[]\'::jsonb' : '';
+        $postFilter = ($withImagesOnly ? ' AND p.image_urls != \'[]\'::jsonb' : '')
+            . ($imagesCount > 0 ? ' AND jsonb_array_length(p.image_urls) = ' . $imagesCount : '');
         $postRows = $this->db
             ->createCommand(
                 'SELECT p.id, p.topic_id, p.author_id, p.number, p.title, p.posted_at, p.content_html, p.content_text, p.source_url, p.image_urls,'

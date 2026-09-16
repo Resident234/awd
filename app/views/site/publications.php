@@ -115,11 +115,18 @@ CSS
                         <?= $withImagesOnly ? 'checked' : '' ?>>
                     <label class="form-check-label" for="forumFilterWithImages">С изображениями</label>
                 </div>
-                <div class="form-check form-switch mb-0">
+                <div class="form-check form-switch mb-3">
                     <input class="form-check-input" type="checkbox" role="switch" id="forumFilterWithPosts"
                            data-filter-url="<?= \yii\helpers\Url::to(['site/publications']) ?>"
                         <?= $withPostsOnly ? 'checked' : '' ?>>
                     <label class="form-check-label" for="forumFilterWithPosts">С привязанными постами</label>
+                </div>
+                <div class="mb-0">
+                    <label for="forumFilterImagesCount" class="form-label small">Кол-во изображений</label>
+                    <input type="range" class="form-range" id="forumFilterImagesCount"
+                           data-filter-url="<?= \yii\helpers\Url::to(['site/publications']) ?>"
+                           min="0" max="100" value="<?= $imagesCount > 0 ? (int)$imagesCount : 0 ?>">
+                    <div class="form-text">0 — без ограничения</div>
                 </div>
             </div>
             <div class="card-footer bg-transparent">
@@ -703,7 +710,8 @@ $this->registerJs(
     var applyFilters = function () {
         var imagesSwitch = document.getElementById('forumFilterWithImages');
         var postsSwitch = document.getElementById('forumFilterWithPosts');
-        var base = (imagesSwitch || postsSwitch).getAttribute('data-filter-url');
+        var imagesCountInput = document.getElementById('forumFilterImagesCount');
+        var base = (imagesSwitch || postsSwitch || imagesCountInput).getAttribute('data-filter-url');
         var params = [];
         if (imagesSwitch && imagesSwitch.checked) {
             params.push('withImages=1');
@@ -711,16 +719,21 @@ $this->registerJs(
         if (postsSwitch && postsSwitch.checked) {
             params.push('withPosts=1');
         }
+        if (imagesCountInput && imagesCountInput.value !== '' && parseInt(imagesCountInput.value, 10) > 0) {
+            params.push('imagesCount=' + parseInt(imagesCountInput.value, 10));
+        }
         window.location.href = params.length === 0
             ? base
             : base + (base.indexOf('?') === -1 ? '?' : '&') + params.join('&');
     };
-    ['forumFilterWithImages', 'forumFilterWithPosts'].forEach(function (id) {
+    ['forumFilterWithImages', 'forumFilterWithPosts', 'forumFilterImagesCount'].forEach(function (id) {
         var element = document.getElementById(id);
         if (element) {
             element.addEventListener('change', applyFilters);
         }
     });
+
+
 
     var source = document.getElementById('publicationTextInput');
     if (!source) {

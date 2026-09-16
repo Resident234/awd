@@ -147,14 +147,16 @@ class SiteController extends Controller
 
         $withImagesOnly = (string)$this->request->get('withImages', '') === '1';
         $withPostsOnly = (string)$this->request->get('withPosts', '') === '1';
+        $imagesCount = (int)$this->request->get('imagesCount', '0');
 
         return $this->render('publications', [
             'posts' => $this->publications->posts(),
             'drafts' => $this->publications->drafts(),
             'deleted' => $this->publications->deleted(),
-            'topics' => $this->forum->latestTopicsWithPosts(10, 10, $withImagesOnly, $withPostsOnly),
+            'topics' => $this->forum->latestTopicsWithPosts(10, 10, $withImagesOnly, $withPostsOnly, $imagesCount),
             'withImagesOnly' => $withImagesOnly,
             'withPostsOnly' => $withPostsOnly,
+            'imagesCount' => $imagesCount,
             'now' => gmdate('Y-m-d H:i:s'),
         ]);
     }
