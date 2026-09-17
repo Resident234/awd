@@ -301,13 +301,23 @@ a.desc:after {
 }
 
 /* extension cards */
+/* Use CSS custom properties for shadow values to allow easy theming and avoid !important */
 .extension-card {
+    --extension-card-shadow: 0 2px 8px rgba(0, 0, 0, .1);
+    --extension-card-shadow-hover: 0 8px 24px rgba(0, 0, 0, .12);
+    --extension-card-shadow-dark: 0 0 0 1px var(--bs-border-color), 0 2px 8px rgba(0, 0, 0, .3);
+    --extension-card-shadow-dark-hover: 0 0 0 1px var(--bs-border-color), 0 8px 24px rgba(0, 0, 0, .4);
+
     transition: transform .15s ease-in-out, box-shadow .15s ease-in-out;
+    box-shadow: var(--extension-card-shadow);
 }
 
-.extension-card:hover {
+/* Increase specificity to override any Bootstrap utility classes without !important */
+.card.extension-card:hover,
+div.extension-card:hover,
+.extension-card:not([class*="shadow"]):hover {
     transform: translateY(-3px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, .12) !important;
+    box-shadow: var(--extension-card-shadow-hover);
 }
 
 .extension-icon {
@@ -318,9 +328,30 @@ a.desc:after {
 /* dark mode: extension cards */
 [data-bs-theme="dark"] .extension-card {
     background-color: var(--bs-body-bg);
-    box-shadow: 0 0 0 1px var(--bs-border-color), 0 2px 8px rgba(0, 0, 0, .3);
+    box-shadow: var(--extension-card-shadow-dark);
 }
 
-[data-bs-theme="dark"] .extension-card:hover {
-    box-shadow: 0 0 0 1px var(--bs-border-color), 0 8px 24px rgba(0, 0, 0, .4) !important;
+/* Higher specificity for dark mode hover to avoid !important */
+[data-bs-theme="dark"] .card.extension-card:hover,
+[data-bs-theme="dark"] div.extension-card:hover,
+[data-bs-theme="dark"] .extension-card:not([class*="shadow"]):hover {
+    box-shadow: var(--extension-card-shadow-dark-hover);
+}
+
+/* Publication Preview Alignment Fixes */
+.telegram-preview-text {
+    text-align: left;
+    display: block;
+    align-self: flex-start;
+    width: 100%;
+    padding: 0;
+}
+
+.telegram-preview-text #publicationPreview,
+#publicationPreview {
+    text-align: left;
+    margin-top: 0;
+    margin-bottom: 0;
+    padding: 0;
+    white-space: pre-wrap;
 }

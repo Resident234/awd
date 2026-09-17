@@ -41,11 +41,12 @@ $viewedForm = static function (int $id, string $type): string {
         . '<i class="bi bi-check2-square me-1"></i>Просмотрено</button></form>';
 };
 
-$publishButton = static function (string $text, string $forumType, int $forumId, array $imageUrls = []): string {
+$publishButton = static function (string $text, string $forumType, int $forumId, array $imageUrls = [], string $title = ''): string {
     $imagesAttr = $imageUrls === [] ? '' : ' data-image-urls="' . Html::encode(implode("\n", $imageUrls)) . '"';
+    $titleAttr = $title !== '' ? ' data-title="' . Html::encode($title) . '"' : '';
     return '<button type="button" class="btn btn-outline-primary btn-sm forum-publish-btn" data-text="'
         . Html::encode($text) . '" data-forum-type="' . $forumType . '" data-forum-id="' . $forumId . '"'
-        . $imagesAttr . '>'
+        . $imagesAttr . $titleAttr . '>'
         . '<i class="bi bi-send me-1"></i>Опубликовать</button>';
 };
 
@@ -95,6 +96,32 @@ $this->registerCss(
     height: auto;
     flex: 1 1 0;
     min-height: 0;
+}
+
+/* Stacked images in preview */
+#publicationPreviewImages.stacked-images {
+    margin-top: 0.5rem;
+}
+
+#publicationPreviewImages.stacked-images img {
+    max-height: 120px;
+    width: auto;
+    border-radius: 0.375rem;
+    object-fit: cover;
+}
+
+#publicationPreviewImages.stacked-images .plus {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 60px;
+    height: 60px;
+    font-size: 1.25rem;
+    font-weight: 600;
+    border-radius: 0.375rem;
+    background-color: var(--bs-danger);
+    color: white;
+    margin-left: 0.25rem;
 }
 CSS
 );
@@ -211,7 +238,7 @@ CSS
                                             </div>
                                             <div class="d-flex align-items-center gap-2 mt-2 mb-1 flex-wrap">
                                                 <?= $viewedForm($topic->id, 'topic') ?>
-                                                <?= $publishButton($topic->contentText, 'topic', $topic->id, $topic->imageUrls) ?>
+                                                <?= $publishButton($topic->contentText, 'topic', $topic->id, $topic->imageUrls, $topic->title) ?>
                                             </div>
                                             <?php if ($topic->imageUrls !== []): ?>
                                                 <div class="d-flex mt-2 flex-wrap align-items-start">
@@ -301,7 +328,7 @@ CSS
                                                         </small>
                                                         <div class="d-flex align-items-center gap-2 mt-2 mb-1 flex-wrap">
                                                             <?= $viewedForm($post->id, 'post') ?>
-                                                            <?= $publishButton($post->contentText, 'post', $post->id, $post->imageUrls) ?>
+                                                            <?= $publishButton($post->contentText, 'post', $post->id, $post->imageUrls, $post->title) ?>
                                                         </div>
                                                         <?php if ($post->imageUrls !== []): ?>
                                                             <div class="d-flex mt-2 flex-wrap align-items-start">
@@ -346,12 +373,13 @@ CSS
         <!-- Publication preview -->
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="card-title">Предпросмотр публикации</h5>
+                <h5 class="card-title text-primary">Предпросмотр публикации</h5>
+            </div>
+            <div class="card-img">
+                <img src="" class="card-img-top img-fluid d-none" alt="Превью" id="previewCardImgEl">
             </div>
             <div class="card-body">
-                <p class="mb-0" id="publicationPreview" data-source="publicationTextInput">
-                    Введите текст публикации — он отобразится здесь до отправки в канал TRVL.
-                </p>
+                <p class="mb-4" id="publicationPreview" data-source="publicationTextInput">Введите текст публикации — он отобразится здесь до отправки в канал TRVL.</p>
                 <div class="stacked-images mt-2 d-none" id="publicationPreviewImages"></div>
             </div>
             <div class="card-footer bg-transparent">
@@ -360,6 +388,7 @@ CSS
                         <i class="bi bi-eye me-1"></i>
                         Текст обновляется по мере ввода
                     </small>
+                    <span class="badge bg-primary-subtle text-primary rounded-pill px-3">4096 символов</span>
                 </div>
             </div>
         </div>
@@ -748,6 +777,8 @@ $this->registerJs(
     var imagesInput = document.getElementById('publicationImages');
     var imagesPreview = document.getElementById('publicationImagesPreview');
     var previewImages = document.getElementById('publicationPreviewImages');
+    var previewCardImgEl = document.getElementById('previewCardImgEl');
+    var publicationAtInput = document.getElementById('publicationAt');
 
     var parseImageUrls = function (raw) {
         return (raw || '').split('\\n').map(function (line) {
@@ -781,10 +812,28 @@ $this->registerJs(
         container.classList.remove('d-none');
     };
 
+    var updateSingleImagePreview = function (urls) {
+        if (!previewCardImgEl) {
+            return;
+        }
+        // Show single image preview only if exactly one image
+        if (urls.length === 1) {
+            previewCardImgEl.src = urls[0];
+            previewCardImgEl.classList.remove('d-none');
+            if (previewImages) {
+                previewImages.classList.add('d-none');
+            }
+        } else {
+            previewCardImgEl.classList.add('d-none');
+            previewCardImgEl.src = '';
+        }
+    };
+
     var updateImages = function () {
         var urls = parseImageUrls(imagesInput ? imagesInput.value : '');
         renderImagesPreview(imagesPreview, urls);
         renderImagesPreview(previewImages, urls);
+        updateSingleImagePreview(urls);
     };
 
     var update = function () {
@@ -876,7 +925,13 @@ $this->registerJs(
 
     document.querySelectorAll('.forum-publish-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
-            source.value = btn.getAttribute('data-text') || '';
+            var text = btn.getAttribute('data-text') || '';
+            var title = btn.getAttribute('data-title') || '';
+            // Prepend title if it exists
+            if (title !== '') {
+                text = title + "\n\n" + text;
+            }
+            source.value = text;
             source.dispatchEvent(new Event('input'));
             if (imagesInput) {
                 imagesInput.value = btn.getAttribute('data-image-urls') || '';
