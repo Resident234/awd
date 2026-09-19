@@ -62,10 +62,10 @@ class Alert extends \yii\bootstrap5\Widget
     public array $alertPrefixes = [
         'error'   => 'Error:',
         'danger'  => 'Error:',
-        'success' => 'Action Completed:',
-        'info'    => 'Info:',
-        'warning' => 'Warning:'
-    ];
+        'success' => 'Готово:',
+        'info'    => 'Инфо:',
+        'warning' => 'Внимание:'
+        ];
 
     /**
      * @var array the options for rendering the close button tag.
@@ -97,7 +97,7 @@ class Alert extends \yii\bootstrap5\Widget
                 // <div class="alert alert-success alert-dismissible fade show d-flex align-items-center" role="alert">
                 //   <i class="bi bi-check2-circle me-2 fs-4 lh-1"></i>
                 //   <div>
-                //     <strong>Action Completed:</strong> Your data has been successfully saved...
+                //     <strong>Готово:</strong> Данные успешно сохранены...
                 //   </div>
                 //   <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
                 // </div>
