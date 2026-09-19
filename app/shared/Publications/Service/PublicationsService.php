@@ -16,6 +16,7 @@ use DateTimeZone;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
+use yii;
 
 /**
  * Use-cases for channel publications: saving form data as drafts or

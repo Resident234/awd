@@ -491,7 +491,7 @@ class SiteController extends Controller
 
     /**
      * Returns the user's preferred timezone from the cookie, falling back to
-     * Europe/Moscow for display purposes.
+     * UTC for display purposes (consistent with client-side detection).
      *
      * @return string
      */
@@ -506,6 +506,6 @@ class SiteController extends Controller
         } catch (\Exception $e) {
             // invalid timezone in cookie, fall through
         }
-        return 'Europe/Moscow';
+        return 'UTC';
     }
 }

@@ -921,6 +921,12 @@ jQuery(document).ready(function () {
             var sh = source.scrollHeight;
             var newHeight = Math.max(60, Math.min(sh, maxHeight));
             source.style.height = newHeight + 'px';
+            // Hide scrollbar when content fits, show when it overflows
+            if (sh > maxHeight) {
+                source.style.overflowY = 'auto';
+            } else {
+                source.style.overflowY = 'hidden';
+            }
         }
 
         var preview = document.getElementById('publicationPreview');
