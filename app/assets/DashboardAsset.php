@@ -23,6 +23,7 @@ class DashboardAsset extends AssetBundle
         'ui-kit/assets/js/jquery.min.js',
         'ui-kit/assets/js/bootstrap.bundle.min.js',
         'ui-kit/assets/js/moment.min.js',
+        'ui-kit/assets/js/moment-timezone-with-data.min.js',
         'ui-kit/assets/vendor/overlay-scroll/jquery.overlayScrollbars.min.js',
         'ui-kit/assets/vendor/overlay-scroll/custom-scrollbar.js',
         'ui-kit/assets/vendor/daterange/daterange.js',

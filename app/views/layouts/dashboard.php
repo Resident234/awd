@@ -60,6 +60,62 @@ CSS
 <body>
 <?php $this->beginBody() ?>
 
+<script>
+(function () {
+    'use strict';
+
+    var COOKIE_NAME = 'portal_tz';
+
+    function getBrowserTimezone() {
+        try {
+            return Intl.DateTimeFormat().resolvedOptions().timeZone;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function readCookie(name) {
+        var match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+        return match ? decodeURIComponent(match[2]) : null;
+    }
+
+    function writeCookie(name, value, days) {
+        var expires = '';
+        if (days) {
+            var d = new Date();
+            d.setTime(d.getTime() + days * 86400000);
+            expires = '; expires=' + d.toUTCString();
+        }
+        document.cookie = name + '=' + encodeURIComponent(value) + expires + '; path=/; SameSite=Lax';
+    }
+
+    var storedTz = readCookie(COOKIE_NAME);
+    if (storedTz) {
+        try { new Date().toLocaleString('en', { timeZone: storedTz }); } catch (e) { storedTz = null; }
+    }
+    if (!storedTz) {
+        storedTz = getBrowserTimezone();
+        if (storedTz) {
+            writeCookie(COOKIE_NAME, storedTz, 365);
+        }
+    }
+    window.portalUserTimezone = storedTz || 'UTC';
+})();
+
+function getPortalTimezone() {
+    var tz = window.portalUserTimezone;
+    if (!tz) {
+        try {
+            tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        } catch (e) {
+            tz = 'UTC';
+        }
+        window.portalUserTimezone = tz;
+    }
+    return tz;
+}
+</script>
+
 <div class="page-wrapper">
 
     <div class="main-container">

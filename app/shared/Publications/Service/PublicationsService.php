@@ -846,8 +846,12 @@ final class PublicationsService
     /**
      * @throws InvalidArgumentException when the date cannot be parsed
      */
-    private function normalizeDate(string $publishedAt): string
+    private function normalizeDate(string $publishedAt, ?string $userTimezone = null): string
     {
+        $tz = $userTimezone ?? $this->detectUserTimezone();
+        $moscowTz = new DateTimeZone($tz);
+        $utcTz = new DateTimeZone('UTC');
+
         $formats = [
             'Y-m-d H:i:s',
             'Y-m-d H:i',
@@ -860,20 +864,43 @@ final class PublicationsService
         ];
 
         foreach ($formats as $format) {
-            $date = DateTimeImmutable::createFromFormat($format, $publishedAt, new DateTimeZone('UTC'));
+            $date = DateTimeImmutable::createFromFormat($format, $publishedAt, $moscowTz);
             if ($date instanceof DateTimeImmutable) {
-                return $date->format('Y-m-d H:i:s');
+                return $date->setTimezone($utcTz)->format('Y-m-d H:i:s');
             }
         }
 
         $parsed = strtotime($publishedAt);
         if ($parsed !== false) {
-            return gmdate('Y-m-d H:i:s', $parsed);
+            return (new DateTimeImmutable('@' . $parsed, $moscowTz))
+                ->setTimezone($utcTz)
+                ->format('Y-m-d H:i:s');
         }
 
         throw new InvalidArgumentException(
             sprintf('Некорректная дата и время публикации: "%s".', $publishedAt),
         );
+    }
+
+    private function detectUserTimezone(): string
+    {
+        static $detected = null;
+        if ($detected !== null) {
+            return $detected;
+        }
+        try {
+            $cookie = Yii::$app->request->cookies->get('portal_tz');
+            if ($cookie !== null && $cookie->value !== '') {
+                $tz = $cookie->value;
+                new DateTimeZone($tz); // validate
+                $detected = $tz;
+                return $tz;
+            }
+        } catch (\Exception $e) {
+            // invalid timezone in cookie, fall through to UTC
+        }
+        $detected = 'UTC';
+        return 'UTC';
     }
 
     private function now(): string

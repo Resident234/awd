@@ -488,4 +488,24 @@ class SiteController extends Controller
     {
         return $this->render('about');
     }
+
+    /**
+     * Returns the user's preferred timezone from the cookie, falling back to
+     * Europe/Moscow for display purposes.
+     *
+     * @return string
+     */
+    public function getUserDisplayTimezone(): string
+    {
+        try {
+            $cookie = Yii::$app->request->cookies->get('portal_tz');
+            if ($cookie !== null && $cookie->value !== '') {
+                new DateTimeZone($cookie->value); // validate
+                return $cookie->value;
+            }
+        } catch (\Exception $e) {
+            // invalid timezone in cookie, fall through
+        }
+        return 'Europe/Moscow';
+    }
 }

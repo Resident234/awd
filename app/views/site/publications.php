@@ -246,7 +246,20 @@ CSS
                                                 <span class="me-3"><i class="bi bi-person"></i>
                                                     <?= Html::encode($topic->author?->name ?? 'Неизвестный автор') ?>
                                                 </span>
-                                                <span class="me-3"><i class="bi bi-clock"></i> <?= Html::encode($topic->publishedAt ?? '') ?></span>
+                                                <span class="me-3"><i class="bi bi-clock"></i> <?php
+                                                    $userTz = $this->context->getUserDisplayTimezone();
+                                                    $moscowTz = new DateTimeZone($userTz);
+                                                    if ($topic->publishedAt !== null && $topic->publishedAt !== '') {
+                                                        $tDate = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $topic->publishedAt, new DateTimeZone('UTC'));
+                                                        if ($tDate instanceof DateTimeImmutable) {
+                                                            echo Html::encode($tDate->setTimezone($moscowTz)->format('d.m.Y H:i'));
+                                                        } else {
+                                                            echo Html::encode($topic->publishedAt);
+                                                        }
+                                                    } else {
+                                                        echo '';
+                                                    }
+                                                ?></span>
                                                 <span class="me-3"><i class="bi bi-chat-dots"></i> <?= count($item['posts']) ?></span>
                                             </div>
                                             <div class="thread-meta text-muted small mt-1">
@@ -430,7 +443,6 @@ CSS
                     <div class="mb-3">
                         <label for="publicationTextInput" class="form-label">Текст публикации</label>
                         <textarea class="form-control" id="publicationTextInput" name="publicationText"
-                                  rows="6"
                                   maxlength="4096"
                                   placeholder="Введите текст публикации"></textarea>
                     </div>
@@ -509,9 +521,14 @@ CSS
                             ?>
                             <?php
                             $postPublishedAt = '';
+                            $userTz = $this->context->getUserDisplayTimezone();
+                            $moscowTz = new DateTimeZone($userTz);
                             if ($post->publishedAt !== null) {
                                 $postDate = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $post->publishedAt, new DateTimeZone('UTC'));
-                                $postPublishedAt = $postDate instanceof DateTimeImmutable ? $postDate->format('d.m.Y H:i') : '';
+                                if ($postDate instanceof DateTimeImmutable) {
+                                    $postDate = $postDate->setTimezone($moscowTz);
+                                    $postPublishedAt = $postDate->format('d.m.Y H:i');
+                                }
                             }
                             ?>
                             <div class="activity-log" data-text="<?= Html::encode($post->text) ?>"
@@ -556,9 +573,11 @@ CSS
                                 <?= $stackedImages($post->imageUrls) ?>
                                 <div class="activity-meta">
                                     <i class="bi bi-clock me-1"></i><?php
+                                        $userTz = $this->context->getUserDisplayTimezone();
+                                        $moscowTz = new DateTimeZone($userTz);
                                         $postDate = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $post->publishedAt, new DateTimeZone('UTC'));
                                         echo $postDate instanceof DateTimeImmutable
-                                            ? Html::encode($postDate->format('d.m.Y H:i'))
+                                            ? Html::encode($postDate->setTimezone($moscowTz)->format('d.m.Y H:i'))
                                             : '';
                                     ?>
                                 </div>
@@ -624,9 +643,11 @@ CSS
                                 <?= $stackedImages($draft->imageUrls) ?>
                                 <div class="activity-meta">
                                     <i class="bi bi-clock me-1"></i><?php
+                                        $userTz = $this->context->getUserDisplayTimezone();
+                                        $moscowTz = new DateTimeZone($userTz);
                                         $draftDate = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $draft->createdAt, new DateTimeZone('UTC'));
                                         echo $draftDate instanceof DateTimeImmutable
-                                            ? Html::encode($draftDate->format('d.m.Y H:i'))
+                                            ? Html::encode($draftDate->setTimezone($moscowTz)->format('d.m.Y H:i'))
                                             : '';
                                     ?>
                                 </div>
@@ -663,9 +684,14 @@ CSS
                         <?php foreach ($deleted as $deletedRecord): ?>
                             <?php
                             $deletedPublishedAt = '';
+                            $userTz = $this->context->getUserDisplayTimezone();
+                            $moscowTz = new DateTimeZone($userTz);
                             if ($deletedRecord->publishedAt !== null) {
                                 $deletedDate = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $deletedRecord->publishedAt, new DateTimeZone('UTC'));
-                                $deletedPublishedAt = $deletedDate instanceof DateTimeImmutable ? $deletedDate->format('d.m.Y H:i') : '';
+                                if ($deletedDate instanceof DateTimeImmutable) {
+                                    $deletedDate = $deletedDate->setTimezone($moscowTz);
+                                    $deletedPublishedAt = $deletedDate->format('d.m.Y H:i');
+                                }
                             }
                             ?>
                             <div class="activity-log" data-text="<?= Html::encode($deletedRecord->text) ?>"
@@ -708,9 +734,11 @@ CSS
                                 <?= $stackedImages($deletedRecord->imageUrls) ?>
                                 <div class="activity-meta">
                                     <i class="bi bi-clock me-1"></i><?php
+                                        $userTz = $this->context->getUserDisplayTimezone();
+                            $moscowTz = new DateTimeZone($userTz);
                                         $delDate = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $deletedRecord->publishedAt, new DateTimeZone('UTC'));
                                         echo $delDate instanceof DateTimeImmutable
-                                            ? Html::encode($delDate->format('d.m.Y H:i'))
+                                            ? Html::encode($delDate->setTimezone($moscowTz)->format('d.m.Y H:i'))
                                             : '';
                                     ?>
                                 </div>
@@ -813,6 +841,14 @@ jQuery(document).ready(function () {
         } else {
             startMoment = computeNextPublicationSlot();
         }
+
+        var userTz = getPortalTimezone();
+        if (userTz && userTz !== 'UTC') {
+            if (startMoment && startMoment.isValid()) {
+                startMoment = startMoment.tz(userTz);
+            }
+        }
+
         try {
             var existing = inputJq.data('daterangepicker');
             if (existing) {
@@ -874,6 +910,19 @@ jQuery(document).ready(function () {
         if (!source) {
             return;
         }
+        source.style.minHeight = '60px';
+        source.style.resize = 'none';
+        source.style.overflowY = 'auto';
+
+        function resizePublicationTextInput() {
+            if (!source) return;
+            var maxHeight = window.innerHeight * 0.8;
+            source.style.height = 'auto';
+            var sh = source.scrollHeight;
+            var newHeight = Math.max(60, Math.min(sh, maxHeight));
+            source.style.height = newHeight + 'px';
+        }
+
         var preview = document.getElementById('publicationPreview');
         var forumTypeInput = document.getElementById('forumEntityType');
         var forumIdInput = document.getElementById('forumEntityId');
@@ -954,7 +1003,13 @@ jQuery(document).ready(function () {
                 preview.textContent = source.value || source.placeholder;
             }
         };
-        source.addEventListener('input', update);
+        source.addEventListener('input', function () {
+            update();
+            resizePublicationTextInput();
+        });
+        resizePublicationTextInput();
+        window.addEventListener('resize', resizePublicationTextInput);
+
         if (imagesInput) {
             imagesInput.addEventListener('input', updateImages);
         }

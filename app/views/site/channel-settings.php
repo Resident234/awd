@@ -81,7 +81,7 @@ $this->title = 'Настройки канала';
                                     </div>
                                     <div class="flex-grow-1">
                                         <div class="small mb-1"><?= Html::encode($publishedDescription->description !== '' ? $publishedDescription->description : '—') ?></div>
-                                        <small class="text-muted">с <?= Yii::$app->formatter->asDatetime($publishedDescription->publishedFrom, 'php:d.m.Y H:i') ?><?= $isActive ? '' : ' по ' . Yii::$app->formatter->asDatetime($publishedDescription->publishedTo, 'php:d.m.Y H:i') ?></small>
+                                        <small class="text-muted">с <?= Yii::$app->formatter->asDatetime($publishedDescription->publishedFrom, 'php:d.m.Y H:i', $this->context->getUserDisplayTimezone()) ?><?= $isActive ? '' : ' по ' . Yii::$app->formatter->asDatetime($publishedDescription->publishedTo, 'php:d.m.Y H:i', $this->context->getUserDisplayTimezone()) ?></small>
                                     </div>
                                     <span class="badge <?= $isActive
                                         ? 'bg-success-subtle text-success rounded-pill py-1 px-3'
