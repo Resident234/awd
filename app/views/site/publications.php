@@ -16,9 +16,6 @@ use yii\helpers\Html;
 $this->title = 'Публикации в канал';
 
 
-$nextSlot = (int)ceil((time() + 60) / 600) * 600;
-$defaultAt = gmdate('d/m/Y h:i A', $nextSlot);
-
 $deleteForm = static function (int $id, string $source): string {
     $csrf = '<input type="hidden" name="' . Yii::$app->request->csrfParam
         . '" value="' . Yii::$app->request->csrfToken . '">';
@@ -122,6 +119,27 @@ $this->registerCss(
     background-color: var(--bs-danger);
     color: white;
     margin-left: 0.25rem;
+}
+
+.preview-card > .card-body {
+    align-items: flex-start;
+    justify-content: flex-start;
+    display: flex;
+    flex-direction: column;
+}
+
+#publicationPreview {
+    margin-top: 0;
+    padding-top: 0;
+    align-self: flex-start;
+    text-align: left;
+    width: 100%;
+    flex: 0 0 auto;
+}
+
+.telegram-preview-text {
+    align-self: flex-start;
+    width: 100%;
 }
 CSS
 );
@@ -371,7 +389,7 @@ CSS
     <div class="col-sm-6 col-6">
 
         <!-- Publication preview -->
-        <div class="card mb-4">
+        <div class="card mb-4 preview-card">
             <div class="card-header">
                 <h5 class="card-title text-primary">Предпросмотр публикации</h5>
             </div>
@@ -388,6 +406,7 @@ CSS
                         <i class="bi bi-eye me-1"></i>
                         Текст обновляется по мере ввода
                     </small>
+                    <span id="previewPublicationAt" class="badge bg-primary-subtle text-primary rounded-pill px-3"></span>
                     <span class="badge bg-primary-subtle text-primary rounded-pill px-3">4096 символов</span>
                 </div>
             </div>
@@ -438,8 +457,8 @@ CSS
                                 <i class="bi bi-calendar4"></i>
                             </span>
                             <input type="text" id="publicationAt" name="publicationAt"
-                                   class="form-control datepicker-time"
-                                   value="<?= Html::encode($defaultAt) ?>">
+                                   class="form-control publication-datepicker-time"
+                                   autocomplete="off">
                         </div>
                     </div>
 
@@ -492,7 +511,7 @@ CSS
                             $postPublishedAt = '';
                             if ($post->publishedAt !== null) {
                                 $postDate = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $post->publishedAt, new DateTimeZone('UTC'));
-                                $postPublishedAt = $postDate instanceof DateTimeImmutable ? $postDate->format('d/m/Y h:i A') : '';
+                                $postPublishedAt = $postDate instanceof DateTimeImmutable ? $postDate->format('d.m.Y H:i') : '';
                             }
                             ?>
                             <div class="activity-log" data-text="<?= Html::encode($post->text) ?>"
@@ -536,7 +555,12 @@ CSS
                                 <p class="mb-1"><?= Html::encode($post->text) ?></p>
                                 <?= $stackedImages($post->imageUrls) ?>
                                 <div class="activity-meta">
-                                    <i class="bi bi-clock me-1"></i><?= Html::encode($post->publishedAt ?? '') ?>
+                                    <i class="bi bi-clock me-1"></i><?php
+                                        $postDate = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $post->publishedAt, new DateTimeZone('UTC'));
+                                        echo $postDate instanceof DateTimeImmutable
+                                            ? Html::encode($postDate->format('d.m.Y H:i'))
+                                            : '';
+                                    ?>
                                 </div>
                                 <span class="badge <?= $isPublished ? 'bg-success' : 'bg-info' ?> mt-2">
                                     <?= $isPublished ? 'Опубликовано' : 'Запланировано' ?>
@@ -598,6 +622,14 @@ CSS
                                 </div>
                                 <p class="mb-1"><?= Html::encode($draft->text) ?></p>
                                 <?= $stackedImages($draft->imageUrls) ?>
+                                <div class="activity-meta">
+                                    <i class="bi bi-clock me-1"></i><?php
+                                        $draftDate = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $draft->createdAt, new DateTimeZone('UTC'));
+                                        echo $draftDate instanceof DateTimeImmutable
+                                            ? Html::encode($draftDate->format('d.m.Y H:i'))
+                                            : '';
+                                    ?>
+                                </div>
                                 <span class="badge bg-secondary mt-2">Черновик</span>
                                 <span class="badge bg-warning text-dark mt-2 d-none editing-badge">Редактируется</span>
                             </div>
@@ -633,7 +665,7 @@ CSS
                             $deletedPublishedAt = '';
                             if ($deletedRecord->publishedAt !== null) {
                                 $deletedDate = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $deletedRecord->publishedAt, new DateTimeZone('UTC'));
-                                $deletedPublishedAt = $deletedDate instanceof DateTimeImmutable ? $deletedDate->format('d/m/Y h:i A') : '';
+                                $deletedPublishedAt = $deletedDate instanceof DateTimeImmutable ? $deletedDate->format('d.m.Y H:i') : '';
                             }
                             ?>
                             <div class="activity-log" data-text="<?= Html::encode($deletedRecord->text) ?>"
@@ -675,7 +707,12 @@ CSS
                                 <p class="mb-1"><?= Html::encode($deletedRecord->text) ?></p>
                                 <?= $stackedImages($deletedRecord->imageUrls) ?>
                                 <div class="activity-meta">
-                                    <i class="bi bi-clock me-1"></i><?= Html::encode($deletedRecord->publishedAt ?? '') ?>
+                                    <i class="bi bi-clock me-1"></i><?php
+                                        $delDate = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $deletedRecord->publishedAt, new DateTimeZone('UTC'));
+                                        echo $delDate instanceof DateTimeImmutable
+                                            ? Html::encode($delDate->format('d.m.Y H:i'))
+                                            : '';
+                                    ?>
                                 </div>
                                 <span class="badge <?= $deletedRecord->deletedAt === null ? 'bg-danger' : 'bg-dark' ?> mt-2">
                                     <?= $deletedRecord->deletedAt === null ? 'Удалено' : 'Удалено из канала' ?>
@@ -718,7 +755,8 @@ CSS
                                 <i class="bi bi-calendar4"></i>
                             </span>
                             <input type="text" id="scheduleAt" name="publicationAt"
-                                   class="form-control datepicker-time" value="<?= Html::encode($defaultAt) ?>">
+                                   class="form-control publication-datepicker-time"
+                                   autocomplete="off">
                         </div>
                     </div>
                 </form>
@@ -737,254 +775,374 @@ CSS
 
 <?php
 $this->registerJs(
-    <<<JS
-(function () {
-    var applyFilters = function () {
-        var imagesSwitch = document.getElementById('forumFilterWithImages');
-        var postsSwitch = document.getElementById('forumFilterWithPosts');
-        var imagesCountInput = document.getElementById('forumFilterImagesCount');
-        var base = (imagesSwitch || postsSwitch || imagesCountInput).getAttribute('data-filter-url');
-        var params = [];
-        if (imagesSwitch && imagesSwitch.checked) {
-            params.push('withImages=1');
-        }
-        if (postsSwitch && postsSwitch.checked) {
-            params.push('withPosts=1');
-        }
-        if (imagesCountInput && imagesCountInput.value !== '' && parseInt(imagesCountInput.value, 10) > 0) {
-            params.push('imagesCount=' + parseInt(imagesCountInput.value, 10));
-        }
-        window.location.href = params.length === 0
-            ? base
-            : base + (base.indexOf('?') === -1 ? '?' : '&') + params.join('&');
-    };
-    ['forumFilterWithImages', 'forumFilterWithPosts', 'forumFilterImagesCount'].forEach(function (id) {
-        var element = document.getElementById(id);
-        if (element) {
-            element.addEventListener('change', applyFilters);
-        }
-    });
+    <<<'JS'
+jQuery(document).ready(function () {
+    var pickerFormat = 'DD.MM.YYYY HH:mm';
 
-
-
-    var source = document.getElementById('publicationTextInput');
-    if (!source) {
-        return;
+    function roundUpToNearest10Minutes(m) {
+        var minutes = m.minute();
+        var remainder = minutes % 10;
+        if (remainder === 0 && m.second() === 0 && m.millisecond() === 0) {
+            return m.clone().add(10, 'minute').startOf('minute');
+        }
+        return m.clone().add(10 - remainder, 'minute').startOf('minute');
     }
-    var preview = document.getElementById('publicationPreview');
-    var forumTypeInput = document.getElementById('forumEntityType');
-    var forumIdInput = document.getElementById('forumEntityId');
-    var imagesInput = document.getElementById('publicationImages');
-    var imagesPreview = document.getElementById('publicationImagesPreview');
-    var previewImages = document.getElementById('publicationPreviewImages');
-    var previewCardImgEl = document.getElementById('previewCardImgEl');
-    var publicationAtInput = document.getElementById('publicationAt');
 
-    var parseImageUrls = function (raw) {
-        return (raw || '').split('\\n').map(function (line) {
-            return line.trim();
-        }).filter(function (line) {
-            return line !== '';
-        });
-    };
+    function roundMomentTo10(m) {
+        return roundUpToNearest10Minutes(m);
+    }
 
-    var renderImagesPreview = function (container, urls) {
-        if (!container) {
-            return;
+    function computeNextPublicationSlot() {
+        var now = moment();
+        var candidate = roundUpToNearest10Minutes(now);
+        if (!candidate.isAfter(now)) {
+            candidate = candidate.add(10, 'minute');
         }
-        container.innerHTML = '';
-        if (!urls.length) {
-            container.classList.add('d-none');
-            return;
-        }
-        urls.slice(0, 10).forEach(function (url) {
-            var img = document.createElement('img');
-            img.src = url;
-            img.alt = 'Изображение публикации';
-            container.appendChild(img);
-        });
-        if (urls.length > 10) {
-            var plus = document.createElement('span');
-            plus.className = 'plus bg-danger';
-            plus.textContent = '+' + (urls.length - 10);
-            container.appendChild(plus);
-        }
-        container.classList.remove('d-none');
-    };
+        return candidate;
+    }
 
-    var updateSingleImagePreview = function (urls) {
-        if (!previewCardImgEl) {
-            return;
-        }
-        // Show single image preview only if exactly one image
-        if (urls.length === 1) {
-            previewCardImgEl.src = urls[0];
-            previewCardImgEl.classList.remove('d-none');
-            if (previewImages) {
-                previewImages.classList.add('d-none');
+    function setupDateTimePicker(inputJq) {
+        if (!inputJq.length) return;
+        var currentVal = inputJq.val();
+        var startMoment;
+        if (currentVal && currentVal !== '' && $.trim(currentVal) !== '') {
+            startMoment = moment(currentVal, pickerFormat);
+            if (!startMoment || !startMoment.isValid()) {
+                startMoment = computeNextPublicationSlot();
             }
         } else {
-            previewCardImgEl.classList.add('d-none');
-            previewCardImgEl.src = '';
+            startMoment = computeNextPublicationSlot();
         }
-    };
-
-    var updateImages = function () {
-        var urls = parseImageUrls(imagesInput ? imagesInput.value : '');
-        renderImagesPreview(imagesPreview, urls);
-        renderImagesPreview(previewImages, urls);
-        updateSingleImagePreview(urls);
-    };
-
-    var update = function () {
-        if (preview) {
-            preview.textContent = source.value || source.placeholder;
-        }
-    };
-    source.addEventListener('input', update);
-    if (imagesInput) {
-        imagesInput.addEventListener('input', updateImages);
-    }
-    update();
-    updateImages();
-
-    var scrollToMiddle = function (log) {
-        var scroller = log.closest('.scroll350');
-        if (!scroller) {
-            return;
-        }
-        var viewport = scroller.querySelector('.os-viewport') || scroller;
-        var logRect = log.getBoundingClientRect();
-        var viewRect = viewport.getBoundingClientRect();
-        var delta = logRect.top + logRect.height / 2 - (viewRect.top + viewRect.height / 2);
-        viewport.scrollTop += delta;
-        if (scroller.scrollTop !== undefined && scroller !== viewport) {
-            scroller.scrollTop += delta;
-        }
-    };
-
-    var editingLog = null;
-
-    var sourceTypeInput = document.getElementById('publicationSource');
-    var sourceIdInput = document.getElementById('publicationSourceId');
-    var publishedAtInput = document.getElementById('publicationAt');
-
-    var setEditing = function (log) {
-        if (editingLog === log) {
-            return;
-        }
-        if (editingLog) {
-            editingLog.querySelector('.editing-badge').classList.add('d-none');
-        }
-        editingLog = log;
-        log.querySelector('.editing-badge').classList.remove('d-none');
-        source.value = log.getAttribute('data-text') || '';
-        source.dispatchEvent(new Event('input'));
-        if (imagesInput) {
-            imagesInput.value = log.getAttribute('data-image-urls') || '';
-            updateImages();
-        }
-        scrollToMiddle(log);
-
-        if (sourceTypeInput && sourceIdInput) {
-            sourceTypeInput.value = log.getAttribute('data-source-type') || 'new';
-            sourceIdInput.value = log.getAttribute('data-source-id') || '';
-        }
-        if (publishedAtInput) {
-            publishedAtInput.value = log.getAttribute('data-published-at') || publishedAtInput.value;
-        }
-        if (forumTypeInput && forumIdInput) {
-            forumTypeInput.value = '';
-            forumIdInput.value = '';
-        }
-    };
-
-    var resetForm = document.querySelector('form[action*="publication-create"]');
-    if (resetForm) {
-        resetForm.addEventListener('submit', function () {
-            if (sourceTypeInput && sourceIdInput && sourceTypeInput.value === 'new') {
-                sourceIdInput.value = '';
+        try {
+            var existing = inputJq.data('daterangepicker');
+            if (existing) {
+                existing.remove();
+                inputJq.removeData('daterangepicker');
+                inputJq.off('.daterangepicker');
             }
-            if (forumTypeInput && forumIdInput && forumTypeInput.value === '') {
-                forumIdInput.value = '';
-            }
+        } catch (e) {}
+        inputJq.daterangepicker({
+            singleDatePicker: true,
+            timePicker: true,
+            timePicker24Hour: true,
+            timePickerIncrement: 10,
+            startDate: startMoment,
+            endDate: startMoment.clone().add(32, 'hour'),
+            locale: {
+                format: pickerFormat,
+            },
         });
+        inputJq.val(startMoment.format(pickerFormat));
     }
 
-    document.querySelectorAll('.activity-log').forEach(function (log) {
-        log.addEventListener('dblclick', function () {
-            setEditing(log);
+    var runOnce = false;
+    function initAll() {
+        if (runOnce) return;
+        runOnce = true;
+        var publicationAtJq = jQuery('#publicationAt');
+        var scheduleAtJq = jQuery('#scheduleAt');
+        setupDateTimePicker(publicationAtJq);
+        setupDateTimePicker(scheduleAtJq);
+
+        var applyFilters = function () {
+            var imagesSwitch = document.getElementById('forumFilterWithImages');
+            var postsSwitch = document.getElementById('forumFilterWithPosts');
+            var imagesCountInput = document.getElementById('forumFilterImagesCount');
+            var base = (imagesSwitch || postsSwitch || imagesCountInput).getAttribute('data-filter-url');
+            var params = [];
+            if (imagesSwitch && imagesSwitch.checked) {
+                params.push('withImages=1');
+            }
+            if (postsSwitch && postsSwitch.checked) {
+                params.push('withPosts=1');
+            }
+            if (imagesCountInput && imagesCountInput.value !== '' && parseInt(imagesCountInput.value, 10) > 0) {
+                params.push('imagesCount=' + parseInt(imagesCountInput.value, 10));
+            }
+            window.location.href = params.length === 0
+                    ? base
+                    : base + (base.indexOf('?') === -1 ? '?' : '&') + params.join('&');
+        };
+        ['forumFilterWithImages', 'forumFilterWithPosts', 'forumFilterImagesCount'].forEach(function (id) {
+            var element = document.getElementById(id);
+            if (element) {
+                element.addEventListener('change', applyFilters);
+            }
         });
-        log.querySelectorAll('a[title="Редактировать"]').forEach(function (btn) {
-            btn.addEventListener('click', function (event) {
-                event.preventDefault();
-                setEditing(log);
+
+        var source = document.getElementById('publicationTextInput');
+        if (!source) {
+            return;
+        }
+        var preview = document.getElementById('publicationPreview');
+        var forumTypeInput = document.getElementById('forumEntityType');
+        var forumIdInput = document.getElementById('forumEntityId');
+        var imagesInput = document.getElementById('publicationImages');
+        var imagesPreview = document.getElementById('publicationImagesPreview');
+        var previewImages = document.getElementById('publicationPreviewImages');
+        var previewCardImgEl = document.getElementById('previewCardImgEl');
+        var publicationAtInput = document.getElementById('publicationAt');
+        var previewPublicationAt = document.getElementById('previewPublicationAt');
+        var sourceTypeInput = document.getElementById('publicationSource');
+        var sourceIdInput = document.getElementById('publicationSourceId');
+        var publishedAtInput = document.getElementById('publicationAt');
+        var scheduleModal = document.getElementById('scheduleModal');
+
+        function updatePreviewPublicationAt() {
+            if (!previewPublicationAt) return;
+            var val = publicationAtInput ? publicationAtInput.value : '';
+            previewPublicationAt.textContent = val || '';
+        }
+
+        var parseImageUrls = function (raw) {
+            return (raw || '').split('\n').map(function (line) {
+                return line.trim();
+            }).filter(function (line) {
+                return line !== '';
             });
-        });
-    });
+        };
 
-    document.querySelectorAll('.forum-publish-btn').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            var text = btn.getAttribute('data-text') || '';
-            var title = btn.getAttribute('data-title') || '';
-            // Prepend title if it exists
-            if (title !== '') {
-                text = title + "\n\n" + text;
+        var renderImagesPreview = function (container, urls) {
+            if (!container) {
+                return;
             }
-            source.value = text;
+            container.innerHTML = '';
+            if (!urls.length) {
+                container.classList.add('d-none');
+                return;
+            }
+            urls.slice(0, 10).forEach(function (url) {
+                var img = document.createElement('img');
+                img.src = url;
+                img.alt = 'Изображение публикации';
+                container.appendChild(img);
+            });
+            if (urls.length > 10) {
+                var plus = document.createElement('span');
+                plus.className = 'plus bg-danger';
+                plus.textContent = '+' + (urls.length - 10);
+                container.appendChild(plus);
+            }
+            container.classList.remove('d-none');
+        };
+
+        var updateSingleImagePreview = function (urls) {
+            if (!previewCardImgEl) {
+                return;
+            }
+            if (urls.length === 1) {
+                previewCardImgEl.src = urls[0];
+                previewCardImgEl.classList.remove('d-none');
+                if (previewImages) {
+                    previewImages.classList.add('d-none');
+                }
+            } else {
+                previewCardImgEl.classList.add('d-none');
+                previewCardImgEl.src = '';
+            }
+        };
+
+        var updateImages = function () {
+            var urls = parseImageUrls(imagesInput ? imagesInput.value : '');
+            renderImagesPreview(imagesPreview, urls);
+            renderImagesPreview(previewImages, urls);
+            updateSingleImagePreview(urls);
+        };
+
+        var update = function () {
+            if (preview) {
+                preview.textContent = source.value || source.placeholder;
+            }
+        };
+        source.addEventListener('input', update);
+        if (imagesInput) {
+            imagesInput.addEventListener('input', updateImages);
+        }
+        if (publicationAtInput) {
+            publicationAtInput.addEventListener('input', updatePreviewPublicationAt);
+            publicationAtInput.addEventListener('change', updatePreviewPublicationAt);
+            publicationAtJq
+                .off('.previewPub')
+                .on('apply.daterangepicker.previewPub hide.daterangepicker.previewPub cancel.daterangepicker.previewPub', function () {
+                    updatePreviewPublicationAt();
+                });
+        }
+        update();
+        updateImages();
+        updatePreviewPublicationAt();
+
+        var scrollToMiddle = function (log) {
+            var scroller = log.closest('.scroll350');
+            if (!scroller) {
+                return;
+            }
+            var viewport = scroller.querySelector('.os-viewport') || scroller;
+            var logRect = log.getBoundingClientRect();
+            var viewRect = viewport.getBoundingClientRect();
+            var delta = logRect.top + logRect.height / 2 - (viewRect.top + viewRect.height / 2);
+            viewport.scrollTop += delta;
+            if (scroller.scrollTop !== undefined && scroller !== viewport) {
+                scroller.scrollTop += delta;
+            }
+        };
+
+        var editingLog = null;
+
+        var setEditing = function (log) {
+            if (editingLog === log) {
+                return;
+            }
+            if (editingLog) {
+                editingLog.querySelector('.editing-badge').classList.add('d-none');
+            }
+            editingLog = log;
+            log.querySelector('.editing-badge').classList.remove('d-none');
+            source.value = log.getAttribute('data-text') || '';
             source.dispatchEvent(new Event('input'));
             if (imagesInput) {
-                imagesInput.value = btn.getAttribute('data-image-urls') || '';
+                imagesInput.value = log.getAttribute('data-image-urls') || '';
                 updateImages();
             }
+            scrollToMiddle(log);
+
             if (sourceTypeInput && sourceIdInput) {
-                sourceTypeInput.value = 'new';
-                sourceIdInput.value = '';
-            }
-            if (forumTypeInput && forumIdInput) {
-                forumTypeInput.value = btn.getAttribute('data-forum-type') || '';
-                forumIdInput.value = btn.getAttribute('data-forum-id') || '';
+                sourceTypeInput.value = log.getAttribute('data-source-type') || 'new';
+                sourceIdInput.value = log.getAttribute('data-source-id') || '';
             }
             if (publishedAtInput) {
-                publishedAtInput.value = btn.getAttribute('data-published-at') || publishedAtInput.value;
+                var newVal = log.getAttribute('data-published-at') || publishedAtInput.value;
+                publishedAtInput.value = newVal;
+                try {
+                    var picker = publicationAtJq.data('daterangepicker');
+                    if (picker && newVal) {
+                        var m = moment(newVal, pickerFormat);
+                        if (m.isValid()) {
+                            picker.setStartDate(m);
+                            picker.setEndDate(m.clone().add(32, 'hour'));
+                        }
+                    }
+                } catch (e) {}
+                updatePreviewPublicationAt();
             }
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-            source.focus();
-        });
-    });
+            if (forumTypeInput && forumIdInput) {
+                forumTypeInput.value = '';
+                forumIdInput.value = '';
+            }
+        };
 
-    var scheduleModal = document.getElementById('scheduleModal');
-    if (scheduleModal) {
-        scheduleModal.addEventListener('show.bs.modal', function (event) {
-            var trigger = event.relatedTarget;
-            var recordId = trigger ? trigger.getAttribute('data-draft-id') || '' : '';
-            var source = trigger ? trigger.getAttribute('data-source') || 'draft' : 'draft';
-            var recordIdInput = document.getElementById('scheduleDraftId');
-            var sourceInput = document.getElementById('scheduleSource');
-            if (recordIdInput) {
-                recordIdInput.value = recordId;
-            }
-            if (sourceInput) {
-                sourceInput.value = source;
-            }
-        });
-    }
-
-    // Real-time value display for images count range slider
-    var imagesCountSlider = document.getElementById('forumFilterImagesCount');
-    var imagesCountValue = document.getElementById('forumFilterImagesCountValue');
-    if (imagesCountSlider && imagesCountValue) {
-        function updateImagesCountDisplay(value) {
-            imagesCountValue.textContent = value == 0 ? '∞' : value;
+        var resetForm = document.querySelector('form[action*="publication-create"]');
+        if (resetForm) {
+            resetForm.addEventListener('submit', function () {
+                if (sourceTypeInput && sourceIdInput && sourceTypeInput.value === 'new') {
+                    sourceIdInput.value = '';
+                }
+                if (forumTypeInput && forumIdInput && forumTypeInput.value === '') {
+                    forumIdInput.value = '';
+                }
+            });
         }
-        // Initial display
-        updateImagesCountDisplay(imagesCountSlider.value);
-        // Real-time update on input
-        imagesCountSlider.addEventListener('input', function () {
-            updateImagesCountDisplay(this.value);
+
+        document.querySelectorAll('.activity-log').forEach(function (log) {
+            log.addEventListener('dblclick', function () {
+                setEditing(log);
+            });
+            log.querySelectorAll('a[title="Редактировать"]').forEach(function (btn) {
+                btn.addEventListener('click', function (event) {
+                    event.preventDefault();
+                    setEditing(log);
+                });
+            });
         });
+
+        document.querySelectorAll('.forum-publish-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var text = btn.getAttribute('data-text') || '';
+                var title = btn.getAttribute('data-title') || '';
+                if (title !== '') {
+                    text = title + "\n\n" + text;
+                }
+                source.value = text;
+                source.dispatchEvent(new Event('input'));
+                if (imagesInput) {
+                    imagesInput.value = btn.getAttribute('data-image-urls') || '';
+                    updateImages();
+                }
+                if (sourceTypeInput && sourceIdInput) {
+                    sourceTypeInput.value = 'new';
+                    sourceIdInput.value = '';
+                }
+                if (forumTypeInput && forumIdInput) {
+                    forumTypeInput.value = btn.getAttribute('data-forum-type') || '';
+                    forumIdInput.value = btn.getAttribute('data-forum-id') || '';
+                }
+                if (publishedAtInput) {
+                    var defVal = btn.getAttribute('data-published-at');
+                    if (defVal) {
+                        publishedAtInput.value = defVal;
+                        try {
+                            var picker = publicationAtJq.data('daterangepicker');
+                            if (picker) {
+                                var m = moment(defVal, pickerFormat);
+                                if (m.isValid()) {
+                                    picker.setStartDate(m);
+                                    picker.setEndDate(m.clone().add(32, 'hour'));
+                                }
+                            }
+                        } catch (e) {}
+                    }
+                    updatePreviewPublicationAt();
+                }
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                source.focus();
+            });
+        });
+
+        if (scheduleModal) {
+            scheduleModal.addEventListener('show.bs.modal', function (event) {
+                var trigger = event.relatedTarget;
+                var recordId = trigger ? trigger.getAttribute('data-draft-id') || '' : '';
+                var sourceVal = trigger ? trigger.getAttribute('data-source') || 'draft' : 'draft';
+                var recordIdInput = document.getElementById('scheduleDraftId');
+                var sourceInput = document.getElementById('scheduleSource');
+                if (recordIdInput) {
+                    recordIdInput.value = recordId;
+                }
+                if (sourceInput) {
+                    sourceInput.value = sourceVal;
+                }
+                var scheduleInput = document.getElementById('scheduleAt');
+                if (scheduleInput) {
+                    var scheduleVal = scheduleInput.value;
+                    var startM = scheduleVal ? moment(scheduleVal, pickerFormat) : roundMomentTo10(moment());
+                    if (!startM.isValid()) startM = roundMomentTo10(moment());
+                    try {
+                        var schPicker = scheduleAtJq.data('daterangepicker');
+                        if (schPicker) {
+                            schPicker.setStartDate(startM);
+                            schPicker.setEndDate(startM.clone().add(32, 'hour'));
+                            scheduleInput.value = startM.format(pickerFormat);
+                        }
+                    } catch (e) {}
+                }
+            });
+        }
+
+        var imagesCountSlider = document.getElementById('forumFilterImagesCount');
+        var imagesCountValue = document.getElementById('forumFilterImagesCountValue');
+        if (imagesCountSlider && imagesCountValue) {
+            function updateImagesCountDisplay(value) {
+                imagesCountValue.textContent = value == 0 ? '∞' : value;
+            }
+            updateImagesCountDisplay(imagesCountSlider.value);
+            imagesCountSlider.addEventListener('input', function () {
+                updateImagesCountDisplay(this.value);
+            });
+        }
     }
-})();
+    setTimeout(initAll, 0);
+    setTimeout(initAll, 100);
+    jQuery(window).on('load', function () { setTimeout(initAll, 0); });
+});
 JS
 );
 ?>

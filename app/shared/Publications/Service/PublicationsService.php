@@ -855,6 +855,8 @@ final class PublicationsService
             'd/m/Y h:i a',
             'd/m/Y H:i:s',
             'd/m/Y H:i',
+            'd.m.Y H:i',
+            'd.m.Y H:i:s',
         ];
 
         foreach ($formats as $format) {
