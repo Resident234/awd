@@ -90,10 +90,10 @@ final class PublicationsService
      * @param string[] $imageUrls
      * @throws InvalidArgumentException when the text is empty or the date is invalid
      */
-    public function schedulePost(string $text, array $imageUrls, string $publishedAt, ?ForumPublicationRef $forumRef = null): void
+    public function schedulePost(string $text, array $imageUrls, string $publishedAt, ?ForumPublicationRef $forumRef = null, ?string $userTimezone = null): void
     {
         $this->assertTextValid($text);
-        $normalized = $this->normalizeDate($publishedAt);
+        $normalized = $this->normalizeDate($publishedAt, $userTimezone);
         $id = $this->publications->createPost($text, $imageUrls, $normalized, $this->now());
         $this->bindForumRef($id, $forumRef);
     }
@@ -284,7 +284,7 @@ final class PublicationsService
      *
      * @throws InvalidArgumentException when the draft does not exist or the date is invalid
      */
-    public function scheduleDraft(int $id, string $publishedAt): void
+    public function scheduleDraft(int $id, string $publishedAt, ?string $userTimezone = null): void
     {
         $this->assertDraftExists($id);
         $draft = $this->publications->deleteDraft($id);
@@ -295,7 +295,7 @@ final class PublicationsService
                 $draft->text,
                 $draft->imageUrls,
                 null,
-                $this->normalizeDate($publishedAt),
+                $this->normalizeDate($publishedAt, $userTimezone),
                 $draft->createdAt,
                 $draft->updatedAt,
             ),
@@ -512,7 +512,7 @@ final class PublicationsService
      * @throws InvalidArgumentException when the text is empty, the date
      * is invalid or the source record does not exist
      */
-    public function saveFromForm(string $text, array $imageUrls, string $publishedAt, string $source, ?int $sourceId, string $action): void
+    public function saveFromForm(string $text, array $imageUrls, string $publishedAt, string $source, ?int $sourceId, string $action, ?string $userTimezone = null): void
     {
         $this->assertTextValid($text);
         $now = $this->now();
@@ -547,7 +547,7 @@ final class PublicationsService
                     $text,
                     $imageUrls,
                     null,
-                    $this->normalizeDate($publishedAt),
+                    $this->normalizeDate($publishedAt, $userTimezone),
                     $record->createdAt,
                     $record->updatedAt,
                 ),
@@ -575,7 +575,7 @@ final class PublicationsService
                     $text,
                     $imageUrls,
                     null,
-                    $this->normalizeDate($publishedAt),
+                    $this->normalizeDate($publishedAt, $userTimezone),
                     $draft->createdAt,
                     $draft->updatedAt,
                 ),
@@ -610,7 +610,7 @@ final class PublicationsService
 
         if ($action === 'publish') {
             // 1) scheduled post + "Опубликовать": update in place.
-            $this->publications->updatePost($sourceId, $text, $imageUrls, $this->normalizeDate($publishedAt), $now);
+            $this->publications->updatePost($sourceId, $text, $imageUrls, $this->normalizeDate($publishedAt, $userTimezone), $now);
 
             return;
         }
@@ -691,7 +691,7 @@ final class PublicationsService
      *
      * @throws InvalidArgumentException when the record does not exist or the date is invalid
      */
-    public function scheduleDeleted(int $id, string $publishedAt): void
+    public function scheduleDeleted(int $id, string $publishedAt, ?string $userTimezone = null): void
     {
         $record = $this->publications->deleteDeleted($id);
         $now = $this->now();
@@ -701,7 +701,7 @@ final class PublicationsService
                 $record->text,
                 $record->imageUrls,
                 null,
-                $this->normalizeDate($publishedAt),
+                $this->normalizeDate($publishedAt, $userTimezone),
                 $record->createdAt,
                 $record->updatedAt,
             ),

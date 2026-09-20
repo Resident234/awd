@@ -438,6 +438,7 @@ CSS
                     <input type="hidden" name="publicationSourceId" id="publicationSourceId" value="">
                     <input type="hidden" name="forumEntityType" id="forumEntityType" value="">
                     <input type="hidden" name="forumEntityId" id="forumEntityId" value="">
+                    <input type="hidden" name="publicationTz" id="publicationTz" value="">
 
                     <!-- Textarea -->
                     <div class="mb-3">
@@ -776,6 +777,7 @@ CSS
                            value="<?= Yii::$app->request->csrfToken ?>">
                     <input type="hidden" name="publicationSource" id="scheduleSource" value="draft">
                     <input type="hidden" name="publicationId" id="scheduleDraftId" value="">
+                    <input type="hidden" name="publicationTz" id="schedulePublicationTz" value="">
                     <div class="mb-3">
                         <label class="form-label" for="scheduleAt">Дата и время публикации</label>
                         <div class="input-group">
@@ -1048,6 +1050,26 @@ jQuery(document).ready(function () {
         };
 
         var editingLog = null;
+
+        // Populate timezone hidden field before form submission
+        function populateTimezoneField() {
+            var tz = getPortalTimezone();
+            if (!tz) return;
+            var tzField1 = document.getElementById('publicationTz');
+            if (tzField1) tzField1.value = tz;
+            var tzField2 = document.getElementById('schedulePublicationTz');
+            if (tzField2) tzField2.value = tz;
+        }
+
+        // Attach to forms
+        var newPostForm = document.querySelector('form[action*="publication-create"]');
+        if (newPostForm) {
+            newPostForm.addEventListener('submit', populateTimezoneField);
+        }
+        var scheduleFormEl = document.getElementById('scheduleForm');
+        if (scheduleFormEl) {
+            scheduleFormEl.addEventListener('submit', populateTimezoneField);
+        }
 
         var setEditing = function (log) {
             if (editingLog === log) {

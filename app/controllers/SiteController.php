@@ -203,6 +203,7 @@ class SiteController extends Controller
     {
         $text = (string)($this->request->post('publicationText', ''));
         $publishedAt = (string)($this->request->post('publicationAt', ''));
+        $userTz = (string)($this->request->post('publicationTz', ''));
         $action = $this->request->post('action') === 'draft' ? 'draft' : 'publish';
         $source = (string)($this->request->post('publicationSource', 'new'));
         $sourceId = $this->request->post('publicationSourceId');
@@ -216,11 +217,11 @@ class SiteController extends Controller
                     $this->publications->saveDraft($text, $imageUrls, $forumRef);
                     Yii::$app->session->setFlash('success', 'Черновик сохранён.');
                 } else {
-                    $this->publications->schedulePost($text, $imageUrls, $publishedAt, $forumRef);
+                    $this->publications->schedulePost($text, $imageUrls, $publishedAt, $forumRef, $userTz ?: null);
                     Yii::$app->session->setFlash('success', 'Публикация сохранена и будет отправлена в канал в заданное время.');
                 }
             } else {
-                $this->publications->saveFromForm($text, $imageUrls, $publishedAt, $source, $sourceId, $action);
+                $this->publications->saveFromForm($text, $imageUrls, $publishedAt, $source, $sourceId, $action, $userTz ?: null);
                 Yii::$app->session->setFlash('success', 'Изменения сохранены.');
             }
         } catch (InvalidArgumentException $e) {
@@ -338,13 +339,14 @@ class SiteController extends Controller
     {
         $id = (string)($this->request->post('publicationId', ''));
         $publishedAt = (string)($this->request->post('publicationAt', ''));
+        $userTz = (string)($this->request->post('publicationTz', ''));
         $source = (string)($this->request->post('publicationSource', 'draft'));
 
         try {
             if ($source === 'deleted') {
-                $this->publications->scheduleDeleted($id === '' ? 0 : (int)$id, $publishedAt);
+                $this->publications->scheduleDeleted($id === '' ? 0 : (int)$id, $publishedAt, $userTz ?: null);
             } else {
-                $this->publications->scheduleDraft($id === '' ? 0 : (int)$id, $publishedAt);
+                $this->publications->scheduleDraft($id === '' ? 0 : (int)$id, $publishedAt, $userTz ?: null);
             }
             Yii::$app->session->setFlash('success', 'Публикация запланирована.');
         } catch (InvalidArgumentException $e) {
