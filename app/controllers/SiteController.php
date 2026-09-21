@@ -145,9 +145,30 @@ class SiteController extends Controller
     {
         $this->layout = 'dashboard';
 
-        $withImagesOnly = (string)$this->request->get('withImages', '') === '1';
-        $withPostsOnly = (string)$this->request->get('withPosts', '') === '1';
-        $imagesCount = (int)$this->request->get('imagesCount', '0');
+        // Merge URL params with session-stored filters:
+        // URL params take precedence (user explicitly typed them).
+        // Session provides persistence across form submits and navigation.
+        $session = Yii::$app->session;
+        $sessionFilters = $session->get('forumFilters', []);
+
+        $withImagesOnly = (string)$this->request->get('withImages', '') === '1'
+            ? true
+            : ($sessionFilters['withImages'] ?? false);
+        $withPostsOnly = (string)$this->request->get('withPosts', '') === '1'
+            ? true
+            : ($sessionFilters['withPosts'] ?? false);
+        $imagesCountRaw = $this->request->get('imagesCount', '');
+        $imagesCount = $imagesCountRaw !== ''
+            ? (int)$imagesCountRaw
+            : ($sessionFilters['imagesCount'] ?? 0);
+
+        // Persist the effective filter state to the session so that any
+        // subsequent form POST (which carries no URL params) can restore them.
+        $effective = [];
+        if ($withImagesOnly)  $effective['withImages']  = true;
+        if ($withPostsOnly)   $effective['withPosts']   = true;
+        if ($imagesCount > 0) $effective['imagesCount'] = $imagesCount;
+        $session->set('forumFilters', $effective);
 
         return $this->render('publications', [
             'posts' => $this->publications->posts(),
@@ -159,6 +180,45 @@ class SiteController extends Controller
             'imagesCount' => $imagesCount,
             'now' => gmdate('Y-m-d H:i:s'),
         ]);
+    }
+
+    /**
+     * Saves the current forum filter state to the session via AJAX.
+     * Used by the JS filter handler to persist filters across navigation.
+     *
+     * @return Response
+     */
+    public function actionForumFilterSave(): Response
+    {
+        $withImages = $this->request->post('withImages', '');
+        $withPosts = $this->request->post('withPosts', '');
+        $imagesCount = $this->request->post('imagesCount', '0');
+
+        $filters = [];
+        if ($withImages === '1') {
+            $filters['withImages'] = true;
+        }
+        if ($withPosts === '1') {
+            $filters['withPosts'] = true;
+        }
+        if ($imagesCount !== '' && (int)$imagesCount > 0) {
+            $filters['imagesCount'] = (int)$imagesCount;
+        }
+
+        Yii::$app->session->set('forumFilters', $filters);
+
+        return $this->asJson(['ok' => true]);
+    }
+
+    /**
+     * Clears the forum filter state from the session and redirects back.
+     *
+     * @return Response
+     */
+    public function actionForumFilterClear(): Response
+    {
+        Yii::$app->session->remove('forumFilters');
+        return $this->redirect(['publications']);
     }
 
     /**
@@ -188,7 +248,7 @@ class SiteController extends Controller
             Yii::$app->session->setFlash('error', $e->getMessage());
         }
 
-        return $this->redirect(['publications']);
+        return $this->redirectWithFilters();
     }
 
     /**
@@ -228,7 +288,45 @@ class SiteController extends Controller
             Yii::$app->session->setFlash('error', $e->getMessage());
         }
 
-        return $this->redirect(['publications']);
+        return $this->redirectWithFilters();
+    }
+
+    /**
+     * Reads forum filters from the session and appends them to the redirect URL.
+     * This ensures filters persist after any publication-related action.
+     *
+     * @return Response
+     */
+    private function redirectWithFilters(): Response
+    {
+        $request = Yii::$app->request;
+        $session = Yii::$app->session;
+
+        // Prefer URL params (direct navigation or same-page change)
+        $withImages = $request->get('withImages');
+        $withPosts = $request->get('withPosts');
+        $imagesCount = $request->get('imagesCount');
+
+        // If no URL params (e.g. after a POST submit), fall back to session
+        if ($withImages === null) {
+            $filters = $session->get('forumFilters', []);
+            $withImages  = $filters['withImages']  ?? null;
+            $withPosts   = $filters['withPosts']   ?? null;
+            $imagesCount = $filters['imagesCount'] ?? null;
+        }
+
+        $url = ['publications'];
+        if ($withImages === '1') {
+            $url['withImages'] = '1';
+        }
+        if ($withPosts === '1') {
+            $url['withPosts'] = '1';
+        }
+        if ($imagesCount !== null && $imagesCount !== '' && (int)$imagesCount > 0) {
+            $url['imagesCount'] = (int)$imagesCount;
+        }
+
+        return $this->redirect($url);
     }
 
     /**
@@ -295,7 +393,7 @@ class SiteController extends Controller
             Yii::$app->session->setFlash('error', $e->getMessage());
         }
 
-        return $this->redirect(['publications']);
+        return $this->redirectWithFilters();
     }
 
     /**
@@ -324,7 +422,7 @@ class SiteController extends Controller
             Yii::$app->session->setFlash('error', $e->getMessage());
         }
 
-        return $this->redirect(['publications']);
+        return $this->redirectWithFilters();
     }
 
     /**
@@ -353,7 +451,7 @@ class SiteController extends Controller
             Yii::$app->session->setFlash('error', $e->getMessage());
         }
 
-        return $this->redirect(['publications']);
+        return $this->redirectWithFilters();
     }
 
     /**
@@ -383,7 +481,7 @@ class SiteController extends Controller
             Yii::$app->session->setFlash('error', $e->getMessage());
         }
 
-        return $this->redirect(['publications']);
+        return $this->redirectWithFilters();
     }
 
     /**

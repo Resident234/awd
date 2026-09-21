@@ -183,6 +183,13 @@ CSS
                         <i class="bi bi-funnel me-1"></i>
                         Фильтры применяются к блоку «Форум»
                     </small>
+                    <?php
+                        $clearUrl = \yii\helpers\Url::to(['site/forum-filter-clear']);
+                    ?>
+                    <a href="<?= $clearUrl ?>" class="btn btn-sm btn-outline-secondary" id="forumFilterClearBtn"
+                       title="Очистить все фильтры">
+                        <i class="bi bi-x-circle me-1"></i>Очистить
+                    </a>
                 </div>
             </div>
         </div>
@@ -439,6 +446,7 @@ CSS
                     <input type="hidden" name="forumEntityType" id="forumEntityType" value="">
                     <input type="hidden" name="forumEntityId" id="forumEntityId" value="">
                     <input type="hidden" name="publicationTz" id="publicationTz" value="">
+                    
 
                     <!-- Textarea -->
                     <div class="mb-3">
@@ -520,21 +528,9 @@ CSS
                             <?php
                             $isPublished = $post->telegramId !== null || ($post->publishedAt !== null && $post->publishedAt <= $now);
                             ?>
-                            <?php
-                            $postPublishedAt = '';
-                            $userTz = $this->context->getUserDisplayTimezone();
-                            $moscowTz = new DateTimeZone($userTz);
-                            if ($post->publishedAt !== null) {
-                                $postDate = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $post->publishedAt, new DateTimeZone('UTC'));
-                                if ($postDate instanceof DateTimeImmutable) {
-                                    $postDate = $postDate->setTimezone($moscowTz);
-                                    $postPublishedAt = $postDate->format('d.m.Y H:i');
-                                }
-                            }
-                            ?>
                             <div class="activity-log" data-text="<?= Html::encode($post->text) ?>"
                                  data-source-type="post" data-source-id="<?= $post->id ?>"
-                                 data-published-at="<?= Html::encode($postPublishedAt) ?>"
+                                 data-published-at-utc="<?= Html::encode($post->publishedAt ?? '') ?>"
                                  data-image-urls="<?= Html::encode(implode("\n", $post->imageUrls)) ?>">
                                 <div class="d-flex align-items-center gap-2 mb-1">
                                     <?php if ($post->telegramId !== null): ?>
@@ -573,14 +569,7 @@ CSS
                                 <p class="mb-1"><?= Html::encode($post->text) ?></p>
                                 <?= $stackedImages($post->imageUrls) ?>
                                 <div class="activity-meta">
-                                    <i class="bi bi-clock me-1"></i><?php
-                                        $userTz = $this->context->getUserDisplayTimezone();
-                                        $moscowTz = new DateTimeZone($userTz);
-                                        $postDate = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $post->publishedAt, new DateTimeZone('UTC'));
-                                        echo $postDate instanceof DateTimeImmutable
-                                            ? Html::encode($postDate->setTimezone($moscowTz)->format('d.m.Y H:i'))
-                                            : '';
-                                    ?>
+                                    <i class="bi bi-clock me-1"></i><span class="utc-time" data-utc="<?= Html::encode($post->publishedAt ?? '') ?>"></span>
                                 </div>
                                 <span class="badge <?= $isPublished ? 'bg-success' : 'bg-info' ?> mt-2">
                                     <?= $isPublished ? 'Опубликовано' : 'Запланировано' ?>
@@ -643,14 +632,7 @@ CSS
                                 <p class="mb-1"><?= Html::encode($draft->text) ?></p>
                                 <?= $stackedImages($draft->imageUrls) ?>
                                 <div class="activity-meta">
-                                    <i class="bi bi-clock me-1"></i><?php
-                                        $userTz = $this->context->getUserDisplayTimezone();
-                                        $moscowTz = new DateTimeZone($userTz);
-                                        $draftDate = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $draft->createdAt, new DateTimeZone('UTC'));
-                                        echo $draftDate instanceof DateTimeImmutable
-                                            ? Html::encode($draftDate->setTimezone($moscowTz)->format('d.m.Y H:i'))
-                                            : '';
-                                    ?>
+                                    <i class="bi bi-clock me-1"></i><span class="utc-time" data-utc="<?= Html::encode($draft->createdAt ?? '') ?>"></span>
                                 </div>
                                 <span class="badge bg-secondary mt-2">Черновик</span>
                                 <span class="badge bg-warning text-dark mt-2 d-none editing-badge">Редактируется</span>
@@ -683,21 +665,9 @@ CSS
                             </p>
                         <?php endif ?>
                         <?php foreach ($deleted as $deletedRecord): ?>
-                            <?php
-                            $deletedPublishedAt = '';
-                            $userTz = $this->context->getUserDisplayTimezone();
-                            $moscowTz = new DateTimeZone($userTz);
-                            if ($deletedRecord->publishedAt !== null) {
-                                $deletedDate = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $deletedRecord->publishedAt, new DateTimeZone('UTC'));
-                                if ($deletedDate instanceof DateTimeImmutable) {
-                                    $deletedDate = $deletedDate->setTimezone($moscowTz);
-                                    $deletedPublishedAt = $deletedDate->format('d.m.Y H:i');
-                                }
-                            }
-                            ?>
                             <div class="activity-log" data-text="<?= Html::encode($deletedRecord->text) ?>"
                                  data-source-type="deleted" data-source-id="<?= $deletedRecord->id ?>"
-                                 data-published-at="<?= Html::encode($deletedPublishedAt) ?>"
+                                 data-published-at-utc="<?= Html::encode($deletedRecord->publishedAt ?? '') ?>"
                                  data-image-urls="<?= Html::encode(implode("\n", $deletedRecord->imageUrls)) ?>">
                                 <div class="d-flex align-items-center gap-2 mb-1">
                                     <a href="#" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Редактировать">
@@ -734,14 +704,7 @@ CSS
                                 <p class="mb-1"><?= Html::encode($deletedRecord->text) ?></p>
                                 <?= $stackedImages($deletedRecord->imageUrls) ?>
                                 <div class="activity-meta">
-                                    <i class="bi bi-clock me-1"></i><?php
-                                        $userTz = $this->context->getUserDisplayTimezone();
-                            $moscowTz = new DateTimeZone($userTz);
-                                        $delDate = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $deletedRecord->publishedAt, new DateTimeZone('UTC'));
-                                        echo $delDate instanceof DateTimeImmutable
-                                            ? Html::encode($delDate->setTimezone($moscowTz)->format('d.m.Y H:i'))
-                                            : '';
-                                    ?>
+                                    <i class="bi bi-clock me-1"></i><span class="utc-time" data-utc="<?= Html::encode($deletedRecord->publishedAt ?? '') ?>"></span>
                                 </div>
                                 <span class="badge <?= $deletedRecord->deletedAt === null ? 'bg-danger' : 'bg-dark' ?> mt-2">
                                     <?= $deletedRecord->deletedAt === null ? 'Удалено' : 'Удалено из канала' ?>
@@ -778,6 +741,7 @@ CSS
                     <input type="hidden" name="publicationSource" id="scheduleSource" value="draft">
                     <input type="hidden" name="publicationId" id="scheduleDraftId" value="">
                     <input type="hidden" name="publicationTz" id="schedulePublicationTz" value="">
+                    
                     <div class="mb-3">
                         <label class="form-label" for="scheduleAt">Дата и время публикации</label>
                         <div class="input-group">
@@ -804,8 +768,14 @@ CSS
 </div>
 
 <?php
+$csrfParam = Yii::$app->request->csrfParam;
+$csrfToken = Yii::$app->request->csrfToken;
+$filterSaveUrl = \yii\helpers\Url::to(['site/forum-filter-save']);
 $this->registerJs(
-    <<<'JS'
+    "var __FILTER_SAVE_URL = '{$filterSaveUrl}';
+var __CSRF_PARAM = '{$csrfParam}';
+var __CSRF_TOKEN = '{$csrfToken}';
+" . <<<'JS'
 jQuery(document).ready(function () {
     var pickerFormat = 'DD.MM.YYYY HH:mm';
 
@@ -873,6 +843,16 @@ jQuery(document).ready(function () {
         inputJq.val(startMoment.format(pickerFormat));
     }
 
+    function saveFiltersToSession(withImages, withPosts, imagesCount) {
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', __FILTER_SAVE_URL, true);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhr.send(__CSRF_PARAM + '=' + encodeURIComponent(__CSRF_TOKEN)
+            + '&withImages=' + (withImages ? 1 : 0)
+            + '&withPosts=' + (withPosts ? 1 : 0)
+            + '&imagesCount=' + (imagesCount || 0));
+    }
+
     var runOnce = false;
     function initAll() {
         if (runOnce) return;
@@ -882,7 +862,7 @@ jQuery(document).ready(function () {
         setupDateTimePicker(publicationAtJq);
         setupDateTimePicker(scheduleAtJq);
 
-        var applyFilters = function () {
+        var applyFiltersDirect = function () {
             var imagesSwitch = document.getElementById('forumFilterWithImages');
             var postsSwitch = document.getElementById('forumFilterWithPosts');
             var imagesCountInput = document.getElementById('forumFilterImagesCount');
@@ -897,15 +877,22 @@ jQuery(document).ready(function () {
             if (imagesCountInput && imagesCountInput.value !== '' && parseInt(imagesCountInput.value, 10) > 0) {
                 params.push('imagesCount=' + parseInt(imagesCountInput.value, 10));
             }
-            window.location.href = params.length === 0
-                    ? base
-                    : base + (base.indexOf('?') === -1 ? '?' : '&') + params.join('&');
+            var separator = base.indexOf('?') === -1 ? '?' : '&';
+            var newUrl = params.length === 0 ? base : base + separator + params.join('&');
+
+            // Save to session fire-and-forget so subsequent form redirects keep filters
+            saveFiltersToSession(
+                imagesSwitch && imagesSwitch.checked,
+                postsSwitch && postsSwitch.checked,
+                imagesCountInput ? parseInt(imagesCountInput.value, 10) : 0
+            );
+
+            window.location.href = newUrl;
         };
-        ['forumFilterWithImages', 'forumFilterWithPosts', 'forumFilterImagesCount'].forEach(function (id) {
-            var element = document.getElementById(id);
-            if (element) {
-                element.addEventListener('change', applyFilters);
-            }
+
+        ['forumFilterWithImages', 'forumFilterWithPosts'].forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) el.addEventListener('change', applyFiltersDirect);
         });
 
         var source = document.getElementById('publicationTextInput');
@@ -1051,24 +1038,26 @@ jQuery(document).ready(function () {
 
         var editingLog = null;
 
-        // Populate timezone hidden field before form submission
-        function populateTimezoneField() {
+        // Populate hidden fields (timezone) before form submission
+        // Filters are saved to session via AJAX, no need to pass via POST
+        function populateHiddenFields() {
             var tz = getPortalTimezone();
-            if (!tz) return;
-            var tzField1 = document.getElementById('publicationTz');
-            if (tzField1) tzField1.value = tz;
-            var tzField2 = document.getElementById('schedulePublicationTz');
-            if (tzField2) tzField2.value = tz;
+            if (tz) {
+                var tzField1 = document.getElementById('publicationTz');
+                if (tzField1) tzField1.value = tz;
+                var tzField2 = document.getElementById('schedulePublicationTz');
+                if (tzField2) tzField2.value = tz;
+            }
         }
 
         // Attach to forms
         var newPostForm = document.querySelector('form[action*="publication-create"]');
         if (newPostForm) {
-            newPostForm.addEventListener('submit', populateTimezoneField);
+            newPostForm.addEventListener('submit', populateHiddenFields);
         }
         var scheduleFormEl = document.getElementById('scheduleForm');
         if (scheduleFormEl) {
-            scheduleFormEl.addEventListener('submit', populateTimezoneField);
+            scheduleFormEl.addEventListener('submit', populateHiddenFields);
         }
 
         var setEditing = function (log) {
@@ -1217,10 +1206,43 @@ jQuery(document).ready(function () {
                 imagesCountValue.textContent = value == 0 ? '∞' : value;
             }
             updateImagesCountDisplay(imagesCountSlider.value);
+            // Apply filters on change (when user releases the slider)
+            imagesCountSlider.addEventListener('change', function () {
+                updateImagesCountDisplay(this.value);
+                applyFiltersDirect();
+            });
+            // Also save to session on input (while dragging) for responsiveness
             imagesCountSlider.addEventListener('input', function () {
                 updateImagesCountDisplay(this.value);
             });
         }
+        // Sync current filter state to session so that subsequent form redirects preserve filters
+        var imgSwitch = document.getElementById('forumFilterWithImages');
+        var postsSwitch = document.getElementById('forumFilterWithPosts');
+        var countInput = document.getElementById('forumFilterImagesCount');
+        saveFiltersToSession(
+            imgSwitch ? imgSwitch.checked : false,
+            postsSwitch ? postsSwitch.checked : false,
+            countInput ? (parseInt(countInput.value, 10) || 0) : 0
+        );
+
+        // Convert UTC timestamps to user's local timezone
+        (function convertUtcTimes() {
+            var tz = getPortalTimezone();
+            if (!tz) return;
+            var formatter = new Intl.DateTimeFormat('ru-RU', {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit',
+                timeZone: tz
+            });
+            document.querySelectorAll('.utc-time[data-utc]').forEach(function(el) {
+                var utcStr = el.getAttribute('data-utc');
+                if (!utcStr) return;
+                var d = new Date(utcStr + 'Z');
+                if (isNaN(d.getTime())) return;
+                el.textContent = formatter.format(d);
+            });
+        })();
     }
     setTimeout(initAll, 0);
     setTimeout(initAll, 100);
