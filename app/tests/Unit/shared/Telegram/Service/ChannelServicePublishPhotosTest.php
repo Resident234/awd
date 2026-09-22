@@ -79,20 +79,42 @@ final class ChannelServicePublishPhotosTest extends Unit
         $this->assertSame(110, $this->_service->publishPhotos('Текст', $urls));
     }
 
-    public function testLongTextAdditionallySentAsTextMessage(): void
+    public function testLongTextCaptionEndsAtLineBreakAndRestSentAsContinuation(): void
     {
-        $text = str_repeat('а', 2000);
-        $caption = mb_substr($text, 0, 1024);
+        $line = str_repeat('а', 100);
+        $text = implode("\n", array_fill(0, 12, $line));
 
         $this->_client
             ->expects($this->once())
             ->method('sendPhotoMessage')
-            ->with(self::CHANNEL_ID, 'https://example.com/a.jpg', $caption)
+            ->with(
+                self::CHANNEL_ID,
+                'https://example.com/a.jpg',
+                implode("\n", array_fill(0, 10, $line)),
+            )
             ->willReturn(new PostResult(13, 123));
         $this->_client
             ->expects($this->once())
             ->method('sendTextMessage')
-            ->with(self::CHANNEL_ID, $text)
+            ->with(self::CHANNEL_ID, implode("\n", array_fill(0, 2, $line)))
+            ->willReturn(new PostResult(14, 123));
+
+        $this->assertSame(13, $this->_service->publishPhotos($text, ['https://example.com/a.jpg']));
+    }
+
+    public function testLongTextWithoutLineBreaksIsCutAtCaptionLimit(): void
+    {
+        $text = str_repeat('а', 2000);
+
+        $this->_client
+            ->expects($this->once())
+            ->method('sendPhotoMessage')
+            ->with(self::CHANNEL_ID, 'https://example.com/a.jpg', str_repeat('а', 1024))
+            ->willReturn(new PostResult(13, 123));
+        $this->_client
+            ->expects($this->once())
+            ->method('sendTextMessage')
+            ->with(self::CHANNEL_ID, str_repeat('а', 976))
             ->willReturn(new PostResult(14, 123));
 
         $this->assertSame(13, $this->_service->publishPhotos($text, ['https://example.com/a.jpg']));

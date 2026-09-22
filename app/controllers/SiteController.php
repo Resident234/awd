@@ -369,7 +369,10 @@ class SiteController extends Controller
      */
     public function actionPublicationCreate(): Response
     {
-        $text = (string)($this->request->post('publicationText', ''));
+        // Browsers put CRLF into the wire form of a textarea, so the same text
+        // would gain invisible chars on every save; Telegram and the block
+        // rendering both count line breaks as a single "\n".
+        $text = str_replace(["\r\n", "\r"], "\n", (string)($this->request->post('publicationText', '')));
         $publishedAt = (string)($this->request->post('publicationAt', ''));
         $userTz = (string)($this->request->post('publicationTz', ''));
         $action = $this->request->post('action') === 'draft' ? 'draft' : 'publish';

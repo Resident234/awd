@@ -163,7 +163,7 @@ Located at `app/shared/Telegram/Service/ChannelService.php`. The service is a th
 | `updateDescription(string $description): void` | Validates that the description does not exceed **255** characters and updates the channel description via the Telegram API. The new description is archived in the `publishedDescriptions` repository. |
 | `publishedDescriptions(): array` | Returns archived channel descriptions (newest first). |
 | `publishText(string $text): int` | Sends a plain-text message (1–4096 chars). Returns the Telegram `message_id`. |
-| `publishPhotos(string $text, array $photoUrls): int` | Sends one or many photos (up to 10 per API call). The first photo receives a caption (max 1024 chars). If the full text does not fit, it is sent as a separate text message after the photos. Returns the `message_id` of the first photo. |
+| `publishPhotos(string $text, array $photoUrls): int` | Sends one or many photos (up to 10 per API call). The first photo receives a caption (max 1024 chars), cut at the last line break that still fits so a line is never split. What does not fit into the caption is sent once as a continuation text message after the photos, never as a repeat of the whole text. Returns the `message_id` of the first photo. |
 | `pinPost(int $messageId): void` | Pins the given message in the channel. |
 | `deletePost(int $messageId): void` | Deletes a message from the channel. |
 | `editPostText(int $messageId, string $text): void` | Edits the text of an existing message (same validation as `publishText`). |

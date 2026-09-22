@@ -78,6 +78,7 @@ $this->registerCss(
     text-align: left;
     width: 100%;
     flex: 0 0 auto;
+    white-space: pre-wrap;
 }
 
 .telegram-preview-text {

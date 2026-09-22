@@ -117,10 +117,11 @@ final class ChannelService
      * Publishes a post with its photos: a single photo becomes a
      * photo message with the caption, two to ten photos become an
      * album (the caption goes on the first photo). The caption is
-     * cropped to CAPTION_MAX_LENGTH; when it does not fit entirely,
-     * the full text is additionally sent as a separate text message
-     * after the photos. The message id of the first photo message is
-     * returned.
+     * cropped to CAPTION_MAX_LENGTH, preferring the last line break that
+     * still fits so a line is never cut in the middle. What does not fit
+     * into the caption is sent once more after the photos as a
+     * continuation message, never as a repeat of the whole text. The
+     * message id of the first photo message is returned.
      *
      * @param string[] $photoUrls
      * @throws TelegramApiException on API failure
@@ -141,6 +142,18 @@ final class ChannelService
         }
 
         $caption = mb_substr($text, 0, self::CAPTION_MAX_LENGTH);
+        $continuation = null;
+        if (mb_strlen($text) > self::CAPTION_MAX_LENGTH) {
+            $lastBreak = mb_strrpos($caption, "\n");
+            if ($lastBreak !== false && $lastBreak > 0) {
+                $caption = mb_substr($caption, 0, $lastBreak);
+            }
+
+            $rest = ltrim(mb_substr($text, mb_strlen($caption)), "\n");
+            if ($rest !== '') {
+                $continuation = $rest;
+            }
+        }
         $firstMessageId = 0;
 
         foreach (array_chunk($photoUrls, 10) as $chunk) {
@@ -159,8 +172,8 @@ final class ChannelService
             }
         }
 
-        if (mb_strlen($text) > self::CAPTION_MAX_LENGTH) {
-            $this->client()->sendTextMessage($this->channelId, $text);
+        if ($continuation !== null) {
+            $this->client()->sendTextMessage($this->channelId, $continuation);
         }
 
         return $firstMessageId;
