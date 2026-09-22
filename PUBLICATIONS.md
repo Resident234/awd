@@ -68,6 +68,8 @@ Publications created from forum elements are additionally tracked in two link ta
 | `publications_topic_map` | Links `topic.id` to a Telegram message | - no row = topic not seen<br>- `telegram_id IS NULL` = marked viewed («Просмотрено»)<br>- `telegram_id` set = published to the channel |
 | `publications_post_map` | Links `post.id` to a Telegram message | - no row = post not seen<br>- `telegram_id IS NULL` = marked viewed («Просмотрено»)<br>- `telegram_id` set = published to the channel |
 
+Both tables are written only through `ForumPublicationMapGatewayInterface` (see below). A topic that has exactly one post and that post count as a single element: marking or publishing either one writes the same state into the map row of the other, and a `telegram_id` the twin already has is never overwritten. Topics with several posts are not mirrored — one processed post says nothing about the rest.
+
 The forum block filters («С изображениями», «С привязанными постами», «Кол-во изображений») and their session/URL sync are documented in [README.md](README.md), section «Фильтры блока «Форум»».
 
 ### Core DTOs and Interfaces
@@ -108,10 +110,10 @@ The forum block filters («С изображениями», «С привяза�
   - `move(int $fromPublicationId, int $toPublicationId): void` - Moves link between publication IDs
   - `forget(int $publicationId): void` - Removes the link
 
-- **`ForumPublicationMapGatewayInterface`** - Permanent bridge table that stores the link between a forum entity and a Telegram message (`telegram_id`):
-  - `insert(int $forumEntityId, int $telegramMessageId): void` - Creates permanent link
-  - `updateTelegramId(int $forumEntityId, int $telegramMessageId): void` - Updates telegram ID for existing link
-  - `findByForumEntityId(int $forumEntityId): int|null` - Finds telegram ID by forum entity ID
+- **`ForumPublicationMapGatewayInterface`** - Permanent bridge tables storing the link between a forum entity and a Telegram message (implemented by `ForumRepository`):
+  - `storeTopicMapTelegramId(int $topicId, ?int $telegramId): void` - Creates the `publications_topic_map` row with an empty `telegram_id`, or stamps an existing row with the channel message id
+  - `storePostMapTelegramId(int $postId, ?int $telegramId): void` - Same for `publications_post_map`
+  - Both mirror the state onto the twin entity when a topic has exactly one post — see the note under the link tables above
 
 The concrete implementations live in the **Infrastructure** sub-namespace of each module and are wired via Yii DI container.
 

@@ -431,44 +431,52 @@ final class ForumRepository implements ForumRepositoryInterface, ForumPublicatio
      * Marks a forum topic as viewed by the "Просмотрено" button:
      * inserts a publications_topic_map row with an empty telegram_id.
      * An existing map row is left untouched — a topic already
-     * published to the channel keeps its telegram_id.
+     * published to the channel keeps its telegram_id. The topic's only
+     * post, if it has one, is marked viewed as well.
      */
     public function markTopicViewed(int $topicId): void
     {
         $this->insertMapRowIfMissing('{{%publications_topic_map}}', 'topic_id', $topicId);
+        $this->mirrorSolePost($topicId, null);
     }
 
     /**
      * Marks a forum post as viewed by the "Просмотрено" button:
      * inserts a publications_post_map row with an empty telegram_id.
      * An existing map row is left untouched — a post already
-     * published to the channel keeps its telegram_id.
+     * published to the channel keeps its telegram_id. When the post is
+     * the only post of its topic, the topic is marked viewed as well.
      */
     public function markPostViewed(int $postId): void
     {
         $this->insertMapRowIfMissing('{{%publications_post_map}}', 'post_id', $postId);
+        $this->mirrorTopicOfSolePost($postId, null);
     }
 
     /**
      * Writes the publications_topic_map row of a topic when a
      * publication created from the topic is saved (empty telegram_id)
      * or reaches the Telegram channel (stamps the telegram_id of the
-     * channel message).
+     * channel message). The topic's only post, if it has one, receives
+     * the same state.
      */
     public function storeTopicMapTelegramId(int $topicId, ?int $telegramId): void
     {
         $this->storeMapTelegramId('{{%publications_topic_map}}', 'topic_id', $topicId, $telegramId);
+        $this->mirrorSolePost($topicId, $telegramId);
     }
 
     /**
      * Writes the publications_post_map row of a forum post when a
      * publication created from the post is saved (empty telegram_id)
      * or reaches the Telegram channel (stamps the telegram_id of the
-     * channel message).
+     * channel message). When the post is the only post of its topic,
+     * the topic receives the same state.
      */
     public function storePostMapTelegramId(int $postId, ?int $telegramId): void
     {
         $this->storeMapTelegramId('{{%publications_post_map}}', 'post_id', $postId, $telegramId);
+        $this->mirrorTopicOfSolePost($postId, $telegramId);
     }
 
     /**
@@ -515,6 +523,72 @@ final class ForumRepository implements ForumRepositoryInterface, ForumPublicatio
             $this->db
                 ->createCommand()
                 ->update($table, ['telegram_id' => $telegramId], [$column => $entityId])
+                ->execute();
+        }
+    }
+
+    /**
+     * Gives the topic's only post the state of the topic: a topic and a
+     * single post under it are one and the same element for the channel.
+     */
+    private function mirrorSolePost(int $topicId, ?int $telegramId): void
+    {
+        $postId = $this->db
+            ->createCommand('SELECT CASE WHEN count(*) = 1 THEN min(id) END FROM {{%post}} WHERE topic_id = :topic_id')
+            ->bindValue(':topic_id', $topicId)
+            ->queryScalar();
+
+        if ($postId !== false && $postId !== null) {
+            $this->mirrorMapRow('{{%publications_post_map}}', 'post_id', (int)$postId, $telegramId);
+        }
+    }
+
+    /**
+     * Gives a topic the state of its only post, which is the reverse
+     * direction of the rule above. Topics with several posts are left
+     * alone: one processed post says nothing about the rest.
+     */
+    private function mirrorTopicOfSolePost(int $postId, ?int $telegramId): void
+    {
+        $topicId = $this->db
+            ->createCommand(
+                'SELECT CASE WHEN count(*) = 1 THEN max(topic_id) END FROM {{%post}}'
+                . ' WHERE topic_id = (SELECT topic_id FROM {{%post}} WHERE id = :post_id)'
+            )
+            ->bindValue(':post_id', $postId)
+            ->queryScalar();
+
+        if ($topicId !== false && $topicId !== null) {
+            $this->mirrorMapRow('{{%publications_topic_map}}', 'topic_id', (int)$topicId, $telegramId);
+        }
+    }
+
+    /**
+     * Same as storeMapTelegramId but never overwrites a telegram_id the
+     * mirrored row already has: the twin entity may have been published
+     * as a message of its own earlier, and that link stays authoritative.
+     */
+    private function mirrorMapRow(string $table, string $column, int $entityId, ?int $telegramId): void
+    {
+        $exists = $this->db
+            ->createCommand("SELECT 1 FROM {$table} WHERE {$column} = :id")
+            ->bindValue(':id', $entityId)
+            ->queryScalar() !== false;
+
+        if (!$exists) {
+            $this->db
+                ->createCommand()
+                ->insert($table, [$column => $entityId, 'telegram_id' => $telegramId])
+                ->execute();
+
+            return;
+        }
+
+        if ($telegramId !== null) {
+            $this->db
+                ->createCommand("UPDATE {$table} SET telegram_id = :telegram_id WHERE {$column} = :id AND telegram_id IS NULL")
+                ->bindValue(':telegram_id', $telegramId)
+                ->bindValue(':id', $entityId)
                 ->execute();
         }
     }
