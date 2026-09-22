@@ -17,28 +17,6 @@ $this->title = 'Публикации в канал';
 
 $this->registerCss(
     <<<CSS
-.forum-column {
-    display: flex;
-    flex-direction: column;
-}
-.forum-column > .card:last-child {
-    flex: 1 1 auto;
-    display: flex;
-    flex-direction: column;
-}
-.forum-column > .card:last-child > .card-body {
-    flex: 1 1 auto;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-}
-.forum-column .scroll350 {
-    height: auto;
-    flex: 1 1 0;
-    min-height: 0;
-}
-
-/* Stacked images in preview */
 #publicationPreviewImages.stacked-images {
     margin-top: 0.5rem;
 }
@@ -90,7 +68,7 @@ CSS
 ?>
 <!-- Row start -->
 <div class="row">
-    <div class="col-sm-6 col-6 forum-column">
+    <div class="col-12">
 
         <!-- Forum filters -->
         <div class="card mb-4">
@@ -182,6 +160,9 @@ CSS
                 </div>
             </div>
         </div>
+
+    </div>
+    <div class="col-sm-6 col-6">
 
         <!-- New post form -->
         <div class="card mb-4">
@@ -608,6 +589,26 @@ jQuery(document).ready(function () {
             }
         }
 
+        // The fit measures with height:auto, which drops the box to its two
+        // default rows for one layout pass and moves the caret with it, so it
+        // runs only once typing stops instead of on every keystroke.
+        var resizeTimer = null;
+
+        function fitTextInputNow() {
+            if (resizeTimer) {
+                clearTimeout(resizeTimer);
+                resizeTimer = null;
+            }
+            resizePublicationTextInput();
+        }
+
+        function fitTextInputAfterTyping() {
+            if (resizeTimer) {
+                clearTimeout(resizeTimer);
+            }
+            resizeTimer = setTimeout(fitTextInputNow, 5000);
+        }
+
         var preview = document.getElementById('publicationPreview');
         var forumTypeInput = document.getElementById('forumEntityType');
         var forumIdInput = document.getElementById('forumEntityId');
@@ -690,10 +691,10 @@ jQuery(document).ready(function () {
         };
         source.addEventListener('input', function () {
             update();
-            resizePublicationTextInput();
+            fitTextInputAfterTyping();
         });
         resizePublicationTextInput();
-        window.addEventListener('resize', resizePublicationTextInput);
+        window.addEventListener('resize', fitTextInputNow);
 
         if (imagesInput) {
             imagesInput.addEventListener('input', updateImages);
@@ -760,7 +761,8 @@ jQuery(document).ready(function () {
             editingLog = log;
             log.querySelector('.editing-badge').classList.remove('d-none');
             source.value = log.getAttribute('data-text') || '';
-            source.dispatchEvent(new Event('input'));
+            update();
+            fitTextInputNow();
             if (imagesInput) {
                 imagesInput.value = log.getAttribute('data-image-urls') || '';
                 updateImages();
@@ -821,7 +823,8 @@ jQuery(document).ready(function () {
             }
             editingLog = null;
             source.value = '';
-            source.dispatchEvent(new Event('input'));
+            update();
+            fitTextInputNow();
             if (imagesInput) {
                 imagesInput.value = '';
                 updateImages();
@@ -912,7 +915,8 @@ jQuery(document).ready(function () {
                 text = title + "\n\n" + text;
             }
             source.value = text;
-            source.dispatchEvent(new Event('input'));
+            update();
+            fitTextInputNow();
             if (imagesInput) {
                 imagesInput.value = btn.getAttribute('data-image-urls') || '';
                 updateImages();
@@ -946,7 +950,6 @@ jQuery(document).ready(function () {
                 editingLog.querySelector('.editing-badge').classList.add('d-none');
             }
             editingLog = null;
-            window.scrollTo({ top: 0, behavior: 'smooth' });
             source.focus();
         };
 
