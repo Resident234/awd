@@ -258,7 +258,7 @@ function getPortalTimezone() {
             </div>
 
             <div class="app-body">
-                <?= Alert::widget() ?>
+                <div id="app-flash"><?= Alert::widget() ?></div>
                 <?= $content ?>
             </div>
 

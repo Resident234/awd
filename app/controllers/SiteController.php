@@ -12,6 +12,7 @@ use app\shared\Publications\Dto\ForumPublicationRef;
 use app\shared\Publications\Service\PublicationsService;
 use app\shared\Telegram\Infrastructure\TelegramApiException;
 use app\shared\Telegram\Service\ChannelService;
+use app\widgets\Alert;
 use yii\captcha\CaptchaAction;
 use yii\filters\AccessControl;
 use yii\filters\VerbFilter;
@@ -148,6 +149,18 @@ class SiteController extends Controller
         // Merge URL params with session-stored filters:
         // URL params take precedence (user explicitly typed them).
         // Session provides persistence across form submits and navigation.
+        $this->syncForumFilters();
+
+        return $this->render('publications', $this->publicationsData());
+    }
+
+    /**
+     * Resolves the effective forum filters from the request, falling back to
+     * the session, and stores them back so any subsequent request - including
+     * an AJAX block refresh, which carries no URL params - sees the same state.
+     */
+    private function syncForumFilters(): void
+    {
         $session = Yii::$app->session;
         $sessionFilters = $session->get('forumFilters', []);
 
@@ -162,24 +175,106 @@ class SiteController extends Controller
             ? (int)$imagesCountRaw
             : ($sessionFilters['imagesCount'] ?? 0);
 
-        // Persist the effective filter state to the session so that any
-        // subsequent form POST (which carries no URL params) can restore them.
         $effective = [];
-        if ($withImagesOnly)  $effective['withImages']  = true;
-        if ($withPostsOnly)   $effective['withPosts']   = true;
-        if ($imagesCount > 0) $effective['imagesCount'] = $imagesCount;
+        if ($withImagesOnly) {
+            $effective['withImages'] = true;
+        }
+        if ($withPostsOnly) {
+            $effective['withPosts'] = true;
+        }
+        if ($imagesCount > 0) {
+            $effective['imagesCount'] = $imagesCount;
+        }
         $session->set('forumFilters', $effective);
+    }
 
-        return $this->render('publications', [
+    /**
+     * @return array{withImages: bool, withPosts: bool, imagesCount: int}
+     */
+    private function forumFilters(): array
+    {
+        $filters = Yii::$app->session->get('forumFilters', []);
+
+        return [
+            'withImages' => (bool)($filters['withImages'] ?? false),
+            'withPosts' => (bool)($filters['withPosts'] ?? false),
+            'imagesCount' => (int)($filters['imagesCount'] ?? 0),
+        ];
+    }
+
+    /**
+     * Everything the publications page and its refreshable blocks render from.
+     *
+     * @return array<string, mixed>
+     */
+    private function publicationsData(): array
+    {
+        $filters = $this->forumFilters();
+
+        return [
             'posts' => $this->publications->posts(),
             'drafts' => $this->publications->drafts(),
             'deleted' => $this->publications->deleted(),
-            'topics' => $this->forum->latestTopicsWithPosts(10, 10, $withImagesOnly, $withPostsOnly, $imagesCount),
-            'withImagesOnly' => $withImagesOnly,
-            'withPostsOnly' => $withPostsOnly,
-            'imagesCount' => $imagesCount,
+            'topics' => $this->forum->latestTopicsWithPosts(
+                10,
+                10,
+                $filters['withImages'],
+                $filters['withPosts'],
+                $filters['imagesCount'],
+            ),
+            'withImagesOnly' => $filters['withImages'],
+            'withPostsOnly' => $filters['withPosts'],
+            'imagesCount' => $filters['imagesCount'],
             'now' => gmdate('Y-m-d H:i:s'),
+        ];
+    }
+
+    /**
+     * Re-renders the four lists the publications page updates in place. Every
+     * mutation is reported against all of them because a single action can
+     * move a record across the posts, drafts and deleted tables at once
+     * (see PublicationsService::saveFromForm).
+     *
+     * @return array<string, string>
+     */
+    private function renderPublicationBlocks(): array
+    {
+        $data = $this->publicationsData();
+        $blocks = [];
+
+        foreach (['forum', 'posts', 'drafts', 'deleted'] as $block) {
+            $blocks[$block] = $this->renderPartial('_block_' . $block, $data);
+        }
+
+        return $blocks;
+    }
+
+    /**
+     * Ends a publications mutation: refreshed blocks as JSON for the AJAX
+     * caller, the regular redirect otherwise so the page keeps working
+     * without JavaScript.
+     */
+    private function finishPublicationsRequest(bool $ok): Response
+    {
+        if (!$this->request->getIsAjax()) {
+            return $this->redirectWithFilters();
+        }
+
+        return $this->asJson([
+            'ok' => $ok,
+            'blocks' => $this->renderPublicationBlocks(),
+            'flash' => $this->renderFlash(),
         ]);
+    }
+
+    /**
+     * Renders the flash container the AJAX responses swap in place of the
+     * redirect that would otherwise have carried the message to the next
+     * page view.
+     */
+    private function renderFlash(): string
+    {
+        return Alert::widget();
     }
 
     /**
@@ -207,7 +302,10 @@ class SiteController extends Controller
 
         Yii::$app->session->set('forumFilters', $filters);
 
-        return $this->asJson(['ok' => true]);
+        return $this->asJson([
+            'ok' => true,
+            'blocks' => ['forum' => $this->renderPartial('_block_forum', $this->publicationsData())],
+        ]);
     }
 
     /**
@@ -218,6 +316,14 @@ class SiteController extends Controller
     public function actionForumFilterClear(): Response
     {
         Yii::$app->session->remove('forumFilters');
+
+        if ($this->request->getIsAjax()) {
+            return $this->asJson([
+                'ok' => true,
+                'blocks' => ['forum' => $this->renderPartial('_block_forum', $this->publicationsData())],
+            ]);
+        }
+
         return $this->redirect(['publications']);
     }
 
@@ -234,6 +340,7 @@ class SiteController extends Controller
         $id = (string)($this->request->post('forumEntityId', ''));
         $type = (string)($this->request->post('forumEntityType', ''));
 
+        $ok = false;
         try {
             if ($type === 'topic') {
                 $this->forum->markTopicViewed((int)$id);
@@ -244,11 +351,12 @@ class SiteController extends Controller
             } else {
                 throw new InvalidArgumentException('Не указан элемент форума.');
             }
+            $ok = true;
         } catch (InvalidArgumentException $e) {
             Yii::$app->session->setFlash('error', $e->getMessage());
         }
 
-        return $this->redirectWithFilters();
+        return $this->finishPublicationsRequest($ok);
     }
 
     /**
@@ -271,6 +379,7 @@ class SiteController extends Controller
         $forumRef = $this->forumRefFromRequest();
         $imageUrls = $this->imageUrlsFromRequest();
 
+        $ok = false;
         try {
             if ($source === 'new') {
                 if ($action === 'draft') {
@@ -284,11 +393,12 @@ class SiteController extends Controller
                 $this->publications->saveFromForm($text, $imageUrls, $publishedAt, $source, $sourceId, $action, $userTz ?: null);
                 Yii::$app->session->setFlash('success', 'Изменения сохранены.');
             }
+            $ok = true;
         } catch (InvalidArgumentException $e) {
             Yii::$app->session->setFlash('error', $e->getMessage());
         }
 
-        return $this->redirectWithFilters();
+        return $this->finishPublicationsRequest($ok);
     }
 
     /**
@@ -378,6 +488,7 @@ class SiteController extends Controller
         $id = (string)($this->request->post('publicationId', ''));
         $source = (string)($this->request->post('publicationSource', ''));
 
+        $ok = false;
         try {
             if ($source === 'draft') {
                 $this->publications->publishDraft((int)$id);
@@ -389,11 +500,12 @@ class SiteController extends Controller
                 throw new InvalidArgumentException('Не указана публикуемая запись.');
             }
             Yii::$app->session->setFlash('success', 'Публикация сохранена и будет отправлена в канал.');
+            $ok = true;
         } catch (InvalidArgumentException $e) {
             Yii::$app->session->setFlash('error', $e->getMessage());
         }
 
-        return $this->redirectWithFilters();
+        return $this->finishPublicationsRequest($ok);
     }
 
     /**
@@ -410,6 +522,7 @@ class SiteController extends Controller
         $id = (string)($this->request->post('publicationId', ''));
         $source = (string)($this->request->post('publicationSource', ''));
 
+        $ok = false;
         try {
             if ($source === 'deleted') {
                 $this->publications->moveDeletedToDraft((int)$id);
@@ -418,11 +531,12 @@ class SiteController extends Controller
                 $this->publications->movePostToDraft((int)$id);
                 Yii::$app->session->setFlash('success', 'Публикация перемещена в черновики.');
             }
+            $ok = true;
         } catch (InvalidArgumentException $e) {
             Yii::$app->session->setFlash('error', $e->getMessage());
         }
 
-        return $this->redirectWithFilters();
+        return $this->finishPublicationsRequest($ok);
     }
 
     /**
@@ -440,6 +554,7 @@ class SiteController extends Controller
         $userTz = (string)($this->request->post('publicationTz', ''));
         $source = (string)($this->request->post('publicationSource', 'draft'));
 
+        $ok = false;
         try {
             if ($source === 'deleted') {
                 $this->publications->scheduleDeleted($id === '' ? 0 : (int)$id, $publishedAt, $userTz ?: null);
@@ -447,11 +562,12 @@ class SiteController extends Controller
                 $this->publications->scheduleDraft($id === '' ? 0 : (int)$id, $publishedAt, $userTz ?: null);
             }
             Yii::$app->session->setFlash('success', 'Публикация запланирована.');
+            $ok = true;
         } catch (InvalidArgumentException $e) {
             Yii::$app->session->setFlash('error', $e->getMessage());
         }
 
-        return $this->redirectWithFilters();
+        return $this->finishPublicationsRequest($ok);
     }
 
     /**
@@ -468,6 +584,7 @@ class SiteController extends Controller
         $id = (string)($this->request->post('publicationId', ''));
         $source = (string)($this->request->post('publicationSource', ''));
 
+        $ok = false;
         try {
             if ($source === 'draft') {
                 $this->publications->deleteDraft((int)$id);
@@ -477,11 +594,12 @@ class SiteController extends Controller
                 throw new InvalidArgumentException('Не указана удаляемая запись.');
             }
             Yii::$app->session->setFlash('success', 'Запись удалена.');
+            $ok = true;
         } catch (InvalidArgumentException $e) {
             Yii::$app->session->setFlash('error', $e->getMessage());
         }
 
-        return $this->redirectWithFilters();
+        return $this->finishPublicationsRequest($ok);
     }
 
     /**

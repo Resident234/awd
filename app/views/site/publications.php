@@ -15,63 +15,6 @@ use yii\helpers\Html;
 
 $this->title = 'Публикации в канал';
 
-
-$deleteForm = static function (int $id, string $source): string {
-    $csrf = '<input type="hidden" name="' . Yii::$app->request->csrfParam
-        . '" value="' . Yii::$app->request->csrfToken . '">';
-    return '<form method="post" action="' . \yii\helpers\Url::to(['site/publication-delete'])
-        . '" class="d-inline">' . $csrf
-        . '<input type="hidden" name="publicationSource" value="' . $source . '">'
-        . '<input type="hidden" name="publicationId" value="' . $id . '">'
-        . '<button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-3" '
-        . 'title="Удалить"><i class="bi bi-trash"></i></button></form>';
-};
-
-$viewedForm = static function (int $id, string $type): string {
-    $csrf = '<input type="hidden" name="' . Yii::$app->request->csrfParam
-        . '" value="' . Yii::$app->request->csrfToken . '">';
-    return '<form method="post" action="' . \yii\helpers\Url::to(['site/forum-viewed'])
-        . '" class="d-inline">' . $csrf
-        . '<input type="hidden" name="forumEntityType" value="' . $type . '">'
-        . '<input type="hidden" name="forumEntityId" value="' . $id . '">'
-        . '<button type="submit" class="btn btn-outline-primary btn-sm">'
-        . '<i class="bi bi-check2-square me-1"></i>Просмотрено</button></form>';
-};
-
-$publishButton = static function (string $text, string $forumType, int $forumId, array $imageUrls = [], string $title = ''): string {
-    $imagesAttr = $imageUrls === [] ? '' : ' data-image-urls="' . Html::encode(implode("\n", $imageUrls)) . '"';
-    $titleAttr = $title !== '' ? ' data-title="' . Html::encode($title) . '"' : '';
-    return '<button type="button" class="btn btn-outline-primary btn-sm forum-publish-btn" data-text="'
-        . Html::encode($text) . '" data-forum-type="' . $forumType . '" data-forum-id="' . $forumId . '"'
-        . $imagesAttr . $titleAttr . '>'
-        . '<i class="bi bi-send me-1"></i>Опубликовать</button>';
-};
-
-$stackedImages = static function (array $imageUrls, int $limit = 4): string {
-    if ($imageUrls === []) {
-        return '';
-    }
-
-    $shown = array_slice($imageUrls, 0, $limit);
-    $html = '<div class="stacked-images sm mt-2">';
-    foreach ($shown as $url) {
-        $html .= '<img src="' . Html::encode($url) . '" alt="Изображение публикации">';
-    }
-    $rest = count($imageUrls) - count($shown);
-    if ($rest > 0) {
-        $html .= '<span class="plus bg-danger">+' . $rest . '</span>';
-    }
-    $html .= '</div>';
-
-    return $html;
-};
-
-/** @var \app\shared\Publications\Dto\PublicationData[] $duePosts */
-$duePosts = array_values(array_filter(
-    $posts,
-    static fn (\app\shared\Publications\Dto\PublicationData $post): bool => $post->telegramId !== null,
-));
-
 $this->registerCss(
     <<<CSS
 .forum-column {
@@ -204,200 +147,7 @@ CSS
 
                     <!-- Forum topics widget start -->
                     <div class="notification-center h-100">
-                        <div class="threads">
-                            <?php if ($topics === []): ?>
-                                <p class="text-muted small mb-0 py-3">
-                                    <i class="bi bi-info-circle me-1"></i>
-                                    Топиков пока нет.
-                                </p>
-                            <?php endif ?>
-                            <?php foreach ($topics as $item): ?>
-                                <?php $topic = $item['topic']; ?>
-                                <div class="thread mb-4 pb-3 border-bottom">
-                                    <div class="d-flex align-items-start gap-3 mb-3">
-                                        <?php if ($topic->author?->avatarUrl !== null): ?>
-                                            <img src="<?= Html::encode($topic->author->avatarUrl) ?>"
-                                                 class="rounded-circle img-3x flex-shrink-0"
-                                                 alt="<?= Html::encode($topic->author->name) ?>">
-                                        <?php else: ?>
-                                            <span class="rounded-circle img-3x flex-shrink-0 bg-primary-subtle d-flex align-items-center justify-content-center">
-                                                <i class="bi bi-person-fill text-primary"></i>
-                                            </span>
-                                        <?php endif ?>
-                                        <div class="flex-grow-1">
-                                            <div class="thread-header d-flex justify-content-between align-items-center mb-2">
-                                                <h6 class="fw-bold mb-0"><?= Html::encode($topic->title) ?></h6>
-                                                <span class="d-flex align-items-center gap-1">
-                                                    <?php if ($topic->publicationStatus !== null): ?>
-                                                        <span class="badge <?= $topic->publicationStatus === 'published' ? 'bg-success' : 'bg-secondary' ?> rounded-pill">
-                                                            <?= $topic->publicationStatus === 'published' ? 'Опубликовано' : 'Просмотрено' ?>
-                                                        </span>
-                                                    <?php endif ?>
-                                                    <?php if ($topic->publicationTelegramId !== null): ?>
-                                                        <span class="badge rounded-pill bg-dark" title="telegram_id">TG: <?= Html::encode($topic->publicationTelegramId) ?></span>
-                                                    <?php endif ?>
-                                                    <span class="badge bg-primary">#<?= $topic->id ?></span>
-                                                </span>
-                                            </div>
-                                            <p class="mb-2" style="white-space: pre-line; word-break: break-word;"><?= Html::encode($topic->contentText) ?></p>
-                                            <?php if ($topic->contentHtml !== ''): ?>
-                                                <details class="mb-2">
-                                                    <summary class="text-muted small">
-                                                        <i class="bi bi-code-slash me-1"></i>HTML-исходник
-                                                    </summary>
-                                                    <pre class="small text-muted mb-0"
-                                                         style="white-space: pre-wrap; word-break: break-word;"><?= Html::encode($topic->contentHtml) ?></pre>
-                                                </details>
-                                            <?php endif ?>
-                                            <div class="thread-meta d-flex align-items-center text-muted small flex-wrap">
-                                                <span class="me-3"><i class="bi bi-person"></i>
-                                                    <?= Html::encode($topic->author?->name ?? 'Неизвестный автор') ?>
-                                                </span>
-                                                <span class="me-3"><i class="bi bi-clock"></i> <?php
-                                                    $userTz = $this->context->getUserDisplayTimezone();
-                                                    $moscowTz = new DateTimeZone($userTz);
-                                                    if ($topic->publishedAt !== null && $topic->publishedAt !== '') {
-                                                        $tDate = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $topic->publishedAt, new DateTimeZone('UTC'));
-                                                        if ($tDate instanceof DateTimeImmutable) {
-                                                            echo Html::encode($tDate->setTimezone($moscowTz)->format('d.m.Y H:i'));
-                                                        } else {
-                                                            echo Html::encode($topic->publishedAt);
-                                                        }
-                                                    } else {
-                                                        echo '';
-                                                    }
-                                                ?></span>
-                                                <span class="me-3"><i class="bi bi-chat-dots"></i> <?= count($item['posts']) ?></span>
-                                            </div>
-                                            <div class="thread-meta text-muted small mt-1">
-                                                <i class="bi bi-link-45deg"></i>
-                                                <a href="<?= Html::encode($topic->sourceUrl) ?>" target="_blank" rel="noopener"
-                                                   class="text-muted"><?= Html::encode($topic->sourceUrl) ?></a>
-                                            </div>
-                                            <div class="d-flex align-items-center gap-2 mt-2 mb-1 flex-wrap">
-                                                <?= $viewedForm($topic->id, 'topic') ?>
-                                                <?= $publishButton($topic->contentText, 'topic', $topic->id, $topic->imageUrls, $topic->title) ?>
-                                            </div>
-                                            <?php if ($topic->imageUrls !== []): ?>
-                                                <div class="d-flex mt-2 flex-wrap align-items-start">
-                                                    <?php foreach ($topic->imageUrls as $imageUrl): ?>
-                                                        <a href="<?= Html::encode($imageUrl) ?>" target="_blank" rel="noopener" class="d-inline-block mb-3">
-                                                            <img src="<?= Html::encode($imageUrl) ?>" class="img-3x rounded-2 me-3"
-                                                                 style="object-fit: cover;"
-                                                                 alt="Изображение темы">
-                                                        </a>
-                                                    <?php endforeach ?>
-                                                </div>
-                                                <details class="mt-1">
-                                                    <summary class="text-muted small">
-                                                        <i class="bi bi-link-45deg me-1"></i>Ссылки на изображения (<?= count($topic->imageUrls) ?>)
-                                                    </summary>
-                                                    <?php foreach ($topic->imageUrls as $imageUrl): ?>
-                                                        <div class="text-muted small">
-                                                            <a href="<?= Html::encode($imageUrl) ?>" target="_blank" rel="noopener"
-                                                               class="text-muted" style="word-break: break-all;"><?= Html::encode($imageUrl) ?></a>
-                                                        </div>
-                                                    <?php endforeach ?>
-                                                </details>
-                                            <?php endif ?>
-                                        </div>
-                                    </div>
-                                    <?php if ($item['posts'] !== []): ?>
-                                        <div class="thread-replies ms-5">
-                                            <?php foreach ($item['posts'] as $post): ?>
-                                                <div class="reply d-flex gap-3 mb-3">
-                                                    <?php if ($post->author?->avatarUrl !== null): ?>
-                                                        <img src="<?= Html::encode($post->author->avatarUrl) ?>" class="rounded-circle img-2x flex-shrink-0"
-                                                             alt="<?= Html::encode($post->author->name) ?>">
-                                                    <?php else: ?>
-                                                        <span class="rounded-circle img-2x flex-shrink-0 bg-secondary-subtle d-flex align-items-center justify-content-center">
-                                                            <i class="bi bi-person-fill text-secondary"></i>
-                                                        </span>
-                                                    <?php endif ?>
-                                                    <div>
-                                                        <?php if ($post->title !== ''): ?>
-                                                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                                                <h6 class="fw-bold mb-0"><?= Html::encode($post->title) ?></h6>
-                                                                <span class="d-flex align-items-center gap-1">
-                                                                    <?php if ($post->publicationStatus !== null): ?>
-                                                                        <span class="badge <?= $post->publicationStatus === 'published' ? 'bg-success' : 'bg-secondary' ?> rounded-pill">
-                                                                            <?= $post->publicationStatus === 'published' ? 'Опубликовано' : 'Просмотрено' ?>
-                                                                        </span>
-                                                                    <?php endif ?>
-                                                                    <?php if ($post->publicationTelegramId !== null): ?>
-                                                                        <span class="badge rounded-pill bg-info text-dark" title="telegram_id">TG: <?= Html::encode($post->publicationTelegramId) ?></span>
-                                                                    <?php endif ?>
-                                                                </span>
-                                                            </div>
-                                                        <?php elseif ($post->publicationStatus !== null || $post->publicationTelegramId !== null): ?>
-                                                            <span class="d-inline-block mb-1">
-                                                                <?php if ($post->publicationStatus !== null): ?>
-                                                                    <span class="badge <?= $post->publicationStatus === 'published' ? 'bg-success' : 'bg-secondary' ?> rounded-pill">
-                                                                        <?= $post->publicationStatus === 'published' ? 'Опубликовано' : 'Просмотрено' ?>
-                                                                    </span>
-                                                                <?php endif ?>
-                                                                <?php if ($post->publicationTelegramId !== null): ?>
-                                                                    <span class="badge rounded-pill bg-info text-dark" title="telegram_id">TG: <?= Html::encode($post->publicationTelegramId) ?></span>
-                                                                <?php endif ?>
-                                                            </span>
-                                                        <?php endif ?>
-                                                        <p class="mb-1" style="white-space: pre-line; word-break: break-word;"><?= Html::encode($post->contentText) ?></p>
-                                                        <?php if ($post->contentHtml !== ''): ?>
-                                                            <details class="mb-1">
-                                                                <summary class="text-muted small">
-                                                                    <i class="bi bi-code-slash me-1"></i>HTML-исходник
-                                                                </summary>
-                                                                <pre class="small text-muted mb-0"
-                                                                     style="white-space: pre-wrap; word-break: break-word;"><?= Html::encode($post->contentHtml) ?></pre>
-                                                            </details>
-                                                        <?php endif ?>
-                                                        <small class="text-muted d-block">
-                                                            <?= Html::encode($post->author?->name ?? 'Неизвестный автор') ?>
-                                                            <?php if ($post->number !== null): ?>
-                                                                • пост #<?= $post->number ?>
-                                                            <?php endif ?>
-                                                            <?php if ($post->postedAt !== null): ?>
-                                                                • <?= Html::encode($post->postedAt) ?>
-                                                            <?php endif ?>
-                                                        </small>
-                                                        <small class="text-muted d-block mt-1">
-                                                            <a href="<?= Html::encode($post->sourceUrl) ?>" target="_blank" rel="noopener"
-                                                               class="text-muted"><?= Html::encode($post->sourceUrl) ?></a>
-                                                        </small>
-                                                        <div class="d-flex align-items-center gap-2 mt-2 mb-1 flex-wrap">
-                                                            <?= $viewedForm($post->id, 'post') ?>
-                                                            <?= $publishButton($post->contentText, 'post', $post->id, $post->imageUrls, $post->title) ?>
-                                                        </div>
-                                                        <?php if ($post->imageUrls !== []): ?>
-                                                            <div class="d-flex mt-2 flex-wrap align-items-start">
-                                                                <?php foreach ($post->imageUrls as $imageUrl): ?>
-                                                                    <a href="<?= Html::encode($imageUrl) ?>" target="_blank" rel="noopener" class="d-inline-block mb-3">
-                                                                        <img src="<?= Html::encode($imageUrl) ?>" class="img-3x rounded-2 me-3"
-                                                                             style="object-fit: cover;"
-                                                                             alt="Изображение поста">
-                                                                    </a>
-                                                                <?php endforeach ?>
-                                                            </div>
-                                                            <details class="mt-1">
-                                                                <summary class="text-muted small">
-                                                                    <i class="bi bi-link-45deg me-1"></i>Ссылки на изображения (<?= count($post->imageUrls) ?>)
-                                                                </summary>
-                                                                <?php foreach ($post->imageUrls as $imageUrl): ?>
-                                                                    <div class="text-muted small">
-                                                                        <a href="<?= Html::encode($imageUrl) ?>" target="_blank" rel="noopener"
-                                                                           class="text-muted" style="word-break: break-all;"><?= Html::encode($imageUrl) ?></a>
-                                                                    </div>
-                                                                <?php endforeach ?>
-                                                            </details>
-                                                        <?php endif ?>
-                                                    </div>
-                                                </div>
-                                            <?php endforeach ?>
-                                        </div>
-                                    <?php endif ?>
-                                </div>
-                            <?php endforeach ?>
-                        </div>
+                        <div class="threads" id="pub-forum-list"><?= $this->render('_block_forum', ['topics' => $topics]) ?></div>
                     </div>
                     <!-- Forum topics widget end -->
 
@@ -438,7 +188,8 @@ CSS
                 <h5 class="card-title">Новая публикация</h5>
             </div>
             <div class="card-body">
-                <form method="post" action="<?= \yii\helpers\Url::to(['site/publication-create']) ?>">
+                <form method="post" action="<?= \yii\helpers\Url::to(['site/publication-create']) ?>"
+                      data-ajax data-clear-editing>
                     <input type="hidden" name="<?= Yii::$app->request->csrfParam ?>"
                            value="<?= Yii::$app->request->csrfToken ?>">
                     <input type="hidden" name="publicationSource" id="publicationSource" value="new">
@@ -517,67 +268,7 @@ CSS
                 <div class="scroll350">
 
                     <!-- Timeline start -->
-                    <div class="m-0">
-                        <?php if ($posts === []): ?>
-                            <p class="text-muted small mb-0 py-3">
-                                <i class="bi bi-info-circle me-1"></i>
-                                Публикаций пока нет.
-                            </p>
-                        <?php endif ?>
-                        <?php foreach ($posts as $post): ?>
-                            <?php
-                            $isPublished = $post->telegramId !== null || ($post->publishedAt !== null && $post->publishedAt <= $now);
-                            ?>
-                            <div class="activity-log" data-text="<?= Html::encode($post->text) ?>"
-                                 data-source-type="post" data-source-id="<?= $post->id ?>"
-                                 data-published-at-utc="<?= Html::encode($post->publishedAt ?? '') ?>"
-                                 data-image-urls="<?= Html::encode(implode("\n", $post->imageUrls)) ?>">
-                                <div class="d-flex align-items-center gap-2 mb-1">
-                                    <?php if ($post->telegramId !== null): ?>
-                                        <p class="mb-0">
-                                            <span class="text-primary">#<?= $post->telegramId ?></span>
-                                        </p>
-                                    <?php endif ?>
-                                    <a href="#" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Редактировать">
-                                        <i class="bi bi-pencil-square"></i>
-                                    </a>
-                                    <?= $deleteForm($post->id, 'post') ?>
-                                    <?php if (!$isPublished): ?>
-                                        <form method="post" action="<?= \yii\helpers\Url::to(['site/publication-publish']) ?>"
-                                              class="d-inline">
-                                            <input type="hidden" name="<?= Yii::$app->request->csrfParam ?>"
-                                                   value="<?= Yii::$app->request->csrfToken ?>">
-                                            <input type="hidden" name="publicationSource" value="post">
-                                            <input type="hidden" name="publicationId" value="<?= $post->id ?>">
-                                            <button type="submit" class="btn btn-sm btn-outline-success rounded-pill px-3"
-                                                    title="Опубликовать">
-                                                <i class="bi bi-send"></i>
-                                            </button>
-                                        </form>
-                                    <?php endif ?>
-                                    <form method="post" action="<?= \yii\helpers\Url::to(['site/publication-to-draft']) ?>"
-                                          class="d-inline" data-no-edit="1">
-                                        <input type="hidden" name="<?= Yii::$app->request->csrfParam ?>"
-                                               value="<?= Yii::$app->request->csrfToken ?>">
-                                        <input type="hidden" name="publicationId" value="<?= $post->id ?>">
-                                        <button type="submit" class="btn btn-sm btn-outline-warning rounded-pill px-3"
-                                                title="Переместить в черновик">
-                                            <i class="bi bi-file-earmark-arrow-down"></i>
-                                        </button>
-                                    </form>
-                                </div>
-                                <p class="mb-1"><?= Html::encode($post->text) ?></p>
-                                <?= $stackedImages($post->imageUrls) ?>
-                                <div class="activity-meta">
-                                    <i class="bi bi-clock me-1"></i><span class="utc-time" data-utc="<?= Html::encode($post->publishedAt ?? '') ?>"></span>
-                                </div>
-                                <span class="badge <?= $isPublished ? 'bg-success' : 'bg-info' ?> mt-2">
-                                    <?= $isPublished ? 'Опубликовано' : 'Запланировано' ?>
-                                </span>
-                                <span class="badge bg-warning text-dark mt-2 d-none editing-badge">Редактируется</span>
-                            </div>
-                        <?php endforeach ?>
-                    </div>
+                    <div class="m-0" id="pub-posts-list"><?= $this->render('_block_posts', ['posts' => $posts, 'now' => $now]) ?></div>
                     <!-- Timeline end -->
 
                 </div>
@@ -596,49 +287,7 @@ CSS
                 <div class="scroll350">
 
                     <!-- Timeline start -->
-                    <div class="m-0">
-                        <?php if ($drafts === []): ?>
-                            <p class="text-muted small mb-0 py-3">
-                                <i class="bi bi-info-circle me-1"></i>
-                                Черновиков пока нет.
-                            </p>
-                        <?php endif ?>
-                        <?php foreach ($drafts as $draft): ?>
-                            <div class="activity-log" data-text="<?= Html::encode($draft->text) ?>"
-                                 data-source-type="draft" data-source-id="<?= $draft->id ?>"
-                                 data-image-urls="<?= Html::encode(implode("\n", $draft->imageUrls)) ?>">
-                                <div class="d-flex align-items-center gap-2 mb-1">
-                                    <a href="#" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Редактировать">
-                                        <i class="bi bi-pencil-square"></i>
-                                    </a>
-                                    <?= $deleteForm($draft->id, 'draft') ?>
-                                    <form method="post" action="<?= \yii\helpers\Url::to(['site/publication-publish']) ?>"
-                                          class="d-inline">
-                                        <input type="hidden" name="<?= Yii::$app->request->csrfParam ?>"
-                                               value="<?= Yii::$app->request->csrfToken ?>">
-                                        <input type="hidden" name="publicationSource" value="draft">
-                                        <input type="hidden" name="publicationId" value="<?= $draft->id ?>">
-                                        <button type="submit" class="btn btn-sm btn-outline-success rounded-pill px-3"
-                                                title="Опубликовать">
-                                            <i class="bi bi-send"></i>
-                                        </button>
-                                    </form>
-                                    <a href="#" class="btn btn-sm btn-outline-info rounded-pill px-3" title="Запланировать публикацию"
-                                       data-bs-toggle="modal" data-bs-target="#scheduleModal"
-                                       data-source="draft" data-draft-id="<?= $draft->id ?>">
-                                        <i class="bi bi-calendar2-plus"></i>
-                                    </a>
-                                </div>
-                                <p class="mb-1"><?= Html::encode($draft->text) ?></p>
-                                <?= $stackedImages($draft->imageUrls) ?>
-                                <div class="activity-meta">
-                                    <i class="bi bi-clock me-1"></i><span class="utc-time" data-utc="<?= Html::encode($draft->createdAt ?? '') ?>"></span>
-                                </div>
-                                <span class="badge bg-secondary mt-2">Черновик</span>
-                                <span class="badge bg-warning text-dark mt-2 d-none editing-badge">Редактируется</span>
-                            </div>
-                        <?php endforeach ?>
-                    </div>
+                    <div class="m-0" id="pub-drafts-list"><?= $this->render('_block_drafts', ['drafts' => $drafts]) ?></div>
                     <!-- Timeline end -->
 
                 </div>
@@ -657,62 +306,7 @@ CSS
                 <div class="scroll350">
 
                     <!-- Timeline start -->
-                    <div class="m-0">
-                        <?php if ($deleted === []): ?>
-                            <p class="text-muted small mb-0 py-3">
-                                <i class="bi bi-info-circle me-1"></i>
-                                Удаленных записей пока нет.
-                            </p>
-                        <?php endif ?>
-                        <?php foreach ($deleted as $deletedRecord): ?>
-                            <div class="activity-log" data-text="<?= Html::encode($deletedRecord->text) ?>"
-                                 data-source-type="deleted" data-source-id="<?= $deletedRecord->id ?>"
-                                 data-published-at-utc="<?= Html::encode($deletedRecord->publishedAt ?? '') ?>"
-                                 data-image-urls="<?= Html::encode(implode("\n", $deletedRecord->imageUrls)) ?>">
-                                <div class="d-flex align-items-center gap-2 mb-1">
-                                    <a href="#" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Редактировать">
-                                        <i class="bi bi-pencil-square"></i>
-                                    </a>
-                                    <form method="post" action="<?= \yii\helpers\Url::to(['site/publication-publish']) ?>"
-                                          class="d-inline">
-                                        <input type="hidden" name="<?= Yii::$app->request->csrfParam ?>"
-                                               value="<?= Yii::$app->request->csrfToken ?>">
-                                        <input type="hidden" name="publicationSource" value="deleted">
-                                        <input type="hidden" name="publicationId" value="<?= $deletedRecord->id ?>">
-                                        <button type="submit" class="btn btn-sm btn-outline-success rounded-pill px-3"
-                                                title="Опубликовать">
-                                            <i class="bi bi-send"></i>
-                                        </button>
-                                    </form>
-                                    <a href="#" class="btn btn-sm btn-outline-info rounded-pill px-3" title="Запланировать публикацию"
-                                       data-bs-toggle="modal" data-bs-target="#scheduleModal"
-                                       data-source="deleted" data-draft-id="<?= $deletedRecord->id ?>">
-                                        <i class="bi bi-calendar2-plus"></i>
-                                    </a>
-                                    <form method="post" action="<?= \yii\helpers\Url::to(['site/publication-to-draft']) ?>"
-                                          class="d-inline" data-no-edit="1">
-                                        <input type="hidden" name="<?= Yii::$app->request->csrfParam ?>"
-                                               value="<?= Yii::$app->request->csrfToken ?>">
-                                        <input type="hidden" name="publicationSource" value="deleted">
-                                        <input type="hidden" name="publicationId" value="<?= $deletedRecord->id ?>">
-                                        <button type="submit" class="btn btn-sm btn-outline-warning rounded-pill px-3"
-                                                title="Перенести в черновик">
-                                            <i class="bi bi-file-earmark-arrow-down"></i>
-                                        </button>
-                                    </form>
-                                </div>
-                                <p class="mb-1"><?= Html::encode($deletedRecord->text) ?></p>
-                                <?= $stackedImages($deletedRecord->imageUrls) ?>
-                                <div class="activity-meta">
-                                    <i class="bi bi-clock me-1"></i><span class="utc-time" data-utc="<?= Html::encode($deletedRecord->publishedAt ?? '') ?>"></span>
-                                </div>
-                                <span class="badge <?= $deletedRecord->deletedAt === null ? 'bg-danger' : 'bg-dark' ?> mt-2">
-                                    <?= $deletedRecord->deletedAt === null ? 'Удалено' : 'Удалено из канала' ?>
-                                </span>
-                                <span class="badge bg-warning text-dark mt-2 d-none editing-badge">Редактируется</span>
-                            </div>
-                        <?php endforeach ?>
-                    </div>
+                    <div class="m-0" id="pub-deleted-list"><?= $this->render('_block_deleted', ['deleted' => $deleted]) ?></div>
                     <!-- Timeline end -->
 
                 </div>
@@ -735,7 +329,7 @@ CSS
             </div>
             <div class="modal-body">
                 <form method="post" action="<?= \yii\helpers\Url::to(['site/publication-schedule']) ?>"
-                      id="scheduleForm">
+                      id="scheduleForm" data-ajax>
                     <input type="hidden" name="<?= Yii::$app->request->csrfParam ?>"
                            value="<?= Yii::$app->request->csrfToken ?>">
                     <input type="hidden" name="publicationSource" id="scheduleSource" value="draft">
@@ -776,8 +370,16 @@ $this->registerJs(
 var __CSRF_PARAM = '{$csrfParam}';
 var __CSRF_TOKEN = '{$csrfToken}';
 " . <<<'JS'
+var __BLOCK_TARGETS = {
+    forum: 'pub-forum-list',
+    posts: 'pub-posts-list',
+    drafts: 'pub-drafts-list',
+    deleted: 'pub-deleted-list'
+};
+
 jQuery(document).ready(function () {
     var pickerFormat = 'DD.MM.YYYY HH:mm';
+    var __FLASH_ID = 'app-flash';
 
     function roundUpToNearest10Minutes(m) {
         var minutes = m.minute();
@@ -843,14 +445,99 @@ jQuery(document).ready(function () {
         inputJq.val(startMoment.format(pickerFormat));
     }
 
-    function saveFiltersToSession(withImages, withPosts, imagesCount) {
-        var xhr = new XMLHttpRequest();
-        xhr.open('POST', __FILTER_SAVE_URL, true);
-        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-        xhr.send(__CSRF_PARAM + '=' + encodeURIComponent(__CSRF_TOKEN)
-            + '&withImages=' + (withImages ? 1 : 0)
-            + '&withPosts=' + (withPosts ? 1 : 0)
-            + '&imagesCount=' + (imagesCount || 0));
+    function renderUtcTimes(root) {
+        var tz = getPortalTimezone();
+        if (!tz) {
+            return;
+        }
+        var formatter = new Intl.DateTimeFormat('ru-RU', {
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit',
+            timeZone: tz
+        });
+        (root || document).querySelectorAll('.utc-time[data-utc]').forEach(function (el) {
+            var utcStr = el.getAttribute('data-utc');
+            if (!utcStr) return;
+            var d = new Date(utcStr + 'Z');
+            if (isNaN(d.getTime())) return;
+            el.textContent = formatter.format(d);
+        });
+    }
+
+    function showFlash(type, message) {
+        var container = document.getElementById(__FLASH_ID);
+        if (!container) {
+            return;
+        }
+        var isSuccess = type === 'success';
+        var alertBox = document.createElement('div');
+        alertBox.className = 'alert ' + (isSuccess ? 'alert-success' : 'alert-danger')
+            + ' alert-dismissible fade show d-flex align-items-center';
+        alertBox.setAttribute('role', 'alert');
+        alertBox.innerHTML = '<i class="bi ' + (isSuccess ? 'bi-check2-circle' : 'bi-x-circle')
+            + ' me-2 fs-4 lh-1"></i><div><strong></strong> </div>'
+            + '<button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>';
+        alertBox.querySelector('strong').textContent = isSuccess ? 'Готово:' : 'Ошибка:';
+        alertBox.querySelector('div').appendChild(document.createTextNode(message));
+        container.innerHTML = '';
+        container.appendChild(alertBox);
+    }
+
+    function applyBlocks(payload) {
+        var blocks = payload.blocks || {};
+        Object.keys(__BLOCK_TARGETS).forEach(function (name) {
+            if (typeof blocks[name] !== 'string') {
+                return;
+            }
+            var target = document.getElementById(__BLOCK_TARGETS[name]);
+            if (!target) {
+                return;
+            }
+            target.innerHTML = blocks[name];
+            renderUtcTimes(target);
+        });
+        if (typeof payload.flash === 'string') {
+            var container = document.getElementById(__FLASH_ID);
+            if (container) {
+                container.innerHTML = payload.flash;
+            }
+        }
+    }
+
+    function postForBlocks(url, fields) {
+        var body;
+        if (typeof FormData === 'function' && fields instanceof FormData) {
+            body = fields;
+        } else {
+            body = new FormData();
+            Object.keys(fields || {}).forEach(function (key) {
+                body.append(key, fields[key]);
+            });
+        }
+        if (!body.has(__CSRF_PARAM)) {
+            body.append(__CSRF_PARAM, __CSRF_TOKEN);
+        }
+
+        return fetch(url, {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+            body: body,
+            credentials: 'same-origin'
+        }).then(function (response) {
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+            return response.json();
+        }).then(function (payload) {
+            if (!payload || typeof payload !== 'object') {
+                throw new Error('некорректный ответ сервера');
+            }
+            applyBlocks(payload);
+            return payload;
+        }).catch(function (error) {
+            showFlash('error', 'Не удалось обновить списки: '
+                + (error && error.message ? error.message : error));
+        });
     }
 
     var runOnce = false;
@@ -880,14 +567,16 @@ jQuery(document).ready(function () {
             var separator = base.indexOf('?') === -1 ? '?' : '&';
             var newUrl = params.length === 0 ? base : base + separator + params.join('&');
 
-            // Save to session fire-and-forget so subsequent form redirects keep filters
-            saveFiltersToSession(
-                imagesSwitch && imagesSwitch.checked,
-                postsSwitch && postsSwitch.checked,
-                imagesCountInput ? parseInt(imagesCountInput.value, 10) : 0
-            );
+            // Keep the address bar in sync so a manual reload reproduces the same view
+            if (window.history && window.history.replaceState) {
+                window.history.replaceState(null, '', newUrl);
+            }
 
-            window.location.href = newUrl;
+            postForBlocks(__FILTER_SAVE_URL, {
+                withImages: imagesSwitch && imagesSwitch.checked ? 1 : 0,
+                withPosts: postsSwitch && postsSwitch.checked ? 1 : 0,
+                imagesCount: imagesCountInput ? (parseInt(imagesCountInput.value, 10) || 0) : 0
+            });
         };
 
         ['forumFilterWithImages', 'forumFilterWithPosts'].forEach(function (id) {
@@ -1064,7 +753,7 @@ jQuery(document).ready(function () {
             if (editingLog === log) {
                 return;
             }
-            if (editingLog) {
+            if (editingLog && editingLog.isConnected) {
                 editingLog.querySelector('.editing-badge').classList.add('d-none');
             }
             editingLog = log;
@@ -1114,60 +803,151 @@ jQuery(document).ready(function () {
             });
         }
 
-        document.querySelectorAll('.activity-log').forEach(function (log) {
-            log.addEventListener('dblclick', function () {
-                setEditing(log);
-            });
-            log.querySelectorAll('a[title="Редактировать"]').forEach(function (btn) {
-                btn.addEventListener('click', function (event) {
-                    event.preventDefault();
-                    setEditing(log);
+        var hideScheduleModal = function () {
+            if (!scheduleModal || typeof bootstrap === 'undefined' || !bootstrap.Modal) {
+                return;
+            }
+            try {
+                bootstrap.Modal.getOrCreateInstance(scheduleModal).hide();
+            } catch (e) {}
+        };
+
+        // Back to the blank "new record" state the page reload used to leave behind,
+        // otherwise the next submit would overwrite the record just saved.
+        var clearEditingState = function () {
+            if (editingLog && editingLog.isConnected) {
+                editingLog.querySelector('.editing-badge').classList.add('d-none');
+            }
+            editingLog = null;
+            source.value = '';
+            source.dispatchEvent(new Event('input'));
+            if (imagesInput) {
+                imagesInput.value = '';
+                updateImages();
+            }
+            if (sourceTypeInput) sourceTypeInput.value = 'new';
+            if (sourceIdInput) sourceIdInput.value = '';
+            if (forumTypeInput) forumTypeInput.value = '';
+            if (forumIdInput) forumIdInput.value = '';
+            if (publishedAtInput) {
+                var next = computeNextPublicationSlot().format(pickerFormat);
+                publishedAtInput.value = next;
+                try {
+                    var picker = publicationAtJq.data('daterangepicker');
+                    if (picker) {
+                        var m = moment(next, pickerFormat);
+                        picker.setStartDate(m);
+                        picker.setEndDate(m.clone().add(32, 'hour'));
+                    }
+                } catch (e) {}
+                updatePreviewPublicationAt();
+            }
+        };
+
+        var ajaxInFlight = false;
+
+        // Publications forms post over AJAX and the lists are swapped in place.
+        // Without JavaScript the controller keeps answering with a redirect.
+        document.addEventListener('submit', function (event) {
+            var form = event.target;
+            if (!form || form.tagName !== 'FORM' || !form.hasAttribute('data-ajax')) {
+                return;
+            }
+            if (ajaxInFlight) {
+                event.preventDefault();
+                return;
+            }
+            if (typeof FormData !== 'function') {
+                return;
+            }
+            event.preventDefault();
+            ajaxInFlight = true;
+            postForBlocks(form.getAttribute('action'), new FormData(form, event.submitter))
+                .then(function (payload) {
+                    if (!payload || !payload.ok) {
+                        return;
+                    }
+                    if (form.hasAttribute('data-clear-editing')) {
+                        clearEditingState();
+                    }
+                    if (form.id === 'scheduleForm') {
+                        hideScheduleModal();
+                    }
+                })
+                .then(function () {
+                    ajaxInFlight = false;
                 });
-            });
         });
 
-        document.querySelectorAll('.forum-publish-btn').forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                var text = btn.getAttribute('data-text') || '';
-                var title = btn.getAttribute('data-title') || '';
-                if (title !== '') {
-                    text = title + "\n\n" + text;
-                }
-                source.value = text;
-                source.dispatchEvent(new Event('input'));
-                if (imagesInput) {
-                    imagesInput.value = btn.getAttribute('data-image-urls') || '';
-                    updateImages();
-                }
-                if (sourceTypeInput && sourceIdInput) {
-                    sourceTypeInput.value = 'new';
-                    sourceIdInput.value = '';
-                }
-                if (forumTypeInput && forumIdInput) {
-                    forumTypeInput.value = btn.getAttribute('data-forum-type') || '';
-                    forumIdInput.value = btn.getAttribute('data-forum-id') || '';
-                }
-                if (publishedAtInput) {
-                    var defVal = btn.getAttribute('data-published-at');
-                    if (defVal) {
-                        publishedAtInput.value = defVal;
-                        try {
-                            var picker = publicationAtJq.data('daterangepicker');
-                            if (picker) {
-                                var m = moment(defVal, pickerFormat);
-                                if (m.isValid()) {
-                                    picker.setStartDate(m);
-                                    picker.setEndDate(m.clone().add(32, 'hour'));
-                                }
-                            }
-                        } catch (e) {}
-                    }
-                    updatePreviewPublicationAt();
-                }
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-                source.focus();
-            });
+        // The lists are swapped in place after every action, so all of their
+        // controls are wired through delegated listeners on the document.
+        document.addEventListener('dblclick', function (event) {
+            var log = event.target.closest ? event.target.closest('.activity-log') : null;
+            if (log) {
+                setEditing(log);
+            }
         });
+
+        document.addEventListener('click', function (event) {
+            var editLink = event.target.closest ? event.target.closest('a[title="Редактировать"]') : null;
+            if (editLink) {
+                var log = editLink.closest('.activity-log');
+                if (log) {
+                    event.preventDefault();
+                    setEditing(log);
+                }
+                return;
+            }
+            var forumBtn = event.target.closest ? event.target.closest('.forum-publish-btn') : null;
+            if (forumBtn) {
+                fillFormFromForum(forumBtn);
+            }
+        });
+
+        var fillFormFromForum = function (btn) {
+            var text = btn.getAttribute('data-text') || '';
+            var title = btn.getAttribute('data-title') || '';
+            if (title !== '') {
+                text = title + "\n\n" + text;
+            }
+            source.value = text;
+            source.dispatchEvent(new Event('input'));
+            if (imagesInput) {
+                imagesInput.value = btn.getAttribute('data-image-urls') || '';
+                updateImages();
+            }
+            if (sourceTypeInput && sourceIdInput) {
+                sourceTypeInput.value = 'new';
+                sourceIdInput.value = '';
+            }
+            if (forumTypeInput && forumIdInput) {
+                forumTypeInput.value = btn.getAttribute('data-forum-type') || '';
+                forumIdInput.value = btn.getAttribute('data-forum-id') || '';
+            }
+            if (publishedAtInput) {
+                var defVal = btn.getAttribute('data-published-at');
+                if (defVal) {
+                    publishedAtInput.value = defVal;
+                    try {
+                        var picker = publicationAtJq.data('daterangepicker');
+                        if (picker) {
+                            var m = moment(defVal, pickerFormat);
+                            if (m.isValid()) {
+                                picker.setStartDate(m);
+                                picker.setEndDate(m.clone().add(32, 'hour'));
+                            }
+                        }
+                    } catch (e) {}
+                }
+                updatePreviewPublicationAt();
+            }
+            if (editingLog && editingLog.isConnected) {
+                editingLog.querySelector('.editing-badge').classList.add('d-none');
+            }
+            editingLog = null;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            source.focus();
+        };
 
         if (scheduleModal) {
             scheduleModal.addEventListener('show.bs.modal', function (event) {
@@ -1211,38 +991,31 @@ jQuery(document).ready(function () {
                 updateImagesCountDisplay(this.value);
                 applyFiltersDirect();
             });
-            // Also save to session on input (while dragging) for responsiveness
+            // The label follows the thumb while dragging; the lists refresh on release
             imagesCountSlider.addEventListener('input', function () {
                 updateImagesCountDisplay(this.value);
             });
         }
-        // Sync current filter state to session so that subsequent form redirects preserve filters
-        var imgSwitch = document.getElementById('forumFilterWithImages');
-        var postsSwitch = document.getElementById('forumFilterWithPosts');
-        var countInput = document.getElementById('forumFilterImagesCount');
-        saveFiltersToSession(
-            imgSwitch ? imgSwitch.checked : false,
-            postsSwitch ? postsSwitch.checked : false,
-            countInput ? (parseInt(countInput.value, 10) || 0) : 0
-        );
 
-        // Convert UTC timestamps to user's local timezone
-        (function convertUtcTimes() {
-            var tz = getPortalTimezone();
-            if (!tz) return;
-            var formatter = new Intl.DateTimeFormat('ru-RU', {
-                year: 'numeric', month: '2-digit', day: '2-digit',
-                hour: '2-digit', minute: '2-digit',
-                timeZone: tz
+        var clearFiltersBtn = document.getElementById('forumFilterClearBtn');
+        if (clearFiltersBtn) {
+            clearFiltersBtn.addEventListener('click', function (event) {
+                event.preventDefault();
+                var imagesSwitch = document.getElementById('forumFilterWithImages');
+                var postsSwitch = document.getElementById('forumFilterWithPosts');
+                if (imagesSwitch) imagesSwitch.checked = false;
+                if (postsSwitch) postsSwitch.checked = false;
+                if (imagesCountSlider) imagesCountSlider.value = 0;
+                if (imagesCountValue) imagesCountValue.textContent = '∞';
+                var base = imagesSwitch ? imagesSwitch.getAttribute('data-filter-url') : null;
+                if (base && window.history && window.history.replaceState) {
+                    window.history.replaceState(null, '', base);
+                }
+                postForBlocks(clearFiltersBtn.getAttribute('href'), {});
             });
-            document.querySelectorAll('.utc-time[data-utc]').forEach(function(el) {
-                var utcStr = el.getAttribute('data-utc');
-                if (!utcStr) return;
-                var d = new Date(utcStr + 'Z');
-                if (isNaN(d.getTime())) return;
-                el.textContent = formatter.format(d);
-            });
-        })();
+        }
+
+        renderUtcTimes(document);
     }
     setTimeout(initAll, 0);
     setTimeout(initAll, 100);
