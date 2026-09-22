@@ -3,6 +3,7 @@
 /app/runtime/
 /app/web/assets/
 /docker-compose.override.yml
+/styles/
 
 .idea/
 wsl-repair.log
