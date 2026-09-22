@@ -17,6 +17,7 @@ use yii\captcha\CaptchaAction;
 use yii\filters\AccessControl;
 use yii\filters\VerbFilter;
 use yii\base\Security;
+use yii\helpers\Url;
 use yii\mail\MailerInterface;
 use yii\web\Controller;
 use yii\web\ErrorAction;
@@ -138,54 +139,90 @@ class SiteController extends Controller
     }
 
     /**
-     * Displays the channel publications page.
+     * Displays the channel publications page. The session holds the forum
+     * filter state and the address bar is kept as its mirror image, so a page
+     * that was opened on a URL disagreeing with the session is redirected onto
+     * the address the session describes.
      *
-     * @return string
+     * @return Response|string
      */
-    public function actionPublications(): string
+    public function actionPublications(): Response|string
     {
         $this->layout = 'dashboard';
 
-        // Merge URL params with session-stored filters:
-        // URL params take precedence (user explicitly typed them).
-        // Session provides persistence across form submits and navigation.
         $this->syncForumFilters();
+        if ($this->normalizeForumFilters($this->request->get()) !== $this->forumFilters()) {
+            return $this->redirect($this->forumFilterUrl());
+        }
 
         return $this->render('publications', $this->publicationsData());
     }
 
     /**
-     * Resolves the effective forum filters from the request, falling back to
-     * the session, and stores them back so any subsequent request - including
-     * an AJAX block refresh, which carries no URL params - sees the same state.
+     * Resolves the effective forum filters. A filter that is already active in
+     * the session wins, so reloading or navigating cannot switch it back on;
+     * only an empty session adopts the query parameters of the request.
      */
     private function syncForumFilters(): void
     {
         $session = Yii::$app->session;
-        $sessionFilters = $session->get('forumFilters', []);
+        $stored = $this->normalizeForumFilters((array)$session->get('forumFilters', []));
 
-        $withImagesOnly = (string)$this->request->get('withImages', '') === '1'
-            ? true
-            : ($sessionFilters['withImages'] ?? false);
-        $withPostsOnly = (string)$this->request->get('withPosts', '') === '1'
-            ? true
-            : ($sessionFilters['withPosts'] ?? false);
-        $imagesCountRaw = $this->request->get('imagesCount', '');
-        $imagesCount = $imagesCountRaw !== ''
-            ? (int)$imagesCountRaw
-            : ($sessionFilters['imagesCount'] ?? 0);
+        if ($this->hasActiveForumFilter($stored)) {
+            $session->set('forumFilters', $stored);
+            return;
+        }
 
-        $effective = [];
-        if ($withImagesOnly) {
-            $effective['withImages'] = true;
+        $session->set('forumFilters', $this->normalizeForumFilters($this->request->get()));
+    }
+
+    /**
+     * @param array<string, mixed> $raw
+     * @return array{withImages: bool, withPosts: bool, imagesCount: int}
+     */
+    private function normalizeForumFilters(array $raw): array
+    {
+        $imagesCount = (int)($raw['imagesCount'] ?? 0);
+
+        return [
+            'withImages' => (string)($raw['withImages'] ?? '') === '1',
+            'withPosts' => (string)($raw['withPosts'] ?? '') === '1',
+            'imagesCount' => $imagesCount > 0 ? $imagesCount : 0,
+        ];
+    }
+
+    /**
+     * @param array{withImages: bool, withPosts: bool, imagesCount: int} $filters
+     */
+    private function hasActiveForumFilter(array $filters): bool
+    {
+        return $filters['withImages']
+            || $filters['withPosts']
+            || $filters['imagesCount'] > 0;
+    }
+
+    /**
+     * The publications route with the filters of the current session as its
+     * query, which is the address the bar has to show for that state.
+     *
+     * @return array<int|string, string>
+     */
+    private function forumFilterUrl(): array
+    {
+        $filters = $this->forumFilters();
+        $url = ['publications'];
+
+        if ($filters['withImages']) {
+            $url['withImages'] = '1';
         }
-        if ($withPostsOnly) {
-            $effective['withPosts'] = true;
+        if ($filters['withPosts']) {
+            $url['withPosts'] = '1';
         }
-        if ($imagesCount > 0) {
-            $effective['imagesCount'] = $imagesCount;
+        if ($filters['imagesCount'] > 0) {
+            $url['imagesCount'] = (string)$filters['imagesCount'];
         }
-        $session->set('forumFilters', $effective);
+
+        return $url;
     }
 
     /**
@@ -193,13 +230,7 @@ class SiteController extends Controller
      */
     private function forumFilters(): array
     {
-        $filters = Yii::$app->session->get('forumFilters', []);
-
-        return [
-            'withImages' => (bool)($filters['withImages'] ?? false),
-            'withPosts' => (bool)($filters['withPosts'] ?? false),
-            'imagesCount' => (int)($filters['imagesCount'] ?? 0),
-        ];
+        return $this->normalizeForumFilters((array)Yii::$app->session->get('forumFilters', []));
     }
 
     /**
@@ -278,32 +309,22 @@ class SiteController extends Controller
     }
 
     /**
-     * Saves the current forum filter state to the session via AJAX.
-     * Used by the JS filter handler to persist filters across navigation.
+     * Saves the current forum filter state to the session via AJAX and answers
+     * with the address that mirrors it, so the URL follows every session change
+     * instead of being rebuilt by the caller.
      *
      * @return Response
      */
     public function actionForumFilterSave(): Response
     {
-        $withImages = $this->request->post('withImages', '');
-        $withPosts = $this->request->post('withPosts', '');
-        $imagesCount = $this->request->post('imagesCount', '0');
-
-        $filters = [];
-        if ($withImages === '1') {
-            $filters['withImages'] = true;
-        }
-        if ($withPosts === '1') {
-            $filters['withPosts'] = true;
-        }
-        if ($imagesCount !== '' && (int)$imagesCount > 0) {
-            $filters['imagesCount'] = (int)$imagesCount;
-        }
-
-        Yii::$app->session->set('forumFilters', $filters);
+        Yii::$app->session->set(
+            'forumFilters',
+            $this->normalizeForumFilters($this->request->post()),
+        );
 
         return $this->asJson([
             'ok' => true,
+            'url' => Url::to($this->forumFilterUrl()),
             'blocks' => ['forum' => $this->renderPartial('_block_forum', $this->publicationsData())],
         ]);
     }
@@ -320,6 +341,7 @@ class SiteController extends Controller
         if ($this->request->getIsAjax()) {
             return $this->asJson([
                 'ok' => true,
+                'url' => Url::to(['publications']),
                 'blocks' => ['forum' => $this->renderPartial('_block_forum', $this->publicationsData())],
             ]);
         }
@@ -405,41 +427,14 @@ class SiteController extends Controller
     }
 
     /**
-     * Reads forum filters from the session and appends them to the redirect URL.
-     * This ensures filters persist after any publication-related action.
+     * Reopens the publications page on the address the filters of the session
+     * describe, so a mutation does not drop them from the bar.
      *
      * @return Response
      */
     private function redirectWithFilters(): Response
     {
-        $request = Yii::$app->request;
-        $session = Yii::$app->session;
-
-        // Prefer URL params (direct navigation or same-page change)
-        $withImages = $request->get('withImages');
-        $withPosts = $request->get('withPosts');
-        $imagesCount = $request->get('imagesCount');
-
-        // If no URL params (e.g. after a POST submit), fall back to session
-        if ($withImages === null) {
-            $filters = $session->get('forumFilters', []);
-            $withImages  = $filters['withImages']  ?? null;
-            $withPosts   = $filters['withPosts']   ?? null;
-            $imagesCount = $filters['imagesCount'] ?? null;
-        }
-
-        $url = ['publications'];
-        if ($withImages === '1') {
-            $url['withImages'] = '1';
-        }
-        if ($withPosts === '1') {
-            $url['withPosts'] = '1';
-        }
-        if ($imagesCount !== null && $imagesCount !== '' && (int)$imagesCount > 0) {
-            $url['imagesCount'] = (int)$imagesCount;
-        }
-
-        return $this->redirect($url);
+        return $this->redirect($this->forumFilterUrl());
     }
 
     /**

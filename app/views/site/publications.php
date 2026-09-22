@@ -78,13 +78,11 @@ CSS
             <div class="card-body">
                 <div class="form-check form-switch mb-3">
                     <input class="form-check-input" type="checkbox" role="switch" id="forumFilterWithImages"
-                           data-filter-url="<?= \yii\helpers\Url::to(['site/publications']) ?>"
                         <?= $withImagesOnly ? 'checked' : '' ?>>
                     <label class="form-check-label" for="forumFilterWithImages">С изображениями</label>
                 </div>
                 <div class="form-check form-switch mb-3">
                     <input class="form-check-input" type="checkbox" role="switch" id="forumFilterWithPosts"
-                           data-filter-url="<?= \yii\helpers\Url::to(['site/publications']) ?>"
                         <?= $withPostsOnly ? 'checked' : '' ?>>
                     <label class="form-check-label" for="forumFilterWithPosts">С привязанными постами</label>
                 </div>
@@ -94,7 +92,6 @@ CSS
                         <span id="forumFilterImagesCountValue" class="ms-2 fw-bold text-primary"><?= $imagesCount > 0 ? (int)$imagesCount : '∞' ?></span>
                     </label>
                     <input type="range" class="form-range" id="forumFilterImagesCount"
-                           data-filter-url="<?= \yii\helpers\Url::to(['site/publications']) ?>"
                            min="0" max="100" value="<?= $imagesCount > 0 ? (int)$imagesCount : 0 ?>">
                     <div class="form-text">0 — без ограничения</div>
                 </div>
@@ -515,6 +512,10 @@ jQuery(document).ready(function () {
                 throw new Error('некорректный ответ сервера');
             }
             applyBlocks(payload);
+            // The address bar mirrors the state the server has just stored.
+            if (typeof payload.url === 'string' && window.history && window.history.replaceState) {
+                window.history.replaceState(null, '', payload.url);
+            }
             return payload;
         }).catch(function (error) {
             showFlash('error', 'Не удалось обновить списки: '
@@ -535,24 +536,6 @@ jQuery(document).ready(function () {
             var imagesSwitch = document.getElementById('forumFilterWithImages');
             var postsSwitch = document.getElementById('forumFilterWithPosts');
             var imagesCountInput = document.getElementById('forumFilterImagesCount');
-            var base = (imagesSwitch || postsSwitch || imagesCountInput).getAttribute('data-filter-url');
-            var params = [];
-            if (imagesSwitch && imagesSwitch.checked) {
-                params.push('withImages=1');
-            }
-            if (postsSwitch && postsSwitch.checked) {
-                params.push('withPosts=1');
-            }
-            if (imagesCountInput && imagesCountInput.value !== '' && parseInt(imagesCountInput.value, 10) > 0) {
-                params.push('imagesCount=' + parseInt(imagesCountInput.value, 10));
-            }
-            var separator = base.indexOf('?') === -1 ? '?' : '&';
-            var newUrl = params.length === 0 ? base : base + separator + params.join('&');
-
-            // Keep the address bar in sync so a manual reload reproduces the same view
-            if (window.history && window.history.replaceState) {
-                window.history.replaceState(null, '', newUrl);
-            }
 
             postForBlocks(__FILTER_SAVE_URL, {
                 withImages: imagesSwitch && imagesSwitch.checked ? 1 : 0,
@@ -1011,10 +994,6 @@ jQuery(document).ready(function () {
                 if (postsSwitch) postsSwitch.checked = false;
                 if (imagesCountSlider) imagesCountSlider.value = 0;
                 if (imagesCountValue) imagesCountValue.textContent = '∞';
-                var base = imagesSwitch ? imagesSwitch.getAttribute('data-filter-url') : null;
-                if (base && window.history && window.history.replaceState) {
-                    window.history.replaceState(null, '', base);
-                }
                 postForBlocks(clearFiltersBtn.getAttribute('href'), {});
             });
         }
