@@ -26,7 +26,7 @@ use yii\helpers\Html;
             <?= PublicationsUi::scheduleButton($deletedRecord->id, 'deleted') ?>
             <?= PublicationsUi::toDraftForm($deletedRecord->id, 'deleted', 'Перенести в черновик') ?>
         </div>
-        <p class="mb-1"><?= Html::encode($deletedRecord->text) ?></p>
+        <p class="mb-1" style="white-space: pre-line; word-break: break-word;"><?= Html::encode($deletedRecord->text) ?></p>
         <?= PublicationsUi::stackedImages($deletedRecord->imageUrls) ?>
         <div class="activity-meta">
             <i class="bi bi-clock me-1"></i><span class="utc-time" data-utc="<?= Html::encode($deletedRecord->publishedAt ?? '') ?>"></span>

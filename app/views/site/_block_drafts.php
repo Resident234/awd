@@ -25,7 +25,7 @@ use yii\helpers\Html;
             <?= PublicationsUi::publishForm($draft->id, 'draft') ?>
             <?= PublicationsUi::scheduleButton($draft->id, 'draft') ?>
         </div>
-        <p class="mb-1"><?= Html::encode($draft->text) ?></p>
+        <p class="mb-1" style="white-space: pre-line; word-break: break-word;"><?= Html::encode($draft->text) ?></p>
         <?= PublicationsUi::stackedImages($draft->imageUrls) ?>
         <div class="activity-meta">
             <i class="bi bi-clock me-1"></i><span class="utc-time" data-utc="<?= Html::encode($draft->createdAt ?? '') ?>"></span>

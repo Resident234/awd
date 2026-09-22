@@ -257,7 +257,7 @@ CSS
 
     </div>
 
-    <div class="col-sm-4">
+    <div class="col-12">
 
         <!-- Publications -->
         <div class="card mb-4">
@@ -276,7 +276,7 @@ CSS
         </div>
 
     </div>
-    <div class="col-sm-4">
+    <div class="col-12">
 
         <!-- Drafts -->
         <div class="card mb-4">
@@ -295,7 +295,7 @@ CSS
         </div>
 
     </div>
-    <div class="col-sm-4">
+    <div class="col-12">
 
         <!-- Deleted -->
         <div class="card mb-4">

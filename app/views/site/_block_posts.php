@@ -37,7 +37,7 @@ use yii\helpers\Html;
             <?php endif ?>
             <?= PublicationsUi::toDraftForm($post->id) ?>
         </div>
-        <p class="mb-1"><?= Html::encode($post->text) ?></p>
+        <p class="mb-1" style="white-space: pre-line; word-break: break-word;"><?= Html::encode($post->text) ?></p>
         <?= PublicationsUi::stackedImages($post->imageUrls) ?>
         <div class="activity-meta">
             <i class="bi bi-clock me-1"></i><span class="utc-time" data-utc="<?= Html::encode($post->publishedAt ?? '') ?>"></span>
