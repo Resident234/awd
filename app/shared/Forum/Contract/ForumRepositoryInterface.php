@@ -51,8 +51,11 @@ interface ForumRepositoryInterface extends ForumPublicationMapGatewayInterface
      * own latest posts (at most $postLimit, posted_at descending).
      * With $withImagesOnly = true only topics/posts having non-empty
      * image_urls are returned. With $withPostsOnly = true only topics
-     * having at least one post are returned. With $imagesCount > 0 only
-     * topics/posts having exactly $imagesCount images are returned.
+     * having at least one post are returned, and every post the shown
+     * topic has is returned along with it, processed ones included;
+     * otherwise the post lists keep only the unprocessed ones. With
+     * $imagesCount > 0 only topics/posts having exactly $imagesCount
+     * images are returned.
      *
      * @return array<int, array{topic: \app\shared\Forum\Dto\TopicData, posts: \app\shared\Forum\Dto\PostData[]}>
      */

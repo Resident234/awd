@@ -61,6 +61,15 @@ The publications feature uses four tables to manage the lifecycle of content:
 | `publications_edited` | Edit history of published posts | - `edited_at IS NULL` = Needs update in Telegram<br>- `edited_at IS NOT NULL` = Already updated in Telegram |
 | `publications_deleted` | Soft-delete archive | - `deleted_at IS NULL` = Pending deletion from Telegram<br>- `deleted_at IS NOT NULL` = Already deleted from Telegram |
 
+Publications created from forum elements are additionally tracked in two link tables, one row per forum element:
+
+| Table | Purpose | Status Indicators |
+|-------|---------|-------------------|
+| `publications_topic_map` | Links `topic.id` to a Telegram message | - no row = topic not seen<br>- `telegram_id IS NULL` = marked viewed («Просмотрено»)<br>- `telegram_id` set = published to the channel |
+| `publications_post_map` | Links `post.id` to a Telegram message | - no row = post not seen<br>- `telegram_id IS NULL` = marked viewed («Просмотрено»)<br>- `telegram_id` set = published to the channel |
+
+The forum block filters («С изображениями», «С привязанными постами», «Кол-во изображений») and their session/URL sync are documented in [README.md](README.md), section «Фильтры блока «Форум»».
+
 ### Core DTOs and Interfaces
 
 - **`PublicationData` (DTO)** - Represents a publication record with fields:

@@ -299,14 +299,18 @@ final class ForumRepository implements ForumRepositoryInterface, ForumPublicatio
      * Publication filter: only topics without a publications_topic_map
      * record are listed, plus mapped (viewed/published) topics that
      * still have at least one post without a publications_post_map
-     * record. The post lists contain only posts without a map record.
+     * record. Unless the post filter below widens the lists, they
+     * contain only posts without a map record.
      *
      * With $withImagesOnly = true only topics that have images of their
      * own or at least one post with images are returned; their post
      * lists are also reduced to posts with images only.
      *
      * With $withPostsOnly = true only topics that have at least one
-     * post in the post table are returned.
+     * post in the post table are returned, and each returned topic
+     * carries all of its posts: once the topic itself or one of its
+     * posts is still unprocessed, the whole discussion is shown, so
+     * processed posts are kept in the list with their status.
      *
      * With $imagesCount > 0 only topics/posts having exactly $imagesCount images are returned.
      *
@@ -352,6 +356,9 @@ final class ForumRepository implements ForumRepositoryInterface, ForumPublicatio
         $topicIds = array_map(static fn (array $row): int => (int)$row['id'], $topicRows);
         $postFilter = ($withImagesOnly ? ' AND p.image_urls != \'[]\'::jsonb' : '')
             . ($imagesCount > 0 ? ' AND jsonb_array_length(p.image_urls) = ' . $imagesCount : '');
+        $unprocessedPosts = $withPostsOnly
+            ? ''
+            : ' AND NOT EXISTS (SELECT 1 FROM {{%publications_post_map}} fpm WHERE fpm.post_id = bp.id)';
         $postRows = $this->db
             ->createCommand(
                 'SELECT p.id, p.topic_id, p.author_id, p.number, p.title, p.posted_at, p.content_html, p.content_text, p.source_url, p.image_urls,'
@@ -363,7 +370,7 @@ final class ForumRepository implements ForumRepositoryInterface, ForumPublicatio
                 . ' ROW_NUMBER() OVER (PARTITION BY bp.topic_id ORDER BY bp.posted_at DESC NULLS LAST, bp.id DESC) AS rn'
                 . ' FROM {{%post}} bp'
                 . ' WHERE bp.topic_id IN (' . implode(',', $topicIds) . ')'
-                . ' AND NOT EXISTS (SELECT 1 FROM {{%publications_post_map}} fpm WHERE fpm.post_id = bp.id)'
+                . $unprocessedPosts
                 . ' ) p'
                 . ' LEFT JOIN {{%member}} m ON m.id = p.author_id'
                 . ' LEFT JOIN {{%publications_post_map}} ppm ON ppm.post_id = p.id'
