@@ -71,14 +71,34 @@ $config = [
             ],
         ],
         'db' => $db,
-        /*
         'urlManager' => [
             'enablePrettyUrl' => true,
             'showScriptName' => false,
+            // Every route a link is built for gets its own flat address; the
+            // rules are read in order, so the homepage alias has to come
+            // first. Routes left out here keep working through the default
+            // <controller>/<action> form, which is how the dev modules
+            // (/gii, /debug) and site/error stay reachable.
             'rules' => [
+                '' => 'site/index',
+                'publications' => 'site/publications',
+                'channel-settings' => 'site/channel-settings',
+                'channel-description' => 'site/channel-description',
+                'publication-create' => 'site/publication-create',
+                'publication-publish' => 'site/publication-publish',
+                'publication-to-draft' => 'site/publication-to-draft',
+                'publication-schedule' => 'site/publication-schedule',
+                'publication-delete' => 'site/publication-delete',
+                'forum-viewed' => 'site/forum-viewed',
+                'forum-filter-save' => 'site/forum-filter-save',
+                'forum-filter-clear' => 'site/forum-filter-clear',
+                'login' => 'site/login',
+                'logout' => 'site/logout',
+                'contact' => 'site/contact',
+                'about' => 'site/about',
+                'captcha' => 'site/captcha',
             ],
         ],
-        */
     ],
     'params' => $params,
 ];

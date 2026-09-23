@@ -273,6 +273,16 @@ PostgreSQL является инфраструктурой хранения. Т�
 
 Для полной информации см. [PUBLICATIONS.md](PUBLICATIONS.md).
 
+## Адреса страниц
+
+Страницы и эндпоинты доступны по коротким путям: `/` — дашборд, `/publications` — страница публикаций, `/channel-settings` — настройки канала, `/login`, `/contact`, `/about`, `/captcha`, а также POST-эндпоинты `/publication-create`, `/publication-publish`, `/publication-to-draft`, `/publication-schedule`, `/publication-delete`, `/channel-description`, `/forum-viewed`, `/forum-filter-save`, `/forum-filter-clear`. Плоские имена совпадают с id действий `SiteController`, поэтому перечень правил в `app/config/web.php` (`urlManager`, `enablePrettyUrl` + `showScriptName => false`) и есть список публичных адресов.
+
+Фильтры блока «Форум» в правилах не участвуют и остаются строкой запроса: `/publications?withImages=1&withPosts=1&imagesCount=3`.
+
+Маршрутам вне списка (`site/error`, модули `gii` и `debug`) правила не нужны: при `enableStrictParsing => false`, если ни одно правило не совпало, путь сам становится маршрутом, а `Url::to()` для такого маршрута выдаёт форму `/controller/action`. Вид `?r=` при включённом `enablePrettyUrl` не читается, поэтому сохранённые раньше адреса вроде `/index.php?r=site%2Fpublications` открывают дашборд.
+
+`index.php` из адреса убирает веб-сервер: `app/web/.htaccess` в Apache-варианте и `try_files $uri $uri/ /index.php?$query_string;` в `docker/nginx/default.conf` и в nginx-конфиге Windows-окружения — конфиги менять не потребовалось.
+
 ## Релизы
 
 Релизы публикуются автоматически на [GitHub Releases](https://github.com/Resident234/awd/releases) через GitHub Actions (`.github/workflows/release.yml`).
