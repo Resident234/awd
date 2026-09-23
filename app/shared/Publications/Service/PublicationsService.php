@@ -105,8 +105,10 @@ final class PublicationsService
      * after the previous part, so the periodic task drains them in order.
      * Those records are written by one repository call, so a failure leaves
      * neither a half publication nor a part that never reaches the channel.
-     * The images and the forum link belong to the first part only, which is
-     * the message the channel thread continues from.
+     * The forum link belongs to the first part, which is the message the
+     * channel thread continues from. The images go to the first part too,
+     * unless $distributeImages asks to spread them over the parts so that
+     * every part of the publication is sent with its own photos.
      *
      * @param string[] $texts
      * @param string[] $imageUrls
@@ -120,6 +122,7 @@ final class PublicationsService
         string $action,
         ?ForumPublicationRef $forumRef = null,
         ?string $userTimezone = null,
+        bool $distributeImages = false,
     ): void {
         $parts = array_map(static fn (string $text): string => trim($text), array_values($texts));
 
@@ -140,11 +143,12 @@ final class PublicationsService
         }
 
         $now = $this->now();
+        $imageGroups = $this->groupImages($imageUrls, count($parts), $distributeImages);
 
         if ($action === 'draft') {
             $rows = [];
             foreach ($parts as $index => $text) {
-                $rows[] = ['text' => $text, 'imageUrls' => $index === 0 ? $imageUrls : []];
+                $rows[] = ['text' => $text, 'imageUrls' => $imageGroups[$index]];
             }
 
             $this->bindForumRef($this->publications->createDrafts($rows, $now), $forumRef);
@@ -157,12 +161,46 @@ final class PublicationsService
         foreach ($parts as $index => $text) {
             $rows[] = [
                 'text' => $text,
-                'imageUrls' => $index === 0 ? $imageUrls : [],
+                'imageUrls' => $imageGroups[$index],
                 'publishedAt' => $this->shiftDate($firstAt, $index),
             ];
         }
 
         $this->bindForumRef($this->publications->createPosts($rows, $now), $forumRef);
+    }
+
+    /**
+     * Turns the image list of a publication into one list per part. Without a
+     * split the album stays with the first part, which carries the caption;
+     * with it the URLs keep their order and go out as contiguous slices that
+     * differ in size by at most one image, so each part is sent together with
+     * its own photos.
+     *
+     * @param string[] $imageUrls
+     * @return array<int, string[]>
+     */
+    private function groupImages(array $imageUrls, int $partCount, bool $distribute): array
+    {
+        $groups = array_fill(0, $partCount, []);
+
+        if (!$distribute || $imageUrls === []) {
+            $groups[0] = $imageUrls;
+
+            return $groups;
+        }
+
+        $total = count($imageUrls);
+        $base = intdiv($total, $partCount);
+        $extra = $total % $partCount;
+        $offset = 0;
+
+        for ($index = 0; $index < $partCount; $index++) {
+            $size = $base + ($index < $extra ? 1 : 0);
+            $groups[$index] = array_slice($imageUrls, $offset, $size);
+            $offset += $size;
+        }
+
+        return $groups;
     }
 
     /**

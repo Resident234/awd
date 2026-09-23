@@ -22,18 +22,26 @@ $textLimit = ChannelService::TEXT_MAX_LENGTH;
 
 $this->registerCss(
     <<<CSS
-#publicationPreviewImages.stacked-images {
+.stacked-images.publication-preview-images {
     margin-top: 0.5rem;
 }
 
-#publicationPreviewImages.stacked-images img {
+/* A distributed publication goes to the channel as one message per part: the
+   photos first, the text of the part as the caption under them. */
+.stacked-images.publication-part-images {
+    margin: 0 0 0.5rem;
+}
+
+.stacked-images.publication-preview-images img,
+.stacked-images.publication-part-images img {
     max-height: 120px;
     width: auto;
     border-radius: 0.375rem;
     object-fit: cover;
 }
 
-#publicationPreviewImages.stacked-images .plus {
+.stacked-images.publication-preview-images .plus,
+.stacked-images.publication-part-images .plus {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -157,7 +165,7 @@ CSS
                 <div class="d-flex flex-column gap-2 w-100" id="publicationPreview"
                      data-source="publicationTextInput"
                      data-placeholder="Введите текст публикации — он отобразится здесь до отправки в канал TRVL."></div>
-                <div class="stacked-images mt-2 d-none" id="publicationPreviewImages"></div>
+                <div class="stacked-images publication-preview-images d-none" id="publicationPreviewImages"></div>
             </div>
             <div class="card-footer bg-transparent">
                 <div class="d-flex justify-content-between align-items-center">
@@ -213,6 +221,19 @@ CSS
                         </label>
                         <small class="text-muted d-block">
                             Дописывает «Часть 1», «Часть 2» … в начало каждого фрагмента разбитой публикации
+                        </small>
+                    </div>
+
+                    <!-- Unlike the part numbers this option cannot be folded into the
+                         submitted fields, so the checkbox travels to the server itself. -->
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="publicationDistributeImages"
+                               name="publicationDistributeImages" value="1">
+                        <label class="form-check-label" for="publicationDistributeImages">
+                            <i class="bi bi-card-image me-1"></i>Равномерно распределить изображения между частями
+                        </label>
+                        <small class="text-muted d-block">
+                            Раздаёт изображения по частям так, чтобы каждая часть ушла в канал со своей группой
                         </small>
                     </div>
 
@@ -607,6 +628,7 @@ jQuery(document).ready(function () {
         // never replaced itself, so `source` stays a valid reference.
         var partTemplate = partsBox.querySelector('.publication-text-block').cloneNode(true);
         var numberPartsInput = document.getElementById('publicationNumberParts');
+        var distributeImagesInput = document.getElementById('publicationDistributeImages');
 
         function textParts() {
             return Array.prototype.slice.call(partsBox.querySelectorAll('.publication-text-part'));
@@ -620,6 +642,10 @@ jQuery(document).ready(function () {
 
         function isNumbered() {
             return !!(numberPartsInput && numberPartsInput.checked);
+        }
+
+        function isDistributingImages() {
+            return !!(distributeImagesInput && distributeImagesInput.checked);
         }
 
         // The «Часть N» prefix travels inside the message, so it eats into the
@@ -846,11 +872,26 @@ jQuery(document).ready(function () {
             }
         };
 
+        // The split the service performs on save, mirrored here so the card shows
+        // every part with the album it will be sent to the channel with.
+        var groupImages = function (urls, partCount) {
+            var groups = [];
+            var base = Math.floor(urls.length / partCount);
+            var extra = urls.length % partCount;
+            var offset = 0;
+
+            for (var index = 0; index < partCount; index++) {
+                var size = base + (index < extra ? 1 : 0);
+                groups.push(urls.slice(offset, offset + size));
+                offset += size;
+            }
+
+            return groups;
+        };
+
         var updateImages = function () {
-            var urls = parseImageUrls(imagesInput ? imagesInput.value : '');
-            renderImagesPreview(imagesPreview, urls);
-            renderImagesPreview(previewImages, urls);
-            updateSingleImagePreview(urls);
+            renderImagesPreview(imagesPreview, parseImageUrls(imagesInput ? imagesInput.value : ''));
+            update();
         };
 
         var update = function () {
@@ -863,17 +904,36 @@ jQuery(document).ready(function () {
             });
             var placeholder = preview.getAttribute('data-placeholder') || '';
             var texts = values.length > 0 ? values : [placeholder];
+            var urls = parseImageUrls(imagesInput ? imagesInput.value : '');
+            var spread = isDistributingImages() && texts.length > 1 && urls.length > 0;
+            var groups = spread ? groupImages(urls, texts.length) : [];
 
             preview.textContent = '';
-            texts.forEach(function (text) {
+            texts.forEach(function (text, index) {
                 var part = document.createElement('div');
                 part.className = 'event-content bg-light-subtle rounded-3 p-3 flex-grow-1 telegram-preview-text';
+                if (spread && groups[index].length > 0) {
+                    var box = document.createElement('div');
+                    box.className = 'stacked-images publication-part-images';
+                    part.appendChild(box);
+                    renderImagesPreview(box, groups[index]);
+                }
                 var body = document.createElement('p');
                 body.className = 'publication-preview-part';
                 body.textContent = text;
                 part.appendChild(body);
                 preview.appendChild(part);
             });
+
+            if (spread) {
+                // The URLs live inside their parts now, so the shared strip under
+                // the text would show the same images a second time.
+                renderImagesPreview(previewImages, []);
+                updateSingleImagePreview([]);
+            } else {
+                renderImagesPreview(previewImages, urls);
+                updateSingleImagePreview(urls);
+            }
         };
         // One listener for every part field, including the ones cloned later.
         partsBox.addEventListener('input', function (event) {
@@ -895,6 +955,9 @@ jQuery(document).ready(function () {
                 updateCounters();
                 update();
             });
+        }
+        if (distributeImagesInput) {
+            distributeImagesInput.addEventListener('change', updateImages);
         }
         resizePublicationTextInput();
         window.addEventListener('resize', fitTextInputNow);
@@ -1032,6 +1095,9 @@ jQuery(document).ready(function () {
             setTextParts(['']);
             if (numberPartsInput) {
                 numberPartsInput.checked = false;
+            }
+            if (distributeImagesInput) {
+                distributeImagesInput.checked = false;
             }
             if (imagesInput) {
                 imagesInput.value = '';

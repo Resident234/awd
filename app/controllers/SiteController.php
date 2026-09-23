@@ -403,11 +403,12 @@ class SiteController extends Controller
         $sourceId = $sourceId === null || $sourceId === '' ? null : (int)$sourceId;
         $forumRef = $this->forumRefFromRequest();
         $imageUrls = $this->imageUrlsFromRequest();
+        $distributeImages = $this->request->post('publicationDistributeImages') === '1';
 
         $ok = false;
         try {
             if ($source === 'new') {
-                $this->publications->saveParts($texts, $imageUrls, $publishedAt, $action, $forumRef, $userTz ?: null);
+                $this->publications->saveParts($texts, $imageUrls, $publishedAt, $action, $forumRef, $userTz ?: null, $distributeImages);
                 Yii::$app->session->setFlash('success', $action === 'draft'
                     ? 'Черновик сохранён.'
                     : 'Публикация сохранена и будет отправлена в канал в заданное время.');
