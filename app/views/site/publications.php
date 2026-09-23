@@ -82,6 +82,16 @@ $this->registerCss(
     word-break: break-word;
     text-align: left;
 }
+
+/* The buttons that move a selection sit next to it, in viewport coordinates. */
+.publication-selection-actions {
+    position: fixed;
+    z-index: 1080;
+}
+
+.publication-selection-actions .btn {
+    white-space: nowrap;
+}
 CSS
 );
 ?>
@@ -281,6 +291,22 @@ CSS
                         </button>
                     </div>
                 </form>
+
+                <!-- Shown over a selection of text inside one of the parts. The
+                     script moves the node to the body, where nothing can shadow
+                     the viewport it is placed against. -->
+                <div class="publication-selection-actions d-none" id="publicationSelectionActions">
+                    <div class="btn-group shadow" role="group" aria-label="Перемещение выделенного текста">
+                        <button type="button" class="btn btn-primary btn-sm" id="publicationMovePrevPart"
+                                title="Перенести выделенный текст в конец предыдущей части">
+                            <i class="bi bi-arrow-left-short me-1"></i>Переместить в предыдущую часть
+                        </button>
+                        <button type="button" class="btn btn-primary btn-sm" id="publicationMoveNextPart"
+                                title="Перенести выделенный текст в начало следующей части">
+                            <i class="bi bi-arrow-right-short me-1"></i>Переместить в следующую часть
+                        </button>
+                    </div>
+                </div>
             </div>
             <div class="card-footer bg-transparent">
                 <div class="d-flex justify-content-between align-items-center">
@@ -643,6 +669,10 @@ jQuery(document).ready(function () {
             return Array.prototype.slice.call(partsBox.querySelectorAll('.publication-text-part'));
         }
 
+        function isPartField(el) {
+            return !!(el && el.classList && el.classList.contains('publication-text-part'));
+        }
+
         function partValues() {
             return textParts().map(function (field) {
                 return field.value;
@@ -721,6 +751,9 @@ jQuery(document).ready(function () {
         }
 
         function setTextParts(values) {
+            // The fields are replaced, and with them the selection the popup points at.
+            hideSelectionActions();
+
             Array.prototype.slice
                 .call(partsBox.querySelectorAll('.publication-text-block'), 1)
                 .forEach(function (block) {
@@ -928,6 +961,234 @@ jQuery(document).ready(function () {
             }
         }
 
+        // --- moving a selection of text between two parts ----------------------
+
+        // The seam of a join is a paragraph: both sides keep their own text.
+        function joinParts(first, second) {
+            var head = first.replace(/\s+$/, '');
+            var tail = second.replace(/^\s+/, '');
+
+            if (head === '') {
+                return tail;
+            }
+
+            return tail === '' ? head : head + '\n\n' + tail;
+        }
+
+        // Forward puts the selection in front of the next part, backward — after
+        // the previous one, so the reading order survives. A part the move empties
+        // is dropped, and at the edge of the form the text gets a part of its own.
+        function shiftSelectedText(values, index, from, to, forward) {
+            var text = values[index];
+            var raw = text.slice(from, to);
+            var moved = raw.replace(/^\s+/, '').replace(/\s+$/, '');
+
+            if (moved === '') {
+                return null;
+            }
+
+            // Whitespace the cut carried away comes back as a single separator, so
+            // the words on both sides of it do not grow together.
+            var before = text.slice(0, from);
+            var after = text.slice(to);
+            var head = before.replace(/\s+$/, '');
+            var tail = after.replace(/^\s+/, '');
+            var wholeWords = head === before && tail === after;
+            var source = wholeWords || head === '' || tail === ''
+                ? head + tail
+                : head + ' ' + tail;
+            var target = forward ? index + 1 : index - 1;
+            var next = values.slice();
+            next[index] = source;
+
+            if (target < 0) {
+                next.unshift(moved);
+                target = 0;
+            } else if (target >= next.length) {
+                next.push(moved);
+            } else {
+                next[target] = forward
+                    ? joinParts(moved, next[target])
+                    : joinParts(next[target], moved);
+            }
+
+            var caret = forward ? moved.length : next[target].length;
+
+            if (source === '') {
+                next.splice(index, 1);
+                if (index < target) {
+                    target -= 1;
+                }
+            }
+
+            return { values: next, index: target, caret: caret };
+        }
+
+        var selectionPopup = document.getElementById('publicationSelectionActions');
+        var movePrevPartButton = document.getElementById('publicationMovePrevPart');
+        var moveNextPartButton = document.getElementById('publicationMoveNextPart');
+        // The field the popup was shown over: its selection is what moves.
+        var selectionField = null;
+
+        function hideSelectionActions() {
+            selectionField = null;
+
+            if (selectionPopup) {
+                selectionPopup.classList.add('d-none');
+            }
+        }
+
+        // Selection offsets of a field in the text without the «Часть N» prefix,
+        // which is what the parts are stored as.
+        function selectionRange(field) {
+            var text = stripPartNumber(field.value);
+            var prefix = field.value.length - text.length;
+
+            return {
+                text: text,
+                from: Math.max(0, (field.selectionStart || 0) - prefix),
+                to: Math.max(0, Math.min(text.length, (field.selectionEnd || 0) - prefix)),
+            };
+        }
+
+        // The popup goes above the end of the selection, below it when the top of
+        // the viewport is in the way, and inside the viewport on both axes.
+        function popupPoint(caret, size, viewport) {
+            var margin = 8;
+            var left = Math.max(margin, Math.min(
+                caret.x - size.width / 2,
+                viewport.width - size.width - margin
+            ));
+            var top = caret.y - size.height - margin;
+
+            if (top < margin) {
+                top = caret.y + margin;
+            }
+
+            if (top + size.height > viewport.height - margin) {
+                top = Math.max(margin, viewport.height - size.height - margin);
+            }
+
+            return { left: Math.round(left), top: Math.round(top) };
+        }
+
+        // A textarea gives no pixel coordinates for a position in its text, so the
+        // offset is measured in a hidden copy of the field up to that position.
+        var MIRROR_STYLE_PROPS = [
+            'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'fontVariant',
+            'letterSpacing', 'lineHeight', 'wordSpacing', 'textTransform', 'textAlign',
+            'textIndent', 'width', 'paddingTop', 'paddingRight', 'paddingBottom',
+            'paddingLeft', 'borderTopWidth', 'borderRightWidth', 'borderBottomWidth',
+            'borderLeftWidth', 'boxSizing',
+        ];
+
+        function caretPoint(field, position) {
+            var computed = window.getComputedStyle(field);
+            var mirror = document.createElement('div');
+
+            MIRROR_STYLE_PROPS.forEach(function (prop) {
+                mirror.style[prop] = computed[prop];
+            });
+            // The copied widths only take part in the box model with a style.
+            mirror.style.borderStyle = 'solid';
+            mirror.style.borderColor = 'transparent';
+            mirror.style.position = 'absolute';
+            mirror.style.visibility = 'hidden';
+            mirror.style.whiteSpace = 'pre-wrap';
+            mirror.style.overflowWrap = 'break-word';
+            mirror.style.top = '0';
+            mirror.style.left = '-9999px';
+
+            // A scrollbar eats into the text of the field but not into its box, and
+            // the copy would wrap a scrollbar later than the original.
+            var gutter = field.offsetWidth - field.clientWidth;
+            if (gutter > 0) {
+                mirror.style.width = (parseFloat(computed.width) - gutter) + 'px';
+            }
+
+            mirror.textContent = field.value.slice(0, position);
+
+            var marker = document.createElement('span');
+            marker.textContent = '\u200b';
+            mirror.appendChild(marker);
+
+            document.body.appendChild(mirror);
+            var fieldRect = field.getBoundingClientRect();
+            var mirrorRect = mirror.getBoundingClientRect();
+            var markerRect = marker.getBoundingClientRect();
+            document.body.removeChild(mirror);
+
+            // A zero width marker is only as tall as the glyph box, so the line of
+            // the text itself is what the popup has to clear.
+            var lineHeight = parseFloat(computed.lineHeight);
+
+            return {
+                x: fieldRect.left + markerRect.left - mirrorRect.left,
+                y: fieldRect.top + markerRect.top - mirrorRect.top
+                    + (isNaN(lineHeight) ? markerRect.height : lineHeight)
+                    - field.scrollTop,
+            };
+        }
+
+        function showSelectionActions(field) {
+            var selection = selectionRange(field);
+
+            if (!selectionPopup || textParts().length < 2
+                || selection.text.slice(selection.from, selection.to).trim() === '') {
+                hideSelectionActions();
+
+                return;
+            }
+
+            // Measured while shown: a hidden popup has no size to place by. Both
+            // happen in one task, so the old position never paints.
+            selectionPopup.classList.remove('d-none');
+            selectionField = field;
+
+            var point = popupPoint(
+                caretPoint(field, selection.to),
+                { width: selectionPopup.offsetWidth, height: selectionPopup.offsetHeight },
+                { width: window.innerWidth, height: window.innerHeight }
+            );
+            selectionPopup.style.left = point.left + 'px';
+            selectionPopup.style.top = point.top + 'px';
+        }
+
+        function moveSelectedText(forward) {
+            var index = textParts().indexOf(selectionField);
+
+            if (index === -1) {
+                hideSelectionActions();
+
+                return;
+            }
+
+            var selection = selectionRange(selectionField);
+            var moved = shiftSelectedText(
+                partValues().map(stripPartNumber),
+                index,
+                selection.from,
+                selection.to,
+                forward
+            );
+            hideSelectionActions();
+
+            if (!moved) {
+                return;
+            }
+
+            setTextParts(moved.values);
+
+            var target = textParts()[moved.index];
+            if (target && typeof target.focus === 'function') {
+                target.focus();
+
+                if (typeof target.setSelectionRange === 'function') {
+                    target.setSelectionRange(moved.caret, moved.caret);
+                }
+            }
+        }
+
         function resizePublicationTextInput() {
             var maxHeight = window.innerHeight * 0.8;
             textParts().forEach(function (field) {
@@ -1095,10 +1356,11 @@ jQuery(document).ready(function () {
         };
         // One listener for every part field, including the ones cloned later.
         partsBox.addEventListener('input', function (event) {
-            var field = event.target;
-            if (!field.classList || !field.classList.contains('publication-text-part')) {
+            if (!isPartField(event.target)) {
                 return;
             }
+            // Typing replaces the selection the popup was pointing at.
+            hideSelectionActions();
             updateCounters();
             update();
             if (textParts().length === 1) {
@@ -1108,11 +1370,20 @@ jQuery(document).ready(function () {
         });
         // Remembers which part holds the caret; see `lastEditedField`.
         partsBox.addEventListener('focusin', function (event) {
-            var field = event.target;
-            if (field.classList && field.classList.contains('publication-text-part')) {
-                lastEditedField = field;
+            if (isPartField(event.target)) {
+                lastEditedField = event.target;
             }
         });
+        // A selection is made with the mouse or with shift and the arrows, and the
+        // fields never report it as an event of their own.
+        ['mouseup', 'keyup'].forEach(function (name) {
+            partsBox.addEventListener(name, function (event) {
+                if (isPartField(event.target)) {
+                    showSelectionActions(event.target);
+                }
+            });
+        });
+        partsBox.addEventListener('focusout', hideSelectionActions);
         if (numberPartsInput) {
             numberPartsInput.addEventListener('change', function () {
                 splitIfNeeded();
@@ -1127,6 +1398,29 @@ jQuery(document).ready(function () {
         if (splitButton) {
             splitButton.addEventListener('click', splitPartAtCaret);
         }
+        if (selectionPopup) {
+            // The popup is placed against the viewport, which a transformed
+            // ancestor of the form would quietly replace with itself.
+            document.body.appendChild(selectionPopup);
+            // The buttons must keep the focus in the field the text is selected in.
+            selectionPopup.addEventListener('mousedown', function (event) {
+                event.preventDefault();
+            });
+            movePrevPartButton.addEventListener('click', function () {
+                moveSelectedText(false);
+            });
+            moveNextPartButton.addEventListener('click', function () {
+                moveSelectedText(true);
+            });
+        }
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                hideSelectionActions();
+            }
+        });
+        // Viewport coordinates: the popup does not follow what moves under it.
+        window.addEventListener('resize', hideSelectionActions);
+        window.addEventListener('scroll', hideSelectionActions, true);
         resizePublicationTextInput();
         window.addEventListener('resize', fitTextInputNow);
 
