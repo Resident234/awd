@@ -2,6 +2,7 @@
 
 /** @var yii\web\View $this */
 /** @var \app\shared\Publications\Dto\PublicationData[] $deleted */
+/** @var string $now */
 
 use app\widgets\PublicationsUi;
 use yii\helpers\Html;
@@ -14,6 +15,10 @@ use yii\helpers\Html;
     </p>
 <?php endif ?>
 <?php foreach ($deleted as $deletedRecord): ?>
+    <?php
+    $wasPublished = $deletedRecord->telegramId !== null
+        || ($deletedRecord->publishedAt !== null && $deletedRecord->publishedAt <= $now);
+    ?>
     <div class="activity-log" data-text="<?= Html::encode($deletedRecord->text) ?>"
          data-source-type="deleted" data-source-id="<?= $deletedRecord->id ?>"
          data-published-at-utc="<?= Html::encode($deletedRecord->publishedAt ?? '') ?>"
@@ -28,9 +33,12 @@ use yii\helpers\Html;
         </div>
         <p class="mb-1" style="white-space: pre-line; word-break: break-word;"><?= Html::encode($deletedRecord->text) ?></p>
         <?= PublicationsUi::stackedImages($deletedRecord->imageUrls) ?>
-        <div class="activity-meta">
-            <i class="bi bi-clock me-1"></i><span class="utc-time" data-utc="<?= Html::encode($deletedRecord->publishedAt ?? '') ?>"></span>
-        </div>
+        <?= PublicationsUi::dateMeta([
+            $wasPublished ? 'Опубликовано' : 'Запланировано' => $deletedRecord->publishedAt,
+            'Создано' => $deletedRecord->createdAt,
+            'Обновлено' => $deletedRecord->updatedAt,
+            'Удалено' => $deletedRecord->deletedAt,
+        ]) ?>
         <span class="badge <?= $deletedRecord->deletedAt === null ? 'bg-danger' : 'bg-dark' ?> mt-2">
             <?= $deletedRecord->deletedAt === null ? 'Удалено' : 'Удалено из канала' ?>
         </span>

@@ -84,6 +84,28 @@ final class PublicationsUi
             . '<i class="bi bi-send me-1"></i>Опубликовать</button>';
     }
 
+    /**
+     * One line per timestamp the record actually carries. Values stay in
+     * UTC and are printed by the client in the viewer's timezone, so a
+     * label is dropped rather than shown with an empty value.
+     *
+     * @param array<string, string|null> $dates label => UTC timestamp
+     */
+    public static function dateMeta(array $dates): string
+    {
+        $lines = '';
+        foreach ($dates as $label => $utc) {
+            if ($utc === null || $utc === '') {
+                continue;
+            }
+
+            $lines .= '<div><i class="bi bi-clock me-1"></i>' . Html::encode($label) . ': '
+                . '<span class="utc-time" data-utc="' . Html::encode($utc) . '"></span></div>';
+        }
+
+        return $lines === '' ? '' : '<div class="activity-meta">' . $lines . '</div>';
+    }
+
     public static function stackedImages(array $imageUrls, int $limit = 4): string
     {
         if ($imageUrls === []) {

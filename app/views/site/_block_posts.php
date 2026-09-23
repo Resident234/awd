@@ -39,9 +39,11 @@ use yii\helpers\Html;
         </div>
         <p class="mb-1" style="white-space: pre-line; word-break: break-word;"><?= Html::encode($post->text) ?></p>
         <?= PublicationsUi::stackedImages($post->imageUrls) ?>
-        <div class="activity-meta">
-            <i class="bi bi-clock me-1"></i><span class="utc-time" data-utc="<?= Html::encode($post->publishedAt ?? '') ?>"></span>
-        </div>
+        <?= PublicationsUi::dateMeta([
+            $isPublished ? 'Опубликовано' : 'Запланировано' => $post->publishedAt,
+            'Создано' => $post->createdAt,
+            'Обновлено' => $post->updatedAt,
+        ]) ?>
         <span class="badge <?= $isPublished ? 'bg-success' : 'bg-info' ?> mt-2">
             <?= $isPublished ? 'Опубликовано' : 'Запланировано' ?>
         </span>

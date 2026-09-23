@@ -27,9 +27,10 @@ use yii\helpers\Html;
         </div>
         <p class="mb-1" style="white-space: pre-line; word-break: break-word;"><?= Html::encode($draft->text) ?></p>
         <?= PublicationsUi::stackedImages($draft->imageUrls) ?>
-        <div class="activity-meta">
-            <i class="bi bi-clock me-1"></i><span class="utc-time" data-utc="<?= Html::encode($draft->createdAt ?? '') ?>"></span>
-        </div>
+        <?= PublicationsUi::dateMeta([
+            'Создано' => $draft->createdAt,
+            'Обновлено' => $draft->updatedAt,
+        ]) ?>
         <span class="badge bg-secondary mt-2">Черновик</span>
         <span class="badge bg-warning text-dark mt-2 d-none editing-badge">Редактируется</span>
     </div>
