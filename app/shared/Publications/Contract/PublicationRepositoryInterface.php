@@ -34,6 +34,26 @@ interface PublicationRepositoryInterface
     public function createPost(string $text, array $imageUrls, string $publishedAt, string $now): int;
 
     /**
+     * Creates the parts of one long publication as separate scheduled
+     * posts in a single transaction: either every part is stored or none
+     * of them is. The parts arrive in channel order, each with its own
+     * publication time. Returns the id of the first part, the record a
+     * forum link is bound to.
+     *
+     * @param array<int, array{text: string, imageUrls: string[], publishedAt: string}> $parts
+     */
+    public function createPosts(array $parts, string $now): int;
+
+    /**
+     * Creates the parts of one long publication as separate drafts in a
+     * single transaction, with the same all-or-nothing guarantee and the
+     * same first part id as createPosts().
+     *
+     * @param array<int, array{text: string, imageUrls: string[]}> $parts
+     */
+    public function createDrafts(array $parts, string $now): int;
+
+    /**
      * @return PublicationData[] posts with an empty telegram_id and a due
      * publication time, ordered from the smallest id to the biggest one
      */

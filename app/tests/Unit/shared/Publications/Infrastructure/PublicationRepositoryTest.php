@@ -9,6 +9,7 @@ use app\shared\Publications\Infrastructure\PublicationRepository;
 use Codeception\Test\Unit;
 use InvalidArgumentException;
 use Yii;
+use yii\db\Exception as DbException;
 
 final class PublicationRepositoryTest extends Unit
 {
@@ -54,6 +55,59 @@ final class PublicationRepositoryTest extends Unit
         $this->assertSame('Текст поста', $posts[0]->text);
         $this->assertSame('2026-09-10 21:30:00', $posts[0]->publishedAt);
         $this->assertNull($posts[0]->telegramId);
+    }
+
+    public function testCreatePostsStoresEveryPartInOrder(): void
+    {
+        $firstId = $this->_repository->createPosts([
+            ['text' => 'Часть 1', 'imageUrls' => ['https://example.com/a.png'], 'publishedAt' => '2026-09-10 21:30:00'],
+            ['text' => 'Часть 2', 'imageUrls' => [], 'publishedAt' => '2026-09-10 21:31:00'],
+            ['text' => 'Часть 3', 'imageUrls' => [], 'publishedAt' => '2026-09-10 21:32:00'],
+        ], '2026-09-10 10:00:00');
+
+        $due = $this->_repository->findDueForPublishing('2026-09-10 21:35:00');
+
+        $this->assertGreaterThan(0, $firstId);
+        $this->assertCount(3, $due);
+        $this->assertSame($firstId, $due[0]->id);
+        $this->assertSame(
+            ['Часть 1', 'Часть 2', 'Часть 3'],
+            array_map(static fn (PublicationData $post): string => $post->text, $due),
+        );
+        $this->assertSame('2026-09-10 21:31:00', $due[1]->publishedAt);
+        $this->assertSame(['https://example.com/a.png'], $due[0]->imageUrls);
+        $this->assertSame([], $due[2]->imageUrls);
+    }
+
+    public function testCreateDraftsStoresEveryPart(): void
+    {
+        $firstId = $this->_repository->createDrafts([
+            ['text' => 'Часть 1', 'imageUrls' => ['https://example.com/a.png']],
+            ['text' => 'Часть 2', 'imageUrls' => []],
+        ], '2026-09-10 10:00:00');
+
+        $drafts = $this->_repository->allDrafts();
+
+        $this->assertGreaterThan(0, $firstId);
+        $this->assertCount(2, $drafts);
+        $this->assertContains('Часть 1', array_column($drafts, 'text'));
+        $this->assertContains('Часть 2', array_column($drafts, 'text'));
+        $this->assertNull($drafts[0]->publishedAt);
+    }
+
+    public function testCreatePostsLeavesNoRowWhenAPartFails(): void
+    {
+        try {
+            $this->_repository->createPosts([
+                ['text' => 'Часть 1', 'imageUrls' => [], 'publishedAt' => '2026-09-10 21:30:00'],
+                ['text' => 'Часть 2', 'imageUrls' => [], 'publishedAt' => 'не дата'],
+            ], '2026-09-10 10:00:00');
+            $this->fail('Вторая часть с неразбираемой датой должна была сорвать вставку.');
+        } catch (DbException $e) {
+            $this->assertStringContainsString('22007', $e->getMessage());
+        }
+
+        $this->assertCount(0, $this->_repository->allPosts());
     }
 
     public function testAllPostsSortedByPublishedAtDescending(): void

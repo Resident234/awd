@@ -11,9 +11,14 @@ declare(strict_types=1);
 /** @var bool $withPostsOnly */
 /** @var string $now */
 
+use app\shared\Telegram\Service\ChannelService;
 use yii\helpers\Html;
 
 $this->title = 'Публикации в канал';
+
+// One message of the channel carries at most this many characters, so a longer
+// text is broken into parts, each in its own field of the form.
+$textLimit = ChannelService::TEXT_MAX_LENGTH;
 
 $this->registerCss(
     <<<CSS
@@ -52,16 +57,22 @@ $this->registerCss(
 #publicationPreview {
     margin-top: 0;
     padding-top: 0;
-    align-self: flex-start;
+    align-self: stretch;
     text-align: left;
     width: 100%;
     flex: 0 0 auto;
-    white-space: pre-wrap;
 }
 
 .telegram-preview-text {
     align-self: flex-start;
     width: 100%;
+}
+
+.publication-preview-part {
+    margin-bottom: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    text-align: left;
 }
 CSS
 );
@@ -143,7 +154,9 @@ CSS
                 <img src="" class="card-img-top img-fluid d-none" alt="Превью" id="previewCardImgEl">
             </div>
             <div class="card-body">
-                <p class="mb-4" id="publicationPreview" data-source="publicationTextInput">Введите текст публикации — он отобразится здесь до отправки в канал TRVL.</p>
+                <div class="d-flex flex-column gap-2 w-100" id="publicationPreview"
+                     data-source="publicationTextInput"
+                     data-placeholder="Введите текст публикации — он отобразится здесь до отправки в канал TRVL."></div>
                 <div class="stacked-images mt-2 d-none" id="publicationPreviewImages"></div>
             </div>
             <div class="card-footer bg-transparent">
@@ -153,7 +166,9 @@ CSS
                         Текст обновляется по мере ввода
                     </small>
                     <span id="previewPublicationAt" class="badge bg-primary-subtle text-primary rounded-pill px-3"></span>
-                    <span class="badge bg-primary-subtle text-primary rounded-pill px-3">4096 символов</span>
+                    <span class="badge bg-primary-subtle text-primary rounded-pill px-3">
+                        до <?= $textLimit ?> символов на часть
+                    </span>
                 </div>
             </div>
         </div>
@@ -178,12 +193,27 @@ CSS
                     <input type="hidden" name="publicationTz" id="publicationTz" value="">
                     
 
-                    <!-- Textarea -->
-                    <div class="mb-3">
-                        <label for="publicationTextInput" class="form-label">Текст публикации</label>
-                        <textarea class="form-control" id="publicationTextInput" name="publicationText"
-                                  maxlength="4096"
-                                  placeholder="Введите текст публикации"></textarea>
+                    <!-- Textarea: cloned into one field per part once a text goes past the limit -->
+                    <div id="publicationTextParts">
+                        <div class="mb-3 publication-text-block">
+                            <div class="d-flex justify-content-between align-items-baseline">
+                                <label for="publicationTextInput" class="form-label mb-0">Текст публикации</label>
+                                <small class="text-muted publication-text-count"></small>
+                            </div>
+                            <textarea class="form-control publication-text-part" id="publicationTextInput"
+                                      name="publicationText[]"
+                                      placeholder="Введите текст публикации"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="publicationNumberParts">
+                        <label class="form-check-label" for="publicationNumberParts">
+                            <i class="bi bi-list-ol me-1"></i>Нумерация частей
+                        </label>
+                        <small class="text-muted d-block">
+                            Дописывает «Часть 1», «Часть 2» … в начало каждого фрагмента разбитой публикации
+                        </small>
                     </div>
 
                     <!-- Attached images -->
@@ -229,7 +259,9 @@ CSS
                         <i class="bi bi-info-circle me-1"></i>
                         Запись сохраняется в БД и будет отправлена в канал TRVL в заданное время
                     </small>
-                    <span class="badge bg-primary-subtle text-primary rounded-pill px-3">4096 символов</span>
+                    <span class="badge bg-primary-subtle text-primary rounded-pill px-3">
+                        до <?= $textLimit ?> символов на часть
+                    </span>
                 </div>
             </div>
         </div>
@@ -348,6 +380,7 @@ $this->registerJs(
     "var __FILTER_SAVE_URL = '{$filterSaveUrl}';
 var __CSRF_PARAM = '{$csrfParam}';
 var __CSRF_TOKEN = '{$csrfToken}';
+var __TEXT_PART_LIMIT = {$textLimit};
 " . <<<'JS'
 var __BLOCK_TARGETS = {
     forum: 'pub-forum-list',
@@ -441,6 +474,22 @@ jQuery(document).ready(function () {
             if (isNaN(d.getTime())) return;
             el.textContent = formatter.format(d);
         });
+    }
+
+    // A list element carries its publication time as a raw UTC timestamp, while
+    // the picker and the server both work with the wall-clock time of the user,
+    // so the value has to change timezone before it reaches the form.
+    function utcToPickerValue(utcStr) {
+        if (!utcStr || typeof moment === 'undefined') {
+            return '';
+        }
+        var utc = moment.utc(utcStr, 'YYYY-MM-DD HH:mm:ss');
+        if (!utc.isValid()) {
+            return '';
+        }
+        var local = utc.tz(getPortalTimezone());
+
+        return local.isValid() ? local.format(pickerFormat) : '';
     }
 
     function showFlash(type, message) {
@@ -549,27 +598,164 @@ jQuery(document).ready(function () {
             if (el) el.addEventListener('change', applyFiltersDirect);
         });
 
+        var partsBox = document.getElementById('publicationTextParts');
         var source = document.getElementById('publicationTextInput');
-        if (!source) {
+        if (!partsBox || !source) {
             return;
         }
-        source.style.minHeight = '60px';
-        source.style.resize = 'none';
-        source.style.overflowY = 'auto';
+        // The first field is the template the extra parts are cloned from. It is
+        // never replaced itself, so `source` stays a valid reference.
+        var partTemplate = partsBox.querySelector('.publication-text-block').cloneNode(true);
+        var numberPartsInput = document.getElementById('publicationNumberParts');
+
+        function textParts() {
+            return Array.prototype.slice.call(partsBox.querySelectorAll('.publication-text-part'));
+        }
+
+        function partValues() {
+            return textParts().map(function (field) {
+                return field.value;
+            });
+        }
+
+        function isNumbered() {
+            return !!(numberPartsInput && numberPartsInput.checked);
+        }
+
+        // The «Часть N» prefix travels inside the message, so it eats into the
+        // length a text is split at. 16 characters cover a three-digit number.
+        function partLimit() {
+            return isNumbered() ? __TEXT_PART_LIMIT - 16 : __TEXT_PART_LIMIT;
+        }
+
+        function stripPartNumber(text) {
+            return text.replace(/^Часть \d+[.:]?\s*(\n|$)/, '');
+        }
+
+        // Break at the last paragraph, then line, then word that still fits;
+        // a text without any of those near the boundary is cut hard.
+        function splitIntoParts(text) {
+            var limit = partLimit();
+            var parts = [];
+            var rest = text;
+
+            while (rest.length > limit) {
+                var cut = rest.lastIndexOf('\n\n', limit);
+                if (cut < Math.floor(limit / 2)) {
+                    cut = rest.lastIndexOf('\n', limit);
+                }
+                if (cut < Math.floor(limit / 2)) {
+                    cut = rest.lastIndexOf(' ', limit);
+                }
+                if (cut < Math.floor(limit / 2)) {
+                    cut = limit;
+                }
+                parts.push(rest.slice(0, cut).replace(/\s+$/, ''));
+                rest = rest.slice(cut).replace(/^\s+/, '');
+            }
+
+            if (rest !== '') {
+                parts.push(rest);
+            }
+
+            return parts.length > 0 ? parts : [''];
+        }
+
+        function applyPartNumbers() {
+            var fields = textParts();
+            if (fields.length < 2) {
+                return;
+            }
+
+            fields.forEach(function (field, index) {
+                var bare = stripPartNumber(field.value);
+                field.value = isNumbered() ? 'Часть ' + (index + 1) + '\n\n' + bare : bare;
+            });
+        }
+
+        function updateCounters() {
+            textParts().forEach(function (field) {
+                var counter = field.closest('.publication-text-block').querySelector('.publication-text-count');
+                if (!counter) {
+                    return;
+                }
+                counter.textContent = field.value.length + ' / ' + __TEXT_PART_LIMIT;
+                counter.className = 'publication-text-count'
+                    + (field.value.length > __TEXT_PART_LIMIT ? ' text-danger' : ' text-muted');
+            });
+        }
+
+        function setTextParts(values) {
+            Array.prototype.slice
+                .call(partsBox.querySelectorAll('.publication-text-block'), 1)
+                .forEach(function (block) {
+                    block.parentNode.removeChild(block);
+                });
+
+            values.forEach(function (value, index) {
+                if (index === 0) {
+                    source.value = value;
+                    return;
+                }
+                var block = partTemplate.cloneNode(true);
+                var field = block.querySelector('.publication-text-part');
+                field.id = 'publicationTextInput' + (index + 1);
+                block.querySelector('label').setAttribute('for', field.id);
+                partsBox.appendChild(block);
+                field.value = value;
+            });
+
+            textParts().forEach(function (field, index) {
+                var label = field.closest('.publication-text-block').querySelector('label');
+                label.textContent = values.length > 1 ? 'Часть ' + (index + 1) : 'Текст публикации';
+            });
+
+            applyPartNumbers();
+            updateCounters();
+            fitTextInputNow();
+            update();
+        }
+
+        // Splitting runs when a text arrives from outside — a forum post, a
+        // record opened for editing — and while the form still holds one field.
+        // Parts the user split by hand are left alone unless one of them no
+        // longer fits a message.
+        function splitIfNeeded() {
+            var values = partValues();
+            var limit = partLimit();
+            var overflowing = values.filter(function (value) {
+                return value.length > limit;
+            });
+
+            if (overflowing.length === 0) {
+                return false;
+            }
+
+            var bare = values.map(function (value) {
+                return stripPartNumber(value);
+            }).join('\n\n');
+
+            setTextParts(splitIntoParts(bare));
+
+            return true;
+        }
+
+        function loadText(text) {
+            setTextParts(splitIntoParts(text));
+        }
 
         function resizePublicationTextInput() {
-            if (!source) return;
             var maxHeight = window.innerHeight * 0.8;
-            source.style.height = 'auto';
-            var sh = source.scrollHeight;
-            var newHeight = Math.max(60, Math.min(sh, maxHeight));
-            source.style.height = newHeight + 'px';
-            // Hide scrollbar when content fits, show when it overflows
-            if (sh > maxHeight) {
-                source.style.overflowY = 'auto';
-            } else {
-                source.style.overflowY = 'hidden';
-            }
+            textParts().forEach(function (field) {
+                field.style.minHeight = '60px';
+                field.style.resize = 'none';
+                field.style.overflowY = 'auto';
+                field.style.height = 'auto';
+                var sh = field.scrollHeight;
+                field.style.height = Math.max(60, Math.min(sh, maxHeight)) + 'px';
+                // Hide scrollbar when content fits, show when it overflows
+                field.style.overflowY = sh > maxHeight ? 'auto' : 'hidden';
+            });
         }
 
         // The fit measures with height:auto, which drops the box to its two
@@ -668,14 +854,48 @@ jQuery(document).ready(function () {
         };
 
         var update = function () {
-            if (preview) {
-                preview.textContent = source.value || source.placeholder;
+            if (!preview) {
+                return;
             }
+
+            var values = partValues().filter(function (value) {
+                return value !== '';
+            });
+            var placeholder = preview.getAttribute('data-placeholder') || '';
+            var texts = values.length > 0 ? values : [placeholder];
+
+            preview.textContent = '';
+            texts.forEach(function (text) {
+                var part = document.createElement('div');
+                part.className = 'event-content bg-light-subtle rounded-3 p-3 flex-grow-1 telegram-preview-text';
+                var body = document.createElement('p');
+                body.className = 'publication-preview-part';
+                body.textContent = text;
+                part.appendChild(body);
+                preview.appendChild(part);
+            });
         };
-        source.addEventListener('input', function () {
+        // One listener for every part field, including the ones cloned later.
+        partsBox.addEventListener('input', function (event) {
+            var field = event.target;
+            if (!field.classList || !field.classList.contains('publication-text-part')) {
+                return;
+            }
+            updateCounters();
             update();
+            if (textParts().length === 1) {
+                splitIfNeeded();
+            }
             fitTextInputAfterTyping();
         });
+        if (numberPartsInput) {
+            numberPartsInput.addEventListener('change', function () {
+                splitIfNeeded();
+                applyPartNumbers();
+                updateCounters();
+                update();
+            });
+        }
         resizePublicationTextInput();
         window.addEventListener('resize', fitTextInputNow);
 
@@ -692,6 +912,7 @@ jQuery(document).ready(function () {
                 });
         }
         update();
+        updateCounters();
         updateImages();
         updatePreviewPublicationAt();
 
@@ -743,9 +964,7 @@ jQuery(document).ready(function () {
             }
             editingLog = log;
             log.querySelector('.editing-badge').classList.remove('d-none');
-            source.value = log.getAttribute('data-text') || '';
-            update();
-            fitTextInputNow();
+            loadText(log.getAttribute('data-text') || '');
             if (imagesInput) {
                 imagesInput.value = log.getAttribute('data-image-urls') || '';
                 updateImages();
@@ -757,7 +976,8 @@ jQuery(document).ready(function () {
                 sourceIdInput.value = log.getAttribute('data-source-id') || '';
             }
             if (publishedAtInput) {
-                var newVal = log.getAttribute('data-published-at') || publishedAtInput.value;
+                var newVal = utcToPickerValue(log.getAttribute('data-published-at-utc'))
+                    || publishedAtInput.value;
                 publishedAtInput.value = newVal;
                 try {
                     var picker = publicationAtJq.data('daterangepicker');
@@ -780,6 +1000,10 @@ jQuery(document).ready(function () {
         var resetForm = document.querySelector('form[action*="publication-create"]');
         if (resetForm) {
             resetForm.addEventListener('submit', function () {
+                // A part the user made too long by hand is broken again right
+                // before the fields are read for the request.
+                splitIfNeeded();
+                applyPartNumbers();
                 if (sourceTypeInput && sourceIdInput && sourceTypeInput.value === 'new') {
                     sourceIdInput.value = '';
                 }
@@ -805,9 +1029,10 @@ jQuery(document).ready(function () {
                 editingLog.querySelector('.editing-badge').classList.add('d-none');
             }
             editingLog = null;
-            source.value = '';
-            update();
-            fitTextInputNow();
+            setTextParts(['']);
+            if (numberPartsInput) {
+                numberPartsInput.checked = false;
+            }
             if (imagesInput) {
                 imagesInput.value = '';
                 updateImages();
@@ -897,9 +1122,7 @@ jQuery(document).ready(function () {
             if (title !== '') {
                 text = title + "\n\n" + text;
             }
-            source.value = text;
-            update();
-            fitTextInputNow();
+            loadText(text);
             if (imagesInput) {
                 imagesInput.value = btn.getAttribute('data-image-urls') || '';
                 updateImages();
@@ -911,23 +1134,6 @@ jQuery(document).ready(function () {
             if (forumTypeInput && forumIdInput) {
                 forumTypeInput.value = btn.getAttribute('data-forum-type') || '';
                 forumIdInput.value = btn.getAttribute('data-forum-id') || '';
-            }
-            if (publishedAtInput) {
-                var defVal = btn.getAttribute('data-published-at');
-                if (defVal) {
-                    publishedAtInput.value = defVal;
-                    try {
-                        var picker = publicationAtJq.data('daterangepicker');
-                        if (picker) {
-                            var m = moment(defVal, pickerFormat);
-                            if (m.isValid()) {
-                                picker.setStartDate(m);
-                                picker.setEndDate(m.clone().add(32, 'hour'));
-                            }
-                        }
-                    } catch (e) {}
-                }
-                updatePreviewPublicationAt();
             }
             if (editingLog && editingLog.isConnected) {
                 editingLog.querySelector('.editing-badge').classList.add('d-none');

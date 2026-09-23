@@ -61,6 +61,8 @@ The publications feature uses four tables to manage the lifecycle of content:
 | `publications_edited` | Edit history of published posts | - `edited_at IS NULL` = Needs update in Telegram<br>- `edited_at IS NOT NULL` = Already updated in Telegram |
 | `publications_deleted` | Soft-delete archive | - `deleted_at IS NULL` = Pending deletion from Telegram<br>- `deleted_at IS NOT NULL` = Already deleted from Telegram |
 
+A publication whose text goes past the 4096-character limit of one Telegram message is stored as several `publications_post` (or `publications_draft`) rows, one per part: the rows are written by a single `createPosts()`/`createDrafts()` call inside a transaction, `published_at` puts each part a minute after the previous one, and there is no group column — the parts are ordinary records, ordered by `id`, and the «Часть N» heading is part of the text itself. See «Разбивка длинного текста на части» in [README.md](README.md).
+
 Publications created from forum elements are additionally tracked in two link tables, one row per forum element:
 
 | Table | Purpose | Status Indicators |
@@ -76,37 +78,44 @@ The forum block filters («С изображениями», «С привяза�
 
 - **`PublicationData` (DTO)** - Represents a publication record with fields:
   - `id` (int): Primary key
-  - `text` (string): Publication content (1-4096 characters)
+  - `text` (string): Publication content (1-4096 characters, one record per part of a long publication)
   - `imageUrls` (string[]): Array of image URLs
-  - `publishedAt` (string): Publication timestamp (YYYY-MM-DD HH:MM:SS format)
+  - `publishedAt` (string|null): Publication timestamp in UTC (`YYYY-MM-DD HH:MM:SS`), null for a draft
   - `createdAt` (string): Creation timestamp
   - `updatedAt` (string): Last update timestamp
   - `telegramId` (int|null): Telegram message ID (null until published)
-  - `forumRef` (ForumPublicationRef|null): Optional forum source reference
+  - `deletedAt` (string|null): Only for `publications_deleted` rows; null while the message still waits for removal from the channel
 
-- **`PublicationRepositoryInterface`** - Abstract repository used by the service to persist publications:
-  - `createDraft(string $text, array $imageUrls, string $now): int` - Creates a draft
-  - `createPost(string $text, array $imageUrls, string $publishedAt, string $now): int` - Creates a scheduled/post
-  - `updateDraft(int $id, string $text, array $imageUrls, string $now): void` - Updates a draft
-  - `updatePost(int $id, string $text, array $imageUrls, string $publishedAt, string $now): void` - Updates a scheduled/post
-  - `delete(int $id): void` - Soft-deletes a publication
-  - `restoreFromDeleted(int $id, string $publishedAt): int` - Restores from deleted to post table
-  - `moveToEdited(int $id): void` - Moves published post to edited archive
+- **`PublicationRepositoryInterface`** - Abstract repository used by the service to persist publications (implemented by `PublicationRepository`, which keeps all the SQL):
+  - `createDraft(string $text, array $imageUrls, string $now): int` - Creates a draft, returns its id
+  - `createPost(string $text, array $imageUrls, string $publishedAt, string $now): int` - Creates a scheduled post, returns its id
+  - `createPosts(array $parts, string $now): int` - Inserts the parts of one long publication as separate posts **in a single transaction** (all rows or none), returns the id of the first part
+  - `createDrafts(array $parts, string $now): int` - Same, for drafts
+  - `updateDraft(int $id, string $text, array $imageUrls, string $now): void` - Updates a draft, `created_at` untouched
+  - `updatePost(int $id, string $text, array $imageUrls, string $publishedAt, string $now): void` - Updates a post, `created_at` untouched
+  - `deletePost(int $id): PublicationData` / `deleteDraft(int $id): PublicationData` / `deleteDeleted(int $id): PublicationData` - Removes a row and returns it as it was before deletion
   - `findPost(int $id): PublicationData|null` - Finds a post by ID
   - `findDraft(int $id): PublicationData|null` - Finds a draft by ID
   - `findDeleted(int $id): PublicationData|null` - Finds a deleted record by ID
-  - `allPosts(): PublicationData[]` - Gets all posts (scheduled and published)
-  - `allDrafts(): PublicationData[]` - Gets all drafts
-  - `allDeleted(): PublicationData[]` - Gets all soft-deleted records
-  - `allEdited(): PublicationData[]` - Gets all edited records
+  - `allPosts(): PublicationData[]` - Gets all posts (scheduled and published), `published_at` descending
+  - `allDrafts(): PublicationData[]` - Gets all drafts, `updated_at` descending
+  - `allDeleted(): PublicationData[]` - Gets all soft-deleted records, `updated_at` descending
+  - `findDueForPublishing(string $now): PublicationData[]` - Posts with an empty `telegram_id` and `published_at <= now`, `id` ascending
+  - `storeTelegramId(int $id, int $telegramId, string $publishedAt, string $now): void` - Stores the channel message id and corrects `published_at` to the send time
+  - `insertPostWithHistory(PublicationData $post, string $now): int` / `insertDraftWithHistory(PublicationData $draft, string $now): int` / `insertDeletedWithHistory(PublicationData $record, string $now): int` - Insert a moved row preserving its original `created_at` (and `published_at` for archived records)
+  - `archiveEdited(PublicationData $post, string $now): void` - Copies a published post into `publications_edited`
+  - `findPendingChannelDeletion(): PublicationData[]` - Soft-deleted records still awaiting removal from the channel
+  - `storeDeletedAt(int $id, string $deletedAt): void` - Stamps the time a record left the channel
+  - `findPendingChannelEdits(): PublicationData[]` - Archived edits still awaiting the channel update
+  - `storeEditedAt(int $id, string $editedAt): void` - Stamps the time a message was replaced in the channel
 
-- **`ForumPublicationRef`** - Optional reference to a forum entity that originated the publication (used for linking publications to forum topics):
-  - `source` (string): Either 'topic' or 'post'
-  - `sourceId` (int): ID of the forum topic or post
+- **`ForumPublicationRef`** - Reference to the forum entity a publication was created from:
+  - `type` (string): Either `'topic'` or `'post'`, `isTopic()` / `isPost()` test it
+  - `id` (int): ID of the forum topic or post
 
 - **`PublicationForumLinkStoreInterface`** - Temporary store that remembers the relation between a newly created draft/post and a forum entity until the publication is finally published:
-  - `store(int $publicationId, ForumPublicationRef $ref): void` - Stores the link
-  - `recall(int $publicationId): ForumPublicationRef|null` - Recalls the link
+  - `remember(int $publicationId, ForumPublicationRef $ref): void` - Stores the link
+  - `find(int $publicationId): ForumPublicationRef|null` - Recalls the link
   - `move(int $fromPublicationId, int $toPublicationId): void` - Moves link between publication IDs
   - `forget(int $publicationId): void` - Removes the link
 
@@ -128,25 +137,25 @@ The service lives in `app/shared/Publications/Service/PublicationsService.php` a
 | `posts(): array` | Returns all *published* posts (including scheduled ones that are already due) ordered by `published_at` descending. |
 | `drafts(): array` | Returns all drafts ordered by `updated_at` descending. |
 | `deleted(): array` | Returns all soft-deleted records ordered by `updated_at` descending. |
-| `edited(): array` | Returns all edited publication records ordered by `updated_at` descending. |
 | `saveDraft(string $text, array $imageUrls, ?ForumPublicationRef $forumRef = null): void` | Validates text length (1 and 4096 chars) and stores the record as a **draft**. If a forum reference is supplied, a temporary link is stored. |
-| `schedulePost(string $text, array $imageUrls, string $publishedAt, ?ForumPublicationRef $forumRef = null): void` | Validates text, normalises the supplied date (several common formats are supported), creates a **scheduled** post (`published_at` set) and stores an optional forum link. |
-| `updateDraft(int $id, string $text, array $imageUrls, ?ForumPublicationRef $forumRef = null): void` | Updates an existing draft with new content and/or images. If a forum reference is supplied, updates the temporary link. |
-| `updatePost(int $id, string $text, array $imageUrls, string $publishedAt, ?ForumPublicationRef $forumRef = null): void` | Updates an existing scheduled/post with new content, images, and/or publication time. If a forum reference is supplied, updates the temporary link. Moving to future/past schedules the post appropriately. |
+| `schedulePost(string $text, array $imageUrls, string $publishedAt, ?ForumPublicationRef $forumRef = null, ?string $userTimezone = null): void` | Validates text, normalises the supplied date (several common formats are supported), creates a **scheduled** post (`published_at` set) and stores an optional forum link. |
+| `saveParts(array $texts, array $imageUrls, string $publishedAt, string $action, ?ForumPublicationRef $forumRef = null, ?string $userTimezone = null): void` | Entry point of the publication form for a **new** record, which sends one text field per part of a long publication. Every part goes through the text validation before anything is written. A single field is saved exactly as `saveDraft()`/`schedulePost()` would. Several fields become one record each through a single repository call (`createPosts()`/`createDrafts()`), so a failure halfway leaves none of the parts behind; `$action` (`'draft'` or `'publish'`) picks the table, the images and the forum link belong to the first record only, and its `published_at` is the form date with each following part one minute later, so `publishDue()` drains the parts in order. |
+| `saveFromForm(string $text, array $imageUrls, string $publishedAt, string $source, ?int $sourceId, string $action, ?string $userTimezone = null): void` | The eight scenarios of the form when it holds a record opened for editing (`$source` is `post`, `draft` or `deleted`, `$action` is `'draft'` or `'publish'`): update in place, or move between the posts, drafts, edited and deleted tables. `created_at` is always preserved, `updated_at` is the moment of the change, nothing is sent to Telegram from the form. See «Сценарии сохранения» in [README.md](README.md). |
 | `publishDue(): array` | Finds all scheduled posts whose `published_at` is in the past and whose `telegram_id` is empty, sends them to Telegram via `ChannelService`, stores the returned `telegram_id`, and marks the publication as **published**. Returns a stats array `{processed, published, failed}`. |
 | `deleteDue(): array` | Processes rows in `publications_deleted` with an empty `deleted_at`, removes the message from Telegram by `telegram_id` (if present), then sets `deleted_at` to current time. Returns a stats array `{processed, deleted, failed}`. Records without `telegram_id` are marked as deleted immediately (no message existed in Telegram). |
 | `editDue(): array` | Processes rows in `publications_edited` with an empty `edited_at`, updates the Telegram message text by `telegram_id`, then sets `edited_at` to current time. Returns a stats array `{processed, edited, failed}`. |
+| `publishDraft(int $id): void` | The «Опубликовать» button on a draft: the record moves to the posts table with `published_at` and `updated_at` set to the current time, so the periodic `publishDue()` task sends it to Telegram at once. `created_at` is preserved. |
+| `scheduleDraft(int $id, string $publishedAt, ?string $userTimezone = null): void` | The «Запланировать публикацию» modal: the draft moves to the posts table with the publication time from the modal. `created_at` is preserved, `updated_at` is the current time. |
+| `publishPostNow(int $id): void` | The «Опубликовать» button on a scheduled post: the post stops being scheduled — `published_at` and `updated_at` become the current time, `created_at` is untouched. |
+| `movePostToDraft(int $id): void` | The «Переместить в черновик» button: the post row is deleted from the posts table and inserted into the drafts table; `created_at` is preserved, `updated_at` is the moment of the move. |
 | `publishDeleted(int $id): void` | Restores a soft-deleted publication to the posts table with current timestamp as `published_at`, clears `telegram_id` (new message will be sent), and removes the deleted record. Used for republishing deleted content. |
-| `scheduleDeleted(int $id, string $publishedAt): void` | Restores a soft-deleted publication to the posts table with specified `publishedAt`, clears `telegram_id`, and removes the deleted record. Used for rescheduling deleted content. |
+| `scheduleDeleted(int $id, string $publishedAt, ?string $userTimezone = null): void` | Restores a soft-deleted publication to the posts table with the specified `publishedAt`, clears `telegram_id`, and removes the deleted record. Used for rescheduling deleted content. |
 | `moveDeletedToDraft(int $id): void` | Moves a soft-deleted publication to the drafts table, clearing `telegram_id` and setting `updated_at` to current time. Used for recovering deleted content as a draft. |
-| `deleteDraft(int $id): void` | Permanently removes a draft from the system. |
+| `deleteDraft(int $id): void` | Moves a draft into `publications_deleted` so the pending removal is dropped and the record stays restorable. |
 | `deletePost(int $id): void` | Soft-deletes a published/scheduled post by moving it to `publications_deleted` table, preserving `created_at` and `published_at`, setting `updated_at` to current time, and clearing `telegram_id` (the periodic task will handle Telegram deletion). |
-| `getPost(int $id): PublicationData|null` | Retrieves a specific publication by ID from the posts table. |
-| `getDraft(int $id): PublicationData|null` | Retrieves a specific draft by ID from the drafts table. |
-| `getDeleted(int $id): PublicationData|null` | Retrieves a specific soft-deleted record by ID from the deleted table. |
 
 ### Validation Rules
-- Text content must be between 1 and 4096 characters (inclusive)
+- Text content must be between 1 and 4096 characters (inclusive). The limit is per record, and a long publication is split into parts by the form before saving, so each stored part stays inside it (see `saveParts()` and «Разбивка длинного текста на части» in [README.md](README.md))
 - Image URLs array can be empty but must contain valid URLs when provided
 - Dates must be parseable by multiple common formats (see `normalizeDate()` method)
 - Forum references are optional but when provided must contain valid source ('topic' or 'post') and positive sourceId
@@ -155,11 +164,6 @@ The service lives in `app/shared/Publications/Service/PublicationsService.php` a
 - `InvalidArgumentException` is thrown for validation failures (text length, date format, missing IDs, etc.)
 - `TelegramApiException` is thrown when Telegram API calls fail (network issues, invalid bot token, rate limiting, etc.)
 - `RuntimeException` is thrown when Telegram bot is not configured (missing TELEGRAM_BOT_TOKEN)
-
----pty `deleted_at`. If `telegram_id` is present the message is deleted from the Telegram channel. The row is then timestamp-ed with `deleted_at`. Returns stats. |
-| `editDue(): array` | Processes rows in `publications_edited` with an empty `edited_at`. The stored text is used to edit the corresponding Telegram message via `ChannelService`. The row is then timestamp-ed with `edited_at`. Returns stats. |
-
-All methods throw `InvalidArgumentException` for validation errors and `RuntimeException` when the Telegram bot is not configured.
 
 ---
 
@@ -180,6 +184,8 @@ Located at `app/shared/Telegram/Service/ChannelService.php`. The service is a th
 | `editPostText(int $messageId, string $text): void` | Edits the text of an existing message (same validation as `publishText`). |
 
 All methods may throw `TelegramApiException` (API failure) and `RuntimeException` when the bot token is missing.
+
+The limits are constants of the class: `DESCRIPTION_MAX_LENGTH` (255) and `CAPTION_MAX_LENGTH` (1024) are private, while `TEXT_MAX_LENGTH` (4096) is public because the publications form reads it to decide where a long text has to be split into parts.
 
 ---
 
@@ -229,15 +235,20 @@ If the token is missing the service will throw a `RuntimeException` and all Tele
 
 The **SiteController** (`app/controllers/SiteController.php`) provides a UI for managing the channel description and for viewing the connection status. The dashboard (`views/site/index.php`) shows whether the channel is reachable.
 
-The publication forms (not shown here) call `PublicationsService::saveDraft` or `schedulePost` via the controller actions under the `publications` route. After a scheduled post becomes due the background `publish-due` command sends it to Telegram.
+The publications page (`/publications`) and its form posts to `publication-create`, which calls `PublicationsService::saveParts` for a new record and `saveFromForm` for a record opened for editing; the per-record buttons call `publishDraft`/`publishPostNow`, `movePostToDraft` and `deletePost`/`deleteDraft` through `publication-publish`, `publication-to-draft` and `publication-delete`. Addresses are flat: `UrlManager` maps each of these routes onto its own path without `index.php?r=` (see «Адреса страниц» in [README.md](README.md)). After a scheduled post becomes due the background `publish-due` command sends it to Telegram.
 
 ---
 
 ## Testing
 
-- Unit tests for `PublicationsService` verify that drafts are saved, scheduling works, validation errors are thrown, and that the due-publishing flow correctly invokes `ChannelService` (mocked).
-- Integration tests for `ChannelService` mock the low-level Telegram client to ensure proper validation and error handling.
-- Console commands are covered by functional tests that assert the correct exit codes and output.
+Codeception suites live in `app/tests`; the installed PHPUnit requires PHP >= 8.4, and `Unit`, `Functional` and `Acceptance` run against the test configuration in `app/config/test.php`, which binds `PublicationRepositoryInterface` to the real repository, so repository tests talk to a PostgreSQL test database.
+
+- `Unit/shared/Publications/Infrastructure/PublicationRepositoryTest` — rows written by `createDraft`/`createPost`, the sort order of the three lists, what `findDueForPublishing` selects, and moving records back out of `publications_deleted`
+- `Unit/shared/Publications/Infrastructure/CachePublicationForumLinkStoreTest` — remember/find/move/forget of the temporary forum link
+- `Unit/shared/Telegram/Service/ChannelServicePublishPhotosTest` — album grouping, caption truncation and the continuation message, with the low-level Telegram client mocked
+- `Unit/shared/Telegram/Infrastructure/PublishedDescriptionRepositoryTest` — channel description persistence
+
+The service use-cases themselves (`saveParts`, `saveFromForm`, the periodic tasks) have no automated test coverage, and no test exercises the publications page in a browser.
 
 ---
 

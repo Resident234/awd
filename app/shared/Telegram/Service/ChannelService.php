@@ -23,7 +23,7 @@ use RuntimeException;
 final class ChannelService
 {
     private const DESCRIPTION_MAX_LENGTH = 255;
-    private const TEXT_MAX_LENGTH = 4096;
+    public const TEXT_MAX_LENGTH = 4096;
     private const CAPTION_MAX_LENGTH = 1024;
 
     public function __construct(

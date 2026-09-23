@@ -394,7 +394,7 @@ class SiteController extends Controller
         // Browsers put CRLF into the wire form of a textarea, so the same text
         // would gain invisible chars on every save; Telegram and the block
         // rendering both count line breaks as a single "\n".
-        $text = str_replace(["\r\n", "\r"], "\n", (string)($this->request->post('publicationText', '')));
+        $texts = $this->publicationTextsFromRequest();
         $publishedAt = (string)($this->request->post('publicationAt', ''));
         $userTz = (string)($this->request->post('publicationTz', ''));
         $action = $this->request->post('action') === 'draft' ? 'draft' : 'publish';
@@ -407,15 +407,18 @@ class SiteController extends Controller
         $ok = false;
         try {
             if ($source === 'new') {
-                if ($action === 'draft') {
-                    $this->publications->saveDraft($text, $imageUrls, $forumRef);
-                    Yii::$app->session->setFlash('success', 'Черновик сохранён.');
-                } else {
-                    $this->publications->schedulePost($text, $imageUrls, $publishedAt, $forumRef, $userTz ?: null);
-                    Yii::$app->session->setFlash('success', 'Публикация сохранена и будет отправлена в канал в заданное время.');
-                }
+                $this->publications->saveParts($texts, $imageUrls, $publishedAt, $action, $forumRef, $userTz ?: null);
+                Yii::$app->session->setFlash('success', $action === 'draft'
+                    ? 'Черновик сохранён.'
+                    : 'Публикация сохранена и будет отправлена в канал в заданное время.');
             } else {
-                $this->publications->saveFromForm($text, $imageUrls, $publishedAt, $source, $sourceId, $action, $userTz ?: null);
+                if (count($texts) > 1) {
+                    throw new InvalidArgumentException(
+                        'Разбитую на части публикацию можно сохранить только как новую запись.',
+                    );
+                }
+
+                $this->publications->saveFromForm($texts[0], $imageUrls, $publishedAt, $source, $sourceId, $action, $userTz ?: null);
                 Yii::$app->session->setFlash('success', 'Изменения сохранены.');
             }
             $ok = true;
@@ -424,6 +427,28 @@ class SiteController extends Controller
         }
 
         return $this->finishPublicationsRequest($ok);
+    }
+
+    /**
+     * The text of the publication form as a list of parts. The form clones its
+     * textarea once a text goes past the Telegram limit, so a submission
+     * carries either one value or one value per part.
+     *
+     * @return string[]
+     */
+    private function publicationTextsFromRequest(): array
+    {
+        $raw = $this->request->post('publicationText', '');
+        $fields = is_array($raw) ? array_values($raw) : [$raw];
+
+        if ($fields === []) {
+            $fields = [''];
+        }
+
+        return array_map(
+            static fn ($text): string => str_replace(["\r\n", "\r"], "\n", (string)$text),
+            $fields,
+        );
     }
 
     /**

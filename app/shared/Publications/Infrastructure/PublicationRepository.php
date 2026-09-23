@@ -57,6 +57,22 @@ final class PublicationRepository implements PublicationRepositoryInterface
         ]);
     }
 
+    /**
+     * @param array<int, array{text: string, imageUrls: string[], publishedAt: string}> $parts
+     */
+    public function createPosts(array $parts, string $now): int
+    {
+        return $this->insertParts('{{%publications_post}}', $parts, $now, true);
+    }
+
+    /**
+     * @param array<int, array{text: string, imageUrls: string[]}> $parts
+     */
+    public function createDrafts(array $parts, string $now): int
+    {
+        return $this->insertParts('{{%publications_draft}}', $parts, $now, false);
+    }
+
     public function findDueForPublishing(string $now): array
     {
         return $this->hydrateAll(
@@ -270,6 +286,43 @@ final class PublicationRepository implements PublicationRepositoryInterface
             ->createCommand()
             ->update('{{%publications_edited}}', ['edited_at' => $editedAt], ['id' => $id])
             ->execute();
+    }
+
+    /**
+     * Stores the parts of one publication as separate rows inside a
+     * transaction, so a failure halfway through the list gives back an
+     * empty table rather than a publication cut in pieces.
+     *
+     * @param array<int, array{text: string, imageUrls: string[], publishedAt?: string}> $parts
+     */
+    private function insertParts(string $table, array $parts, string $now, bool $scheduled): int
+    {
+        $ids = [];
+        $transaction = $this->db->beginTransaction();
+        try {
+            foreach ($parts as $part) {
+                $columns = [
+                    'text' => $part['text'],
+                    'image_urls' => $part['imageUrls'],
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+
+                if ($scheduled) {
+                    $columns['published_at'] = $part['publishedAt'];
+                }
+
+                $ids[] = $this->insertReturningId($table, $columns);
+            }
+
+            $transaction->commit();
+        } catch (\Throwable $e) {
+            $transaction->rollBack();
+
+            throw $e;
+        }
+
+        return $ids[0];
     }
 
     /**

@@ -99,6 +99,73 @@ final class PublicationsService
     }
 
     /**
+     * Saves the text fields of the publication form, which clones its input
+     * when a text goes past the Telegram limit. A single field is saved
+     * exactly as before; several parts become one record each, a minute
+     * after the previous part, so the periodic task drains them in order.
+     * Those records are written by one repository call, so a failure leaves
+     * neither a half publication nor a part that never reaches the channel.
+     * The images and the forum link belong to the first part only, which is
+     * the message the channel thread continues from.
+     *
+     * @param string[] $texts
+     * @param string[] $imageUrls
+     * @throws InvalidArgumentException when a part is empty or longer than the
+     * Telegram limit, or when the date is invalid
+     */
+    public function saveParts(
+        array $texts,
+        array $imageUrls,
+        string $publishedAt,
+        string $action,
+        ?ForumPublicationRef $forumRef = null,
+        ?string $userTimezone = null,
+    ): void {
+        $parts = array_map(static fn (string $text): string => trim($text), array_values($texts));
+
+        foreach ($parts as $text) {
+            $this->assertTextValid($text);
+        }
+
+        if (count($parts) === 1) {
+            if ($action === 'draft') {
+                $this->saveDraft($parts[0], $imageUrls, $forumRef);
+
+                return;
+            }
+
+            $this->schedulePost($parts[0], $imageUrls, $publishedAt, $forumRef, $userTimezone);
+
+            return;
+        }
+
+        $now = $this->now();
+
+        if ($action === 'draft') {
+            $rows = [];
+            foreach ($parts as $index => $text) {
+                $rows[] = ['text' => $text, 'imageUrls' => $index === 0 ? $imageUrls : []];
+            }
+
+            $this->bindForumRef($this->publications->createDrafts($rows, $now), $forumRef);
+
+            return;
+        }
+
+        $firstAt = $this->normalizeDate($publishedAt, $userTimezone);
+        $rows = [];
+        foreach ($parts as $index => $text) {
+            $rows[] = [
+                'text' => $text,
+                'imageUrls' => $index === 0 ? $imageUrls : [],
+                'publishedAt' => $this->shiftDate($firstAt, $index),
+            ];
+        }
+
+        $this->bindForumRef($this->publications->createPosts($rows, $now), $forumRef);
+    }
+
+    /**
      * Sends all due posts (empty telegram_id, published_at <= now)
      * to the channel, from the smallest id to the biggest one.
      *
@@ -881,6 +948,18 @@ final class PublicationsService
         throw new InvalidArgumentException(
             sprintf('Некорректная дата и время публикации: "%s".', $publishedAt),
         );
+    }
+
+    /**
+     * Offsets an already normalized UTC timestamp, which is how the parts of
+     * one publication are spread a minute apart. normalizeDate() cannot do
+     * this: it reads a bare timestamp as local time.
+     */
+    private function shiftDate(string $publishedAtUtc, int $minutes): string
+    {
+        $date = new DateTimeImmutable($publishedAtUtc, new DateTimeZone('UTC'));
+
+        return $date->modify($minutes . ' minutes')->format('Y-m-d H:i:s');
     }
 
     private function detectUserTimezone(): string
