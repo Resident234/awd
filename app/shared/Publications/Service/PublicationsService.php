@@ -40,29 +40,63 @@ final class PublicationsService
     }
 
     /**
-     * @return PublicationData[] scheduled and published posts,
-     * sorted by published_at descending
+     * Scheduled and published posts, sorted by published_at descending.
+     * A zero limit reads every row.
+     *
+     * @return PublicationData[]
      */
-    public function posts(): array
+    public function posts(int $limit = 0, int $offset = 0): array
     {
-        return $this->publications->allPosts();
+        return $this->publications->allPosts($limit, $offset);
     }
 
     /**
-     * @return PublicationData[] drafts, sorted by updated_at descending
+     * Drafts, sorted by updated_at descending. A zero limit reads every row.
+     *
+     * @return PublicationData[]
      */
-    public function drafts(): array
+    public function drafts(int $limit = 0, int $offset = 0): array
     {
-        return $this->publications->allDrafts();
+        return $this->publications->allDrafts($limit, $offset);
     }
 
     /**
-     * @return PublicationData[] soft-deleted records, sorted by
-     * updated_at descending
+     * Soft-deleted records, sorted by updated_at descending. A zero limit
+     * reads every row.
+     *
+     * @return PublicationData[]
      */
-    public function deleted(): array
+    public function deleted(int $limit = 0, int $offset = 0): array
     {
-        return $this->publications->allDeleted();
+        return $this->publications->allDeleted($limit, $offset);
+    }
+
+    /**
+     * @return array{posts: int, drafts: int, deleted: int} how many rows each
+     * of the three lists holds, paged or not
+     */
+    public function listTotals(): array
+    {
+        return [
+            'posts' => $this->countPosts(),
+            'drafts' => $this->countDrafts(),
+            'deleted' => $this->countDeleted(),
+        ];
+    }
+
+    public function countPosts(): int
+    {
+        return $this->publications->countPosts();
+    }
+
+    public function countDrafts(): int
+    {
+        return $this->publications->countDrafts();
+    }
+
+    public function countDeleted(): int
+    {
+        return $this->publications->countDeleted();
     }
 
     /**

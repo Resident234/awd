@@ -97,9 +97,10 @@ The forum block filters («С изображениями», «С привяза�
   - `findPost(int $id): PublicationData|null` - Finds a post by ID
   - `findDraft(int $id): PublicationData|null` - Finds a draft by ID
   - `findDeleted(int $id): PublicationData|null` - Finds a deleted record by ID
-  - `allPosts(): PublicationData[]` - Gets all posts (scheduled and published), `published_at` descending
-  - `allDrafts(): PublicationData[]` - Gets all drafts, `updated_at` descending
-  - `allDeleted(): PublicationData[]` - Gets all soft-deleted records, `updated_at` descending
+  - `allPosts(int $limit = 0, int $offset = 0): PublicationData[]` - Gets posts (scheduled and published), `published_at` descending; `$limit` takes that many rows starting at `$offset`, `0` means the whole list
+  - `allDrafts(int $limit = 0, int $offset = 0): PublicationData[]` - Gets drafts, `updated_at` descending, paged the same way
+  - `allDeleted(int $limit = 0, int $offset = 0): PublicationData[]` - Gets soft-deleted records, `updated_at` descending, paged the same way
+  - `countPosts(): int` / `countDrafts(): int` / `countDeleted(): int` - How many rows each list holds without paging, so a paged reader knows when it has reached the end
   - `findDueForPublishing(string $now): PublicationData[]` - Posts with an empty `telegram_id` and `published_at <= now`, `id` ascending
   - `storeTelegramId(int $id, int $telegramId, string $publishedAt, string $now): void` - Stores the channel message id and corrects `published_at` to the send time
   - `insertPostWithHistory(PublicationData $post, string $now): int` / `insertDraftWithHistory(PublicationData $draft, string $now): int` / `insertDeletedWithHistory(PublicationData $record, string $now): int` - Insert a moved row preserving its original `created_at` (and `published_at` for archived records)
@@ -134,9 +135,10 @@ The service lives in `app/shared/Publications/Service/PublicationsService.php` a
 
 | Method | Description |
 |--------|-------------|
-| `posts(): array` | Returns all *published* posts (including scheduled ones that are already due) ordered by `published_at` descending. |
-| `drafts(): array` | Returns all drafts ordered by `updated_at` descending. |
-| `deleted(): array` | Returns all soft-deleted records ordered by `updated_at` descending. |
+| `posts(int $limit = 0, int $offset = 0): array` | Returns *published* posts (including scheduled ones that are already due) ordered by `published_at` descending. `$limit`/`$offset` read the list a page at a time; `0` returns all of it. |
+| `drafts(int $limit = 0, int $offset = 0): array` | Returns drafts ordered by `updated_at` descending, paged the same way. |
+| `deleted(int $limit = 0, int $offset = 0): array` | Returns soft-deleted records ordered by `updated_at` descending, paged the same way. |
+| `listTotals(): array` | `{posts, drafts, deleted}` — how many rows each of the three lists holds, so the browser knows how much further a block can scroll. |
 | `saveDraft(string $text, array $imageUrls, ?ForumPublicationRef $forumRef = null): void` | Validates text length (1 and 4096 chars) and stores the record as a **draft**. If a forum reference is supplied, a temporary link is stored. |
 | `schedulePost(string $text, array $imageUrls, string $publishedAt, ?ForumPublicationRef $forumRef = null, ?string $userTimezone = null): void` | Validates text, normalises the supplied date (several common formats are supported), creates a **scheduled** post (`published_at` set) and stores an optional forum link. |
 | `saveParts(array $texts, array $imageUrls, string $publishedAt, string $action, ?ForumPublicationRef $forumRef = null, ?string $userTimezone = null, bool $distributeImages = false): void` | Entry point of the publication form for a **new** record, which sends one text field per part of a long publication. Every part goes through the text validation before anything is written. A single field is saved exactly as `saveDraft()`/`schedulePost()` would. Several fields become one record each through a single repository call (`createPosts()`/`createDrafts()`), so a failure halfway leaves none of the parts behind; `$action` (`'draft'` or `'publish'`) picks the table, the forum link belongs to the first record, and its `published_at` is the form date with each following part one minute later, so `publishDue()` drains the parts in order. The images go to the first record too, unless `$distributeImages` asks `groupImages()` to hand every part its own contiguous slice of the list. |
@@ -235,7 +237,7 @@ If the token is missing the service will throw a `RuntimeException` and all Tele
 
 The **SiteController** (`app/controllers/SiteController.php`) provides a UI for managing the channel description and for viewing the connection status. The dashboard (`views/site/index.php`) shows whether the channel is reachable.
 
-The publications page (`/publications`) and its form posts to `publication-create`, which calls `PublicationsService::saveParts` for a new record and `saveFromForm` for a record opened for editing; the per-record buttons call `publishDraft`/`publishPostNow`, `movePostToDraft` and `deletePost`/`deleteDraft` through `publication-publish`, `publication-to-draft` and `publication-delete`. Addresses are flat: `UrlManager` maps each of these routes onto its own path without `index.php?r=` (see «Адреса страниц» in [README.md](README.md)). After a scheduled post becomes due the background `publish-due` command sends it to Telegram.
+The publications page (`/publications`) and its form posts to `publication-create`, which calls `PublicationsService::saveParts` for a new record and `saveFromForm` for a record opened for editing; the per-record buttons call `publishDraft`/`publishPostNow`, `movePostToDraft` and `deletePost`/`deleteDraft` through `publication-publish`, `publication-to-draft` and `publication-delete`. The three record lists start at one page of `PUBLICATIONS_PAGE_SIZE` rows and ask `publication-page` (`posts()`/`drafts()`/`deleted()` with a page and an offset, rendered through the `_item_*` partials) for the next page whenever a block is scrolled to its bottom — see «Бесконечная прогрузка списков» in [README.md](README.md). Addresses are flat: `UrlManager` maps each of these routes onto its own path without `index.php?r=` (see «Адреса страниц» in [README.md](README.md)). After a scheduled post becomes due the background `publish-due` command sends it to Telegram.
 
 ---
 

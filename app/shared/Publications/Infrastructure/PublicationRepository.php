@@ -20,20 +20,34 @@ final class PublicationRepository implements PublicationRepositoryInterface
     {
     }
 
-    public function allPosts(): array
+    public function allPosts(int $limit = 0, int $offset = 0): array
     {
-        return $this->hydrateAll(
+        return $this->page(
             'SELECT id, text, image_urls, telegram_id, published_at, created_at, updated_at'
             . ' FROM {{%publications_post}} ORDER BY published_at DESC, id DESC',
+            $limit,
+            $offset,
         );
     }
 
-    public function allDrafts(): array
+    public function allDrafts(int $limit = 0, int $offset = 0): array
     {
-        return $this->hydrateAll(
+        return $this->page(
             'SELECT id, text, image_urls, NULL AS telegram_id, NULL AS published_at, created_at, updated_at'
             . ' FROM {{%publications_draft}} ORDER BY updated_at DESC, id DESC',
+            $limit,
+            $offset,
         );
+    }
+
+    public function countPosts(): int
+    {
+        return $this->countOf('{{%publications_post}}');
+    }
+
+    public function countDrafts(): int
+    {
+        return $this->countOf('{{%publications_draft}}');
     }
 
     public function createDraft(string $text, array $imageUrls, string $now): int
@@ -207,12 +221,19 @@ final class PublicationRepository implements PublicationRepositoryInterface
             ->execute();
     }
 
-    public function allDeleted(): array
+    public function allDeleted(int $limit = 0, int $offset = 0): array
     {
-        return $this->hydrateAll(
+        return $this->page(
             'SELECT id, text, image_urls, telegram_id, published_at, created_at, updated_at, deleted_at'
             . ' FROM {{%publications_deleted}} ORDER BY updated_at DESC, id DESC',
+            $limit,
+            $offset,
         );
+    }
+
+    public function countDeleted(): int
+    {
+        return $this->countOf('{{%publications_deleted}}');
     }
 
     public function findDeleted(int $id): ?PublicationData
@@ -377,7 +398,7 @@ final class PublicationRepository implements PublicationRepositoryInterface
     }
 
     /**
-     * @param array<string, string> $params
+     * @param array<string, int|string> $params
      * @return PublicationData[]
      */
     private function hydrateAll(string $sql, array $params = []): array
@@ -402,6 +423,33 @@ final class PublicationRepository implements PublicationRepositoryInterface
             ),
             $rows,
         );
+    }
+
+    /**
+     * One page of an ordered list. Every list read through here ends its
+     * ORDER BY in the row id, so pages neither overlap nor skip a row while
+     * the table holds still; a zero limit reads the whole table, which is
+     * what the periodic tasks do.
+     *
+     * @return PublicationData[]
+     */
+    private function page(string $sql, int $limit, int $offset): array
+    {
+        if ($limit <= 0) {
+            return $this->hydrateAll($sql);
+        }
+
+        return $this->hydrateAll(
+            $sql . ' LIMIT :limit OFFSET :offset',
+            [':limit' => $limit, ':offset' => max(0, $offset)],
+        );
+    }
+
+    private function countOf(string $table): int
+    {
+        return (int)$this->db
+            ->createCommand('SELECT COUNT(*) FROM ' . $table)
+            ->queryScalar();
     }
 
     /**

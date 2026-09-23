@@ -12,15 +12,31 @@ use app\shared\Publications\Dto\PublicationData;
 interface PublicationRepositoryInterface
 {
     /**
-     * @return PublicationData[] scheduled and published posts,
-     * sorted by published_at descending
+     * Scheduled and published posts, sorted by published_at descending.
+     * A zero limit reads the whole table.
+     *
+     * @return PublicationData[]
      */
-    public function allPosts(): array;
+    public function allPosts(int $limit = 0, int $offset = 0): array;
 
     /**
-     * @return PublicationData[] drafts, sorted by updated_at descending
+     * Drafts, sorted by updated_at descending. A zero limit reads the
+     * whole table.
+     *
+     * @return PublicationData[]
      */
-    public function allDrafts(): array;
+    public function allDrafts(int $limit = 0, int $offset = 0): array;
+
+    /**
+     * How many posts the unpaged list holds, so a paged reader knows
+     * when it has reached the end.
+     */
+    public function countPosts(): int;
+
+    /**
+     * How many drafts the unpaged list holds.
+     */
+    public function countDrafts(): int;
 
     /**
      * Creates a draft from the form data. Returns the new row id.
@@ -117,10 +133,17 @@ interface PublicationRepositoryInterface
     public function archiveEdited(PublicationData $post, string $now): void;
 
     /**
-     * @return PublicationData[] soft-deleted records, sorted by
-     * updated_at descending
+     * Soft-deleted records, sorted by updated_at descending. A zero limit
+     * reads the whole table.
+     *
+     * @return PublicationData[]
      */
-    public function allDeleted(): array;
+    public function allDeleted(int $limit = 0, int $offset = 0): array;
+
+    /**
+     * How many soft-deleted records the unpaged list holds.
+     */
+    public function countDeleted(): int;
 
     /**
      * Finds a soft-deleted record by id.

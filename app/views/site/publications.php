@@ -9,6 +9,8 @@ declare(strict_types=1);
 /** @var array<int, array{topic: \app\shared\Forum\Dto\TopicData, posts: \app\shared\Forum\Dto\PostData[]}> $topics */
 /** @var bool $withImagesOnly */
 /** @var bool $withPostsOnly */
+/** @var array{posts: int, drafts: int, deleted: int} $totals */
+/** @var int $pageSize */
 /** @var string $now */
 
 use app\shared\Telegram\Service\ChannelService;
@@ -381,7 +383,7 @@ CSS
                 <div class="scroll350">
 
                     <!-- Timeline start -->
-                    <div class="m-0" id="pub-deleted-list"><?= $this->render('_block_deleted', ['deleted' => $deleted]) ?></div>
+                    <div class="m-0" id="pub-deleted-list"><?= $this->render('_block_deleted', ['deleted' => $deleted, 'now' => $now]) ?></div>
                     <!-- Timeline end -->
 
                 </div>
@@ -440,8 +442,13 @@ CSS
 $csrfParam = Yii::$app->request->csrfParam;
 $csrfToken = Yii::$app->request->csrfToken;
 $filterSaveUrl = \yii\helpers\Url::to(['site/forum-filter-save']);
+$pageUrl = \yii\helpers\Url::to(['site/publication-page']);
+$blockTotals = json_encode($totals);
 $this->registerJs(
     "var __FILTER_SAVE_URL = '{$filterSaveUrl}';
+var __PAGE_URL = '{$pageUrl}';
+var __PAGE_SIZE = {$pageSize};
+var __BLOCK_TOTALS = {$blockTotals};
 var __CSRF_PARAM = '{$csrfParam}';
 var __CSRF_TOKEN = '{$csrfToken}';
 var __TEXT_PART_LIMIT = {$textLimit};
@@ -587,6 +594,7 @@ jQuery(document).ready(function () {
             }
             target.innerHTML = blocks[name];
             renderUtcTimes(target);
+            resetPaging(name, payload.totals);
         });
         if (typeof payload.flash === 'string') {
             var container = document.getElementById(__FLASH_ID);
@@ -596,7 +604,7 @@ jQuery(document).ready(function () {
         }
     }
 
-    function postForBlocks(url, fields) {
+    function postForJson(url, fields) {
         var body;
         if (typeof FormData === 'function' && fields instanceof FormData) {
             body = fields;
@@ -624,6 +632,12 @@ jQuery(document).ready(function () {
             if (!payload || typeof payload !== 'object') {
                 throw new Error('некорректный ответ сервера');
             }
+            return payload;
+        });
+    }
+
+    function postForBlocks(url, fields) {
+        return postForJson(url, fields).then(function (payload) {
             applyBlocks(payload);
             // The address bar mirrors the state the server has just stored.
             if (typeof payload.url === 'string' && window.history && window.history.replaceState) {
@@ -633,6 +647,100 @@ jQuery(document).ready(function () {
         }).catch(function (error) {
             showFlash('error', 'Не удалось обновить списки: '
                 + (error && error.message ? error.message : error));
+        });
+    }
+
+    // The three record lists are drawn a page at a time: reaching the bottom
+    // of a block asks the server for the next __PAGE_SIZE rows of that list.
+    var __PAGED_BLOCKS = ['posts', 'drafts', 'deleted'];
+    // How close to the bottom of a block counts as "the reader ran out of
+    // rows"; the request is made early enough to finish before the edge.
+    var __SCROLL_EDGE = 80;
+    var paging = {};
+
+    function pagingState(name) {
+        if (!paging[name]) {
+            paging[name] = { offset: 0, total: 0, busy: false, failed: false };
+        }
+
+        return paging[name];
+    }
+
+    function loadedRows(name) {
+        var list = document.getElementById(__BLOCK_TARGETS[name]);
+
+        return list ? list.querySelectorAll('.activity-log').length : 0;
+    }
+
+    // A block that has just been repainted shows its first page again, so the
+    // reading position restarts there; the totals of the same response say how
+    // much further there is to read.
+    function resetPaging(name, totals) {
+        if (__PAGED_BLOCKS.indexOf(name) === -1) {
+            return;
+        }
+        var state = pagingState(name);
+
+        if (totals && typeof totals[name] === 'number') {
+            state.total = totals[name];
+        }
+        state.offset = loadedRows(name);
+        state.failed = false;
+    }
+
+    // Scrolling a block is not enough to reload it: the block of the element
+    // that scrolled has to be found, and the element is the viewport
+    // OverlayScrollbars keeps, not the list the rows live in.
+    function pagedBlockOf(el) {
+        if (!el || typeof el.closest !== 'function') {
+            return '';
+        }
+        var scroller = el.closest('.scroll350');
+        if (!scroller) {
+            return '';
+        }
+        var found = '';
+        __PAGED_BLOCKS.forEach(function (name) {
+            var list = document.getElementById(__BLOCK_TARGETS[name]);
+            if (list && scroller.contains(list)) {
+                found = name;
+            }
+        });
+
+        return found;
+    }
+
+    function loadNextPage(name) {
+        var state = pagingState(name);
+
+        if (state.busy || state.failed || state.offset >= state.total) {
+            return;
+        }
+        state.busy = true;
+
+        postForJson(__PAGE_URL, { block: name, offset: state.offset }).then(function (payload) {
+            var list = document.getElementById(__BLOCK_TARGETS[name]);
+
+            if (!list || payload.block !== name || typeof payload.html !== 'string') {
+                return;
+            }
+            list.insertAdjacentHTML('beforeend', payload.html);
+            renderUtcTimes(list);
+
+            if (typeof payload.offset === 'number') {
+                state.offset = payload.offset;
+            }
+            if (typeof payload.total === 'number') {
+                state.total = payload.total;
+            }
+        }).catch(function (error) {
+            // One failure stops the block: the reader is still looking at the
+            // same bottom edge, and retrying would fire on every pixel of it.
+            state.failed = true;
+            showFlash('error', 'Не удалось догрузить список: '
+                + (error && error.message ? error.message : error));
+        }).then(function () {
+            state.busy = false;
         });
     }
 
@@ -1791,6 +1899,28 @@ jQuery(document).ready(function () {
                 postForBlocks(clearFiltersBtn.getAttribute('href'), {});
             });
         }
+
+        // The first page is already in the markup; the totals say whether a
+        // second one is worth reading.
+        __PAGED_BLOCKS.forEach(function (name) {
+            resetPaging(name, __BLOCK_TOTALS);
+        });
+
+        // Scroll does not bubble, so one capture listener on the document sees
+        // the viewport of every block, whenever OverlayScrollbars rebuilt it.
+        document.addEventListener('scroll', function (event) {
+            var name = pagedBlockOf(event.target);
+
+            if (name === '') {
+                return;
+            }
+            var viewport = event.target;
+
+            if (viewport.scrollTop + viewport.clientHeight < viewport.scrollHeight - __SCROLL_EDGE) {
+                return;
+            }
+            loadNextPage(name);
+        }, true);
 
         renderUtcTimes(document);
     }

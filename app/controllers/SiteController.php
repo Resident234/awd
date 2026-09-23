@@ -28,6 +28,12 @@ use Throwable;
 
 class SiteController extends Controller
 {
+    /**
+     * How many records the publications page shows per block until the
+     * reader scrolls to the end of the list.
+     */
+    private const PUBLICATIONS_PAGE_SIZE = 10;
+
     public function __construct(
         $id,
         $module,
@@ -67,6 +73,7 @@ class SiteController extends Controller
                     'publication-publish' => ['post'],
                     'publication-delete' => ['post'],
                     'publication-schedule' => ['post'],
+                    'publication-page' => ['post'],
                     'forum-viewed' => ['post'],
                 ],
             ],
@@ -243,9 +250,9 @@ class SiteController extends Controller
         $filters = $this->forumFilters();
 
         return [
-            'posts' => $this->publications->posts(),
-            'drafts' => $this->publications->drafts(),
-            'deleted' => $this->publications->deleted(),
+            'posts' => $this->publications->posts(self::PUBLICATIONS_PAGE_SIZE),
+            'drafts' => $this->publications->drafts(self::PUBLICATIONS_PAGE_SIZE),
+            'deleted' => $this->publications->deleted(self::PUBLICATIONS_PAGE_SIZE),
             'topics' => $this->forum->latestTopicsWithPosts(
                 10,
                 10,
@@ -256,6 +263,8 @@ class SiteController extends Controller
             'withImagesOnly' => $filters['withImages'],
             'withPostsOnly' => $filters['withPosts'],
             'imagesCount' => $filters['imagesCount'],
+            'totals' => $this->publications->listTotals(),
+            'pageSize' => self::PUBLICATIONS_PAGE_SIZE,
             'now' => gmdate('Y-m-d H:i:s'),
         ];
     }
@@ -264,13 +273,15 @@ class SiteController extends Controller
      * Re-renders the four lists the publications page updates in place. Every
      * mutation is reported against all of them because a single action can
      * move a record across the posts, drafts and deleted tables at once
-     * (see PublicationsService::saveFromForm).
+     * (see PublicationsService::saveFromForm). Each of those responses carries
+     * the first page only: the reader scrolls back to the top of a block that
+     * has just changed anyway.
      *
+     * @param array<string, mixed> $data
      * @return array<string, string>
      */
-    private function renderPublicationBlocks(): array
+    private function renderPublicationBlocks(array $data): array
     {
-        $data = $this->publicationsData();
         $blocks = [];
 
         foreach (['forum', 'posts', 'drafts', 'deleted'] as $block) {
@@ -283,7 +294,8 @@ class SiteController extends Controller
     /**
      * Ends a publications mutation: refreshed blocks as JSON for the AJAX
      * caller, the regular redirect otherwise so the page keeps working
-     * without JavaScript.
+     * without JavaScript. The totals ride along because they decide how far
+     * the scroll of each block may keep loading.
      */
     private function finishPublicationsRequest(bool $ok): Response
     {
@@ -291,9 +303,12 @@ class SiteController extends Controller
             return $this->redirectWithFilters();
         }
 
+        $data = $this->publicationsData();
+
         return $this->asJson([
             'ok' => $ok,
-            'blocks' => $this->renderPublicationBlocks(),
+            'blocks' => $this->renderPublicationBlocks($data),
+            'totals' => $data['totals'],
             'flash' => $this->renderFlash(),
         ]);
     }
@@ -347,6 +362,59 @@ class SiteController extends Controller
         }
 
         return $this->redirect(['publications']);
+    }
+
+    /**
+     * One page of a publications list, for the scroll of the block that asks
+     * for it: the items alone, without the empty-state line, so the caller can
+     * append them under the rows already on screen.
+     *
+     * @return Response
+     */
+    public function actionPublicationPage(): Response
+    {
+        $block = (string)$this->request->post('block', '');
+        $offset = max(0, (int)$this->request->post('offset', 0));
+        $page = $this->publicationPage($block, $offset);
+
+        if ($page === null || !$this->request->getIsAjax()) {
+            return $this->redirect(['publications']);
+        }
+
+        [$view, $records, $total] = $page;
+        $now = gmdate('Y-m-d H:i:s');
+        $html = '';
+
+        foreach ($records as $record) {
+            $html .= $this->renderPartial($view, ['record' => $record, 'now' => $now]);
+        }
+
+        return $this->asJson([
+            'ok' => true,
+            'block' => $block,
+            'offset' => $offset + count($records),
+            'total' => $total,
+            'html' => $html,
+        ]);
+    }
+
+    /**
+     * The list a page of the scroll reads: the view of one item, the rows of
+     * that page and how many rows the whole list holds. A name the page does
+     * not have answers null, which is how the caller's block key is checked.
+     *
+     * @return array{0: string, 1: list<\app\shared\Publications\Dto\PublicationData>, 2: int}|null
+     */
+    private function publicationPage(string $block, int $offset): ?array
+    {
+        $size = self::PUBLICATIONS_PAGE_SIZE;
+
+        return match ($block) {
+            'posts' => ['_item_post', $this->publications->posts($size, $offset), $this->publications->countPosts()],
+            'drafts' => ['_item_draft', $this->publications->drafts($size, $offset), $this->publications->countDrafts()],
+            'deleted' => ['_item_deleted', $this->publications->deleted($size, $offset), $this->publications->countDeleted()],
+            default => null,
+        };
     }
 
     /**

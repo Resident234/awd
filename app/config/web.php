@@ -89,6 +89,7 @@ $config = [
                 'publication-to-draft' => 'site/publication-to-draft',
                 'publication-schedule' => 'site/publication-schedule',
                 'publication-delete' => 'site/publication-delete',
+                'publication-page' => 'site/publication-page',
                 'forum-viewed' => 'site/forum-viewed',
                 'forum-filter-save' => 'site/forum-filter-save',
                 'forum-filter-clear' => 'site/forum-filter-clear',
