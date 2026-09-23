@@ -221,6 +221,15 @@ CSS
                             <textarea class="form-control publication-text-part" id="publicationTextInput"
                                       name="publicationText[]"
                                       placeholder="Введите текст публикации"></textarea>
+
+                            <!-- The row a part is merged with the one under it by;
+                                 the last part of the form has none. -->
+                            <div class="text-end mt-2 d-none publication-merge-row">
+                                <button type="button" class="btn btn-outline-secondary btn-sm"
+                                        title="Слить эту часть со следующей в одно поле">
+                                    <i class="bi bi-arrows-collapse-vertical me-1"></i>Объединить
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -750,6 +759,20 @@ jQuery(document).ready(function () {
             });
         }
 
+        // Every part but the last one carries the row that merges it with the
+        // neighbour below, so the last row of the form stays hidden.
+        function mergeRows() {
+            return Array.prototype.slice.call(partsBox.querySelectorAll('.publication-merge-row'));
+        }
+
+        function updateMergeRows() {
+            var rows = mergeRows();
+
+            rows.forEach(function (row, index) {
+                row.classList.toggle('d-none', index === rows.length - 1);
+            });
+        }
+
         function setTextParts(values) {
             // The fields are replaced, and with them the selection the popup points at.
             hideSelectionActions();
@@ -778,6 +801,7 @@ jQuery(document).ready(function () {
                 label.textContent = values.length > 1 ? 'Часть ' + (index + 1) : 'Текст публикации';
             });
 
+            updateMergeRows();
             applyPartNumbers();
             updateCounters();
             fitTextInputNow();
@@ -958,6 +982,34 @@ jQuery(document).ready(function () {
                 if (typeof next.setSelectionRange === 'function') {
                     next.setSelectionRange(0, 0);
                 }
+            }
+        }
+
+        // Two neighbouring parts into one: the seam becomes a paragraph, exactly
+        // the way the automatic split and the moved selections join text.
+        function mergeParts(index) {
+            var values = partValues().map(stripPartNumber);
+
+            if (index < 0 || index + 1 >= values.length) {
+                return;
+            }
+
+            var seam = values[index].replace(/\s+$/, '').length;
+            values[index] = joinParts(values[index], values[index + 1]);
+            values.splice(index + 1, 1);
+            setTextParts(values);
+
+            // The joined text does not have to fit one message, so it goes back
+            // through the split when it stopped fitting.
+            if (splitIfNeeded()) {
+                return;
+            }
+
+            var field = textParts()[index];
+            if (field) {
+                // The caret marks the place the two parts grew together at.
+                field.focus();
+                field.setSelectionRange(seam, seam);
             }
         }
 
@@ -1398,6 +1450,14 @@ jQuery(document).ready(function () {
         if (splitButton) {
             splitButton.addEventListener('click', splitPartAtCaret);
         }
+        // One listener for the rows of every part, including the cloned ones.
+        partsBox.addEventListener('click', function (event) {
+            var row = event.target.closest('.publication-merge-row');
+
+            if (row) {
+                mergeParts(mergeRows().indexOf(row));
+            }
+        });
         if (selectionPopup) {
             // The popup is placed against the viewport, which a transformed
             // ancestor of the form would quietly replace with itself.
