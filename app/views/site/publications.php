@@ -214,6 +214,14 @@ CSS
                         </div>
                     </div>
 
+                    <!-- Outside the parts box, so the template a new part is cloned from stays clean. -->
+                    <div class="d-flex justify-content-end mb-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="publicationSplitPart"
+                                title="Разделить часть по курсору, а без курсора — примерно посередине">
+                            <i class="bi bi-scissors me-1"></i>Разделить
+                        </button>
+                    </div>
+
                     <div class="form-check mb-3">
                         <input class="form-check-input" type="checkbox" id="publicationNumberParts">
                         <label class="form-check-label" for="publicationNumberParts">
@@ -629,6 +637,7 @@ jQuery(document).ready(function () {
         var partTemplate = partsBox.querySelector('.publication-text-block').cloneNode(true);
         var numberPartsInput = document.getElementById('publicationNumberParts');
         var distributeImagesInput = document.getElementById('publicationDistributeImages');
+        var splitButton = document.getElementById('publicationSplitPart');
 
         function textParts() {
             return Array.prototype.slice.call(partsBox.querySelectorAll('.publication-text-part'));
@@ -768,6 +777,155 @@ jQuery(document).ready(function () {
 
         function loadText(text) {
             setTextParts(splitIntoParts(text));
+        }
+
+        // --- manual split of one part into two --------------------------------
+
+        // A cut is only accepted when it leaves text on both sides, so no snap
+        // can produce an empty or a blank part.
+        function usableCut(text, cut) {
+            return cut > 0 && cut < text.length
+                && text.slice(0, cut).trim() !== '' && text.slice(cut).trim() !== '';
+        }
+
+        // A sentence ends at . ! ? … followed by whitespace.
+        function endsSentence(text, cut) {
+            if (cut <= 0 || cut >= text.length) {
+                return false;
+            }
+
+            return '.!?…'.indexOf(text[cut - 1]) !== -1 && /\s/.test(text[cut]);
+        }
+
+        function endsLine(text, cut) {
+            return cut > 0 && cut < text.length && text[cut - 1] === '\n';
+        }
+
+        function endsParagraph(text, cut) {
+            return endsLine(text, cut) && text[cut - 2] === '\n';
+        }
+
+        // The first character of a word after whitespace: cutting there keeps the
+        // words on both sides whole.
+        function endsWord(text, cut) {
+            return cut > 0 && cut < text.length && /\s/.test(text[cut - 1]) && !/\s/.test(text[cut]);
+        }
+
+        // Closest accepted position to `from`. The side before it is tried first,
+        // so an equal distance keeps the bigger piece in the part being split.
+        function snapCut(text, from, isCut, range) {
+            for (var distance = 0; distance <= range; distance++) {
+                var before = from - distance;
+                if (isCut(text, before) && usableCut(text, before)) {
+                    return before;
+                }
+
+                var after = from + distance;
+                if (distance > 0 && isCut(text, after) && usableCut(text, after)) {
+                    return after;
+                }
+            }
+
+            return -1;
+        }
+
+        // A sentence far away from the caret is not the place the user meant, so
+        // the snap only reaches this far and then leaves the caret where it is.
+        var MANUAL_SNAP_RANGE = 600;
+
+        function manualCut(text, caret) {
+            if (caret <= 0 || caret >= text.length) {
+                return -1;
+            }
+
+            var sentence = snapCut(text, caret, endsSentence, MANUAL_SNAP_RANGE);
+            if (sentence !== -1) {
+                return sentence;
+            }
+
+            var word = snapCut(text, caret, endsWord, MANUAL_SNAP_RANGE);
+            if (word !== -1) {
+                return word;
+            }
+
+            return usableCut(text, caret) ? caret : -1;
+        }
+
+        // Without a caret the text is halved at the closest break: a blank line,
+        // then the end of a line, then a word edge.
+        function middleCut(text) {
+            var half = Math.floor(text.length / 2);
+            var breaks = [endsParagraph, endsLine, endsWord];
+
+            for (var index = 0; index < breaks.length; index++) {
+                var cut = snapCut(text, half, breaks[index], text.length);
+                if (cut !== -1) {
+                    return cut;
+                }
+            }
+
+            return usableCut(text, half) ? half : -1;
+        }
+
+        // The field the caret was in last: a click on the button pulls the focus
+        // out of the textarea before the handler runs, so activeElement is the
+        // button by then and the remembered field is what carries the caret.
+        var lastEditedField = null;
+
+        function splitTarget(fields, values) {
+            var index = fields.indexOf(lastEditedField);
+            if (index !== -1 && values[index].trim() !== '') {
+                return index;
+            }
+
+            // Nothing focused to go by: the longest part is the one worth halving.
+            var longest = -1;
+            values.forEach(function (value, position) {
+                if (value.trim() === '') {
+                    return;
+                }
+
+                if (longest === -1 || value.length > values[longest].length) {
+                    longest = position;
+                }
+            });
+
+            return longest;
+        }
+
+        function splitPartAtCaret() {
+            var fields = textParts();
+            var values = partValues().map(stripPartNumber);
+            var index = splitTarget(fields, values);
+
+            if (index === -1) {
+                return;
+            }
+
+            var text = values[index];
+            // The «Часть N» prefix travels in the shown value, so the caret offset
+            // has to be moved out of it before it points into the text.
+            var caret = (fields[index].selectionStart || 0) - (fields[index].value.length - text.length);
+            var cut = manualCut(text, caret);
+            if (cut === -1) {
+                cut = middleCut(text);
+            }
+
+            if (cut === -1) {
+                return;
+            }
+
+            setTextParts(values.slice(0, index)
+                .concat([text.slice(0, cut).replace(/\s+$/, ''), text.slice(cut).replace(/^\s+/, '')])
+                .concat(values.slice(index + 1)));
+
+            var next = textParts()[index + 1];
+            if (next && typeof next.focus === 'function') {
+                next.focus();
+                if (typeof next.setSelectionRange === 'function') {
+                    next.setSelectionRange(0, 0);
+                }
+            }
         }
 
         function resizePublicationTextInput() {
@@ -948,6 +1106,13 @@ jQuery(document).ready(function () {
             }
             fitTextInputAfterTyping();
         });
+        // Remembers which part holds the caret; see `lastEditedField`.
+        partsBox.addEventListener('focusin', function (event) {
+            var field = event.target;
+            if (field.classList && field.classList.contains('publication-text-part')) {
+                lastEditedField = field;
+            }
+        });
         if (numberPartsInput) {
             numberPartsInput.addEventListener('change', function () {
                 splitIfNeeded();
@@ -958,6 +1123,9 @@ jQuery(document).ready(function () {
         }
         if (distributeImagesInput) {
             distributeImagesInput.addEventListener('change', updateImages);
+        }
+        if (splitButton) {
+            splitButton.addEventListener('click', splitPartAtCaret);
         }
         resizePublicationTextInput();
         window.addEventListener('resize', fitTextInputNow);
