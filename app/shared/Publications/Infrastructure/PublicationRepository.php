@@ -20,21 +20,23 @@ final class PublicationRepository implements PublicationRepositoryInterface
     {
     }
 
-    public function allPosts(int $limit = 0, int $offset = 0): array
+    public function allPosts(int $limit = 0, int $offset = 0, bool $oldestFirst = false): array
     {
         return $this->page(
             'SELECT id, text, image_urls, telegram_id, published_at, created_at, updated_at'
-            . ' FROM {{%publications_post}} ORDER BY published_at DESC, id DESC',
+            . ' FROM {{%publications_post}}'
+            . $this->order('published_at', $oldestFirst),
             $limit,
             $offset,
         );
     }
 
-    public function allDrafts(int $limit = 0, int $offset = 0): array
+    public function allDrafts(int $limit = 0, int $offset = 0, bool $oldestFirst = false): array
     {
         return $this->page(
             'SELECT id, text, image_urls, NULL AS telegram_id, NULL AS published_at, created_at, updated_at'
-            . ' FROM {{%publications_draft}} ORDER BY updated_at DESC, id DESC',
+            . ' FROM {{%publications_draft}}'
+            . $this->order('updated_at', $oldestFirst),
             $limit,
             $offset,
         );
@@ -221,11 +223,12 @@ final class PublicationRepository implements PublicationRepositoryInterface
             ->execute();
     }
 
-    public function allDeleted(int $limit = 0, int $offset = 0): array
+    public function allDeleted(int $limit = 0, int $offset = 0, bool $oldestFirst = false): array
     {
         return $this->page(
             'SELECT id, text, image_urls, telegram_id, published_at, created_at, updated_at, deleted_at'
-            . ' FROM {{%publications_deleted}} ORDER BY updated_at DESC, id DESC',
+            . ' FROM {{%publications_deleted}}'
+            . $this->order('updated_at', $oldestFirst),
             $limit,
             $offset,
         );
@@ -423,6 +426,18 @@ final class PublicationRepository implements PublicationRepositoryInterface
             ),
             $rows,
         );
+    }
+
+    /**
+     * The order of a list: newest first, oldest first when the block asks for
+     * the reverse. Both orders end in the row id, so pages of the same order
+     * neither overlap nor skip a row.
+     */
+    private function order(string $column, bool $oldestFirst): string
+    {
+        $direction = $oldestFirst ? 'ASC' : 'DESC';
+
+        return ' ORDER BY ' . $column . ' ' . $direction . ', id ' . $direction;
     }
 
     /**

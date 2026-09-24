@@ -40,35 +40,36 @@ final class PublicationsService
     }
 
     /**
-     * Scheduled and published posts, sorted by published_at descending.
-     * A zero limit reads every row.
+     * Scheduled and published posts, newest `published_at` first (oldest
+     * first when $oldestFirst asks). A zero limit reads every row.
      *
      * @return PublicationData[]
      */
-    public function posts(int $limit = 0, int $offset = 0): array
+    public function posts(int $limit = 0, int $offset = 0, bool $oldestFirst = false): array
     {
-        return $this->publications->allPosts($limit, $offset);
+        return $this->publications->allPosts($limit, $offset, $oldestFirst);
     }
 
     /**
-     * Drafts, sorted by updated_at descending. A zero limit reads every row.
+     * Drafts, newest `updated_at` first (oldest first when $oldestFirst
+     * asks). A zero limit reads every row.
      *
      * @return PublicationData[]
      */
-    public function drafts(int $limit = 0, int $offset = 0): array
+    public function drafts(int $limit = 0, int $offset = 0, bool $oldestFirst = false): array
     {
-        return $this->publications->allDrafts($limit, $offset);
+        return $this->publications->allDrafts($limit, $offset, $oldestFirst);
     }
 
     /**
-     * Soft-deleted records, sorted by updated_at descending. A zero limit
-     * reads every row.
+     * Soft-deleted records, newest `updated_at` first (oldest first when
+     * $oldestFirst asks). A zero limit reads every row.
      *
      * @return PublicationData[]
      */
-    public function deleted(int $limit = 0, int $offset = 0): array
+    public function deleted(int $limit = 0, int $offset = 0, bool $oldestFirst = false): array
     {
-        return $this->publications->allDeleted($limit, $offset);
+        return $this->publications->allDeleted($limit, $offset, $oldestFirst);
     }
 
     /**

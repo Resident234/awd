@@ -12,20 +12,20 @@ use app\shared\Publications\Dto\PublicationData;
 interface PublicationRepositoryInterface
 {
     /**
-     * Scheduled and published posts, sorted by published_at descending.
-     * A zero limit reads the whole table.
+     * Scheduled and published posts, newest `published_at` first — or oldest
+     * first when $oldestFirst asks. A zero limit reads the whole table.
      *
      * @return PublicationData[]
      */
-    public function allPosts(int $limit = 0, int $offset = 0): array;
+    public function allPosts(int $limit = 0, int $offset = 0, bool $oldestFirst = false): array;
 
     /**
-     * Drafts, sorted by updated_at descending. A zero limit reads the
-     * whole table.
+     * Drafts, newest `updated_at` first (oldest first when $oldestFirst
+     * asks). A zero limit reads the whole table.
      *
      * @return PublicationData[]
      */
-    public function allDrafts(int $limit = 0, int $offset = 0): array;
+    public function allDrafts(int $limit = 0, int $offset = 0, bool $oldestFirst = false): array;
 
     /**
      * How many posts the unpaged list holds, so a paged reader knows
@@ -133,12 +133,12 @@ interface PublicationRepositoryInterface
     public function archiveEdited(PublicationData $post, string $now): void;
 
     /**
-     * Soft-deleted records, sorted by updated_at descending. A zero limit
-     * reads the whole table.
+     * Soft-deleted records, newest `updated_at` first (oldest first when
+     * $oldestFirst asks). A zero limit reads the whole table.
      *
      * @return PublicationData[]
      */
-    public function allDeleted(int $limit = 0, int $offset = 0): array;
+    public function allDeleted(int $limit = 0, int $offset = 0, bool $oldestFirst = false): array;
 
     /**
      * How many soft-deleted records the unpaged list holds.

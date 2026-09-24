@@ -74,6 +74,7 @@ class SiteController extends Controller
                     'publication-delete' => ['post'],
                     'publication-schedule' => ['post'],
                     'publication-page' => ['post'],
+                    'publication-sort' => ['post'],
                     'forum-viewed' => ['post'],
                 ],
             ],
@@ -147,9 +148,10 @@ class SiteController extends Controller
 
     /**
      * Displays the channel publications page. The session holds the forum
-     * filter state and the address bar is kept as its mirror image, so a page
-     * that was opened on a URL disagreeing with the session is redirected onto
-     * the address the session describes.
+     * filters and the reading order of the three lists, and the address bar is
+     * kept as their mirror image, so a page that was opened on a URL
+     * disagreeing with the session is redirected onto the address the session
+     * describes.
      *
      * @return Response|string
      */
@@ -158,8 +160,10 @@ class SiteController extends Controller
         $this->layout = 'dashboard';
 
         $this->syncForumFilters();
-        if ($this->normalizeForumFilters($this->request->get()) !== $this->forumFilters()) {
-            return $this->redirect($this->forumFilterUrl());
+        $this->syncPublicationsSort();
+        if ($this->normalizeForumFilters($this->request->get()) !== $this->forumFilters()
+            || $this->publicationsSortFromQuery($this->request->get()) !== $this->publicationsSort()) {
+            return $this->redirect($this->publicationsUrl());
         }
 
         return $this->render('publications', $this->publicationsData());
@@ -210,7 +214,7 @@ class SiteController extends Controller
 
     /**
      * The publications route with the filters of the current session as its
-     * query, which is the address the bar has to show for that state.
+     * query, which is the filter part of the address the bar has to show.
      *
      * @return array<int|string, string>
      */
@@ -233,11 +237,95 @@ class SiteController extends Controller
     }
 
     /**
+     * The address the whole view state of the page deserves: the forum filters
+     * plus the reading order of every block that was switched.
+     *
+     * @return array<int|string, string>
+     */
+    private function publicationsUrl(): array
+    {
+        $url = $this->forumFilterUrl();
+
+        foreach ($this->publicationsSort() as $block => $oldestFirst) {
+            if ($oldestFirst) {
+                $url[$block . 'Oldest'] = '1';
+            }
+        }
+
+        return $url;
+    }
+
+    /**
      * @return array{withImages: bool, withPosts: bool, imagesCount: int}
      */
     private function forumFilters(): array
     {
         return $this->normalizeForumFilters((array)Yii::$app->session->get('forumFilters', []));
+    }
+
+    /**
+     * Which of the three record lists read themselves oldest first. The order
+     * belongs to the block that switched it, so the other two keep showing
+     * what the reader was looking at.
+     *
+     * @return array{posts: bool, drafts: bool, deleted: bool}
+     */
+    private function publicationsSort(): array
+    {
+        return $this->normalizePublicationsSort((array)Yii::$app->session->get('publicationsSort', []));
+    }
+
+    /**
+     * The order the address of the page asks for: `?postsOldest=1` and friends.
+     *
+     * @param array<string, mixed> $query
+     * @return array{posts: bool, drafts: bool, deleted: bool}
+     */
+    private function publicationsSortFromQuery(array $query): array
+    {
+        $raw = [];
+
+        foreach (['posts', 'drafts', 'deleted'] as $block) {
+            $raw[$block] = $query[$block . 'Oldest'] ?? null;
+        }
+
+        return $this->normalizePublicationsSort($raw);
+    }
+
+    /**
+     * Resolves the effective reading order the way the forum filters do: an
+     * order that is already active in the session wins, so reloading or
+     * following a link cannot switch a block back; only a session that reads
+     * every block newest first adopts the query of the request.
+     */
+    private function syncPublicationsSort(): void
+    {
+        if (in_array(true, $this->publicationsSort(), true)) {
+            return;
+        }
+
+        Yii::$app->session->set(
+            'publicationsSort',
+            $this->publicationsSortFromQuery($this->request->get()),
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $raw
+     * @return array{posts: bool, drafts: bool, deleted: bool}
+     */
+    private function normalizePublicationsSort(array $raw): array
+    {
+        $oldestFirst = [];
+
+        foreach (['posts', 'drafts', 'deleted'] as $block) {
+            $value = $raw[$block] ?? null;
+            // The session keeps real booleans, a request keeps the '1' of
+            // a switch; anything else leaves the block at its default order.
+            $oldestFirst[$block] = $value === true || $value === '1';
+        }
+
+        return $oldestFirst;
     }
 
     /**
@@ -248,11 +336,12 @@ class SiteController extends Controller
     private function publicationsData(): array
     {
         $filters = $this->forumFilters();
+        $sorts = $this->publicationsSort();
 
         return [
-            'posts' => $this->publications->posts(self::PUBLICATIONS_PAGE_SIZE),
-            'drafts' => $this->publications->drafts(self::PUBLICATIONS_PAGE_SIZE),
-            'deleted' => $this->publications->deleted(self::PUBLICATIONS_PAGE_SIZE),
+            'posts' => $this->publications->posts(self::PUBLICATIONS_PAGE_SIZE, 0, $sorts['posts']),
+            'drafts' => $this->publications->drafts(self::PUBLICATIONS_PAGE_SIZE, 0, $sorts['drafts']),
+            'deleted' => $this->publications->deleted(self::PUBLICATIONS_PAGE_SIZE, 0, $sorts['deleted']),
             'topics' => $this->forum->latestTopicsWithPosts(
                 10,
                 10,
@@ -265,6 +354,7 @@ class SiteController extends Controller
             'imagesCount' => $filters['imagesCount'],
             'totals' => $this->publications->listTotals(),
             'pageSize' => self::PUBLICATIONS_PAGE_SIZE,
+            'oldestFirst' => $sorts,
             'now' => gmdate('Y-m-d H:i:s'),
         ];
     }
@@ -300,7 +390,7 @@ class SiteController extends Controller
     private function finishPublicationsRequest(bool $ok): Response
     {
         if (!$this->request->getIsAjax()) {
-            return $this->redirectWithFilters();
+            return $this->redirect($this->publicationsUrl());
         }
 
         $data = $this->publicationsData();
@@ -339,13 +429,15 @@ class SiteController extends Controller
 
         return $this->asJson([
             'ok' => true,
-            'url' => Url::to($this->forumFilterUrl()),
+            'url' => Url::to($this->publicationsUrl()),
             'blocks' => ['forum' => $this->renderPartial('_block_forum', $this->publicationsData())],
         ]);
     }
 
     /**
-     * Clears the forum filter state from the session and redirects back.
+     * Clears the forum filter state from the session and redirects back. The
+     * reading order of the blocks is not a filter, so it survives the clear and
+     * stays in the address the reader lands on.
      *
      * @return Response
      */
@@ -356,12 +448,41 @@ class SiteController extends Controller
         if ($this->request->getIsAjax()) {
             return $this->asJson([
                 'ok' => true,
-                'url' => Url::to(['publications']),
+                'url' => Url::to($this->publicationsUrl()),
                 'blocks' => ['forum' => $this->renderPartial('_block_forum', $this->publicationsData())],
             ]);
         }
 
-        return $this->redirect(['publications']);
+        return $this->redirect($this->publicationsUrl());
+    }
+
+    /**
+     * Stores the order a block was switched to and answers with that block
+     * redrawn from the beginning: the switch reverses the reading direction of
+     * one list, so the reader gets its first page in the new order.
+     *
+     * @return Response
+     */
+    public function actionPublicationSort(): Response
+    {
+        $block = $this->request->post('block');
+        $sorts = $this->publicationsSort();
+
+        if (!is_string($block) || !isset($sorts[$block]) || !$this->request->getIsAjax()) {
+            return $this->redirect(['publications']);
+        }
+
+        $sorts[$block] = $this->request->post('oldest') === '1';
+        Yii::$app->session->set('publicationsSort', $sorts);
+        $data = $this->publicationsData();
+
+        return $this->asJson([
+            'ok' => true,
+            'block' => $block,
+            'url' => Url::to($this->publicationsUrl()),
+            'blocks' => [$block => $this->renderPartial('_block_' . $block, $data)],
+            'totals' => $data['totals'],
+        ]);
     }
 
     /**
@@ -400,19 +521,21 @@ class SiteController extends Controller
 
     /**
      * The list a page of the scroll reads: the view of one item, the rows of
-     * that page and how many rows the whole list holds. A name the page does
-     * not have answers null, which is how the caller's block key is checked.
+     * that page in the order the block is currently showing and how many rows
+     * the whole list holds. A name the page does not have answers null, which
+     * is how the caller's block key is checked.
      *
      * @return array{0: string, 1: list<\app\shared\Publications\Dto\PublicationData>, 2: int}|null
      */
     private function publicationPage(string $block, int $offset): ?array
     {
         $size = self::PUBLICATIONS_PAGE_SIZE;
+        $sorts = $this->publicationsSort();
 
         return match ($block) {
-            'posts' => ['_item_post', $this->publications->posts($size, $offset), $this->publications->countPosts()],
-            'drafts' => ['_item_draft', $this->publications->drafts($size, $offset), $this->publications->countDrafts()],
-            'deleted' => ['_item_deleted', $this->publications->deleted($size, $offset), $this->publications->countDeleted()],
+            'posts' => ['_item_post', $this->publications->posts($size, $offset, $sorts['posts']), $this->publications->countPosts()],
+            'drafts' => ['_item_draft', $this->publications->drafts($size, $offset, $sorts['drafts']), $this->publications->countDrafts()],
+            'deleted' => ['_item_deleted', $this->publications->deleted($size, $offset, $sorts['deleted']), $this->publications->countDeleted()],
             default => null,
         };
     }
@@ -518,17 +641,6 @@ class SiteController extends Controller
             static fn ($text): string => str_replace(["\r\n", "\r"], "\n", (string)$text),
             $fields,
         );
-    }
-
-    /**
-     * Reopens the publications page on the address the filters of the session
-     * describe, so a mutation does not drop them from the bar.
-     *
-     * @return Response
-     */
-    private function redirectWithFilters(): Response
-    {
-        return $this->redirect($this->forumFilterUrl());
     }
 
     /**

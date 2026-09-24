@@ -11,6 +11,7 @@ declare(strict_types=1);
 /** @var bool $withPostsOnly */
 /** @var array{posts: int, drafts: int, deleted: int} $totals */
 /** @var int $pageSize */
+/** @var array{posts: bool, drafts: bool, deleted: bool} $oldestFirst */
 /** @var string $now */
 
 use app\shared\Telegram\Service\ChannelService;
@@ -339,7 +340,14 @@ CSS
         <!-- Publications -->
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="card-title">Публикации</h5>
+                <div class="d-flex align-items-center justify-content-between gap-3">
+                    <h5 class="card-title mb-0">Публикации</h5>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" role="switch" id="pubSortPosts"
+                            <?= $oldestFirst['posts'] ? 'checked' : '' ?>>
+                        <label class="form-check-label" for="pubSortPosts">Сначала старые</label>
+                    </div>
+                </div>
             </div>
             <div class="card-body">
                 <div class="scroll350">
@@ -358,7 +366,14 @@ CSS
         <!-- Drafts -->
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="card-title">Черновики</h5>
+                <div class="d-flex align-items-center justify-content-between gap-3">
+                    <h5 class="card-title mb-0">Черновики</h5>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" role="switch" id="pubSortDrafts"
+                            <?= $oldestFirst['drafts'] ? 'checked' : '' ?>>
+                        <label class="form-check-label" for="pubSortDrafts">Сначала старые</label>
+                    </div>
+                </div>
             </div>
             <div class="card-body">
                 <div class="scroll350">
@@ -377,7 +392,14 @@ CSS
         <!-- Deleted -->
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="card-title">Удаленные</h5>
+                <div class="d-flex align-items-center justify-content-between gap-3">
+                    <h5 class="card-title mb-0">Удаленные</h5>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" role="switch" id="pubSortDeleted"
+                            <?= $oldestFirst['deleted'] ? 'checked' : '' ?>>
+                        <label class="form-check-label" for="pubSortDeleted">Сначала старые</label>
+                    </div>
+                </div>
             </div>
             <div class="card-body">
                 <div class="scroll350">
@@ -443,10 +465,12 @@ $csrfParam = Yii::$app->request->csrfParam;
 $csrfToken = Yii::$app->request->csrfToken;
 $filterSaveUrl = \yii\helpers\Url::to(['site/forum-filter-save']);
 $pageUrl = \yii\helpers\Url::to(['site/publication-page']);
+$sortUrl = \yii\helpers\Url::to(['site/publication-sort']);
 $blockTotals = json_encode($totals);
 $this->registerJs(
     "var __FILTER_SAVE_URL = '{$filterSaveUrl}';
 var __PAGE_URL = '{$pageUrl}';
+var __SORT_URL = '{$sortUrl}';
 var __PAGE_SIZE = {$pageSize};
 var __BLOCK_TOTALS = {$blockTotals};
 var __CSRF_PARAM = '{$csrfParam}';
@@ -636,13 +660,18 @@ jQuery(document).ready(function () {
         });
     }
 
+    // The address bar mirrors the state the server has just stored.
+    function mirrorUrl(payload) {
+        if (typeof payload.url === 'string' && window.history && window.history.replaceState) {
+            window.history.replaceState(null, '', payload.url);
+        }
+    }
+
     function postForBlocks(url, fields) {
         return postForJson(url, fields).then(function (payload) {
             applyBlocks(payload);
-            // The address bar mirrors the state the server has just stored.
-            if (typeof payload.url === 'string' && window.history && window.history.replaceState) {
-                window.history.replaceState(null, '', payload.url);
-            }
+            mirrorUrl(payload);
+
             return payload;
         }).catch(function (error) {
             showFlash('error', 'Не удалось обновить списки: '
@@ -656,6 +685,12 @@ jQuery(document).ready(function () {
     // How close to the bottom of a block counts as "the reader ran out of
     // rows"; the request is made early enough to finish before the edge.
     var __SCROLL_EDGE = 80;
+    // The switch that reverses the order of a block sits in its header.
+    var __SORT_SWITCH_IDS = {
+        posts: 'pubSortPosts',
+        drafts: 'pubSortDrafts',
+        deleted: 'pubSortDeleted'
+    };
     var paging = {};
 
     function pagingState(name) {
@@ -741,6 +776,29 @@ jQuery(document).ready(function () {
                 + (error && error.message ? error.message : error));
         }).then(function () {
             state.busy = false;
+        });
+    }
+
+    // The answer of a switch comes back as the first page of the new order,
+    // so the reader restarts the block at the end of the list they asked for.
+    function watchSortSwitches() {
+        __PAGED_BLOCKS.forEach(function (name) {
+            var input = document.getElementById(__SORT_SWITCH_IDS[name]);
+            if (!input) {
+                return;
+            }
+            input.addEventListener('change', function () {
+                postForJson(__SORT_URL, { block: name, oldest: input.checked ? '1' : '0' }).then(function (payload) {
+                    applyBlocks(payload);
+                    mirrorUrl(payload);
+                }).catch(function (error) {
+                    // The list kept the order it was showing, so the switch
+                    // has to keep it too.
+                    input.checked = !input.checked;
+                    showFlash('error', 'Не удалось изменить порядок: '
+                        + (error && error.message ? error.message : error));
+                });
+            });
         });
     }
 
@@ -1905,6 +1963,11 @@ jQuery(document).ready(function () {
         __PAGED_BLOCKS.forEach(function (name) {
             resetPaging(name, __BLOCK_TOTALS);
         });
+
+        // Switching the order is the server's call: it has to decide which end
+        // of the list both the redrawn block and its later pages are read
+        // from.
+        watchSortSwitches();
 
         // Scroll does not bubble, so one capture listener on the document sees
         // the viewport of every block, whenever OverlayScrollbars rebuilt it.

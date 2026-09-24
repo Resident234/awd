@@ -90,6 +90,7 @@ $config = [
                 'publication-schedule' => 'site/publication-schedule',
                 'publication-delete' => 'site/publication-delete',
                 'publication-page' => 'site/publication-page',
+                'publication-sort' => 'site/publication-sort',
                 'forum-viewed' => 'site/forum-viewed',
                 'forum-filter-save' => 'site/forum-filter-save',
                 'forum-filter-clear' => 'site/forum-filter-clear',

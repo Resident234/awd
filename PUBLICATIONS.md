@@ -97,9 +97,9 @@ The forum block filters («С изображениями», «С привяза�
   - `findPost(int $id): PublicationData|null` - Finds a post by ID
   - `findDraft(int $id): PublicationData|null` - Finds a draft by ID
   - `findDeleted(int $id): PublicationData|null` - Finds a deleted record by ID
-  - `allPosts(int $limit = 0, int $offset = 0): PublicationData[]` - Gets posts (scheduled and published), `published_at` descending; `$limit` takes that many rows starting at `$offset`, `0` means the whole list
-  - `allDrafts(int $limit = 0, int $offset = 0): PublicationData[]` - Gets drafts, `updated_at` descending, paged the same way
-  - `allDeleted(int $limit = 0, int $offset = 0): PublicationData[]` - Gets soft-deleted records, `updated_at` descending, paged the same way
+  - `allPosts(int $limit = 0, int $offset = 0, bool $oldestFirst = false): PublicationData[]` - Gets posts (scheduled and published), newest `published_at` first; `$limit` takes that many rows starting at `$offset`, `0` means the whole list, `$oldestFirst` reverses the order
+  - `allDrafts(int $limit = 0, int $offset = 0, bool $oldestFirst = false): PublicationData[]` - Gets drafts by `updated_at`, paged and ordered the same way
+  - `allDeleted(int $limit = 0, int $offset = 0, bool $oldestFirst = false): PublicationData[]` - Gets soft-deleted records by `updated_at`, paged and ordered the same way
   - `countPosts(): int` / `countDrafts(): int` / `countDeleted(): int` - How many rows each list holds without paging, so a paged reader knows when it has reached the end
   - `findDueForPublishing(string $now): PublicationData[]` - Posts with an empty `telegram_id` and `published_at <= now`, `id` ascending
   - `storeTelegramId(int $id, int $telegramId, string $publishedAt, string $now): void` - Stores the channel message id and corrects `published_at` to the send time
@@ -135,9 +135,9 @@ The service lives in `app/shared/Publications/Service/PublicationsService.php` a
 
 | Method | Description |
 |--------|-------------|
-| `posts(int $limit = 0, int $offset = 0): array` | Returns *published* posts (including scheduled ones that are already due) ordered by `published_at` descending. `$limit`/`$offset` read the list a page at a time; `0` returns all of it. |
-| `drafts(int $limit = 0, int $offset = 0): array` | Returns drafts ordered by `updated_at` descending, paged the same way. |
-| `deleted(int $limit = 0, int $offset = 0): array` | Returns soft-deleted records ordered by `updated_at` descending, paged the same way. |
+| `posts(int $limit = 0, int $offset = 0, bool $oldestFirst = false): array` | Returns *published* posts (including scheduled ones that are already due), newest `published_at` first. `$limit`/`$offset` read the list a page at a time, `0` returns all of it, `$oldestFirst` flips the order. |
+| `drafts(int $limit = 0, int $offset = 0, bool $oldestFirst = false): array` | Returns drafts by `updated_at`, paged and ordered the same way. |
+| `deleted(int $limit = 0, int $offset = 0, bool $oldestFirst = false): array` | Returns soft-deleted records by `updated_at`, paged and ordered the same way. |
 | `listTotals(): array` | `{posts, drafts, deleted}` — how many rows each of the three lists holds, so the browser knows how much further a block can scroll. |
 | `saveDraft(string $text, array $imageUrls, ?ForumPublicationRef $forumRef = null): void` | Validates text length (1 and 4096 chars) and stores the record as a **draft**. If a forum reference is supplied, a temporary link is stored. |
 | `schedulePost(string $text, array $imageUrls, string $publishedAt, ?ForumPublicationRef $forumRef = null, ?string $userTimezone = null): void` | Validates text, normalises the supplied date (several common formats are supported), creates a **scheduled** post (`published_at` set) and stores an optional forum link. |
@@ -237,7 +237,7 @@ If the token is missing the service will throw a `RuntimeException` and all Tele
 
 The **SiteController** (`app/controllers/SiteController.php`) provides a UI for managing the channel description and for viewing the connection status. The dashboard (`views/site/index.php`) shows whether the channel is reachable.
 
-The publications page (`/publications`) and its form posts to `publication-create`, which calls `PublicationsService::saveParts` for a new record and `saveFromForm` for a record opened for editing; the per-record buttons call `publishDraft`/`publishPostNow`, `movePostToDraft` and `deletePost`/`deleteDraft` through `publication-publish`, `publication-to-draft` and `publication-delete`. The three record lists start at one page of `PUBLICATIONS_PAGE_SIZE` rows and ask `publication-page` (`posts()`/`drafts()`/`deleted()` with a page and an offset, rendered through the `_item_*` partials) for the next page whenever a block is scrolled to its bottom — see «Бесконечная прогрузка списков» in [README.md](README.md). Addresses are flat: `UrlManager` maps each of these routes onto its own path without `index.php?r=` (see «Адреса страниц» in [README.md](README.md)). After a scheduled post becomes due the background `publish-due` command sends it to Telegram.
+The publications page (`/publications`) and its form posts to `publication-create`, which calls `PublicationsService::saveParts` for a new record and `saveFromForm` for a record opened for editing; the per-record buttons call `publishDraft`/`publishPostNow`, `movePostToDraft` and `deletePost`/`deleteDraft` through `publication-publish`, `publication-to-draft` and `publication-delete`. The three record lists start at one page of `PUBLICATIONS_PAGE_SIZE` rows and ask `publication-page` (`posts()`/`drafts()`/`deleted()` with a page and an offset, rendered through the `_item_*` partials) for the next page whenever a block is scrolled to its bottom — see «Бесконечная прогрузка списков» in [README.md](README.md). A switch in the header of each of the three blocks posts to `publication-sort`, which stores the reading order of that block in the session and answers with its first page in the new order; the session state — the forum filters and the reversed blocks alike — is mirrored into the address bar (`SiteController::publicationsUrl`, `?postsOldest=1` and friends), and a page opened on an address that disagrees with the session is redirected onto it (see «Сортировка списков» in [README.md](README.md)). Addresses are flat: `UrlManager` maps each of these routes onto its own path without `index.php?r=` (see «Адреса страниц» in [README.md](README.md)). After a scheduled post becomes due the background `publish-due` command sends it to Telegram.
 
 ---
 
