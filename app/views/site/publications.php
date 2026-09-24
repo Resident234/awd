@@ -289,6 +289,10 @@ CSS
                         <textarea class="form-control" id="publicationImages" name="publicationImages"
                                   rows="3"
                                   placeholder="По одному URL изображения в строке&#10;https://example.com/photo1.jpg&#10;https://example.com/photo2.jpg"></textarea>
+                        <?php /* Named here are the links a fill left out: the shape is the
+                                one the ui-kit gives a day divider inside a chat column. */ ?>
+                        <div class="bg-primary-subtle px-3 py-2 m-3 mb-1 rounded-2 text-break d-none"
+                             id="publicationImagesNotice" role="status"></div>
                         <div class="stacked-images mt-2 d-none" id="publicationImagesPreview"></div>
                         <small class="text-muted">
                             Изображения отправляются в канал вместе с текстом публикации (первое — с подписью)
@@ -1513,6 +1517,7 @@ jQuery(document).ready(function () {
         var forumTypeInput = document.getElementById('forumEntityType');
         var forumIdInput = document.getElementById('forumEntityId');
         var imagesInput = document.getElementById('publicationImages');
+        var imagesNotice = document.getElementById('publicationImagesNotice');
         var imagesPreview = document.getElementById('publicationImagesPreview');
         var previewImages = document.getElementById('publicationPreviewImages');
         var previewCardImgEl = document.getElementById('previewCardImgEl');
@@ -1597,6 +1602,82 @@ jQuery(document).ready(function () {
         var updateImages = function () {
             renderImagesPreview(imagesPreview, parseImageUrls(imagesInput ? imagesInput.value : ''));
             update();
+        };
+
+        // The forum keeps the image links it once read, and a link can outlive
+        // the file behind it. The only way to notice before the album goes to
+        // the channel is to ask for every one of them.
+        var __IMAGE_PROBE_TIMEOUT = 6000;
+        var imageProbeRun = 0;
+
+        var probeImage = function (url) {
+            return new Promise(function (resolve) {
+                var settled = false;
+                var timer = 0;
+                var img = new Image();
+
+                function finish(alive) {
+                    if (settled) {
+                        return;
+                    }
+                    settled = true;
+                    clearTimeout(timer);
+                    img.onload = null;
+                    img.onerror = null;
+                    resolve(alive);
+                }
+                timer = setTimeout(function () {
+                    // A link that never answered is not proven dead: it stays.
+                    finish(true);
+                }, __IMAGE_PROBE_TIMEOUT);
+                img.onload = function () { finish(true); };
+                img.onerror = function () { finish(false); };
+                img.src = url;
+            });
+        };
+
+        var renderImagesNotice = function (deadUrls) {
+            if (!imagesNotice) {
+                return;
+            }
+            if (deadUrls.length === 0) {
+                imagesNotice.classList.add('d-none');
+
+                return;
+            }
+            imagesNotice.textContent = 'Мёртвые ссылки в изображения не добавлены ('
+                + deadUrls.length + '): ' + deadUrls.join(', ');
+            imagesNotice.classList.remove('d-none');
+        };
+
+        // The whole album goes into the field at once, so a form submitted while
+        // the links are still being probed cannot lose a live image; the field
+        // narrows to the ones that answered as soon as all of them have.
+        var setFormImages = function (raw) {
+            if (!imagesInput) {
+                return;
+            }
+            var urls = parseImageUrls(raw);
+            var run = ++imageProbeRun;
+
+            imagesInput.value = urls.join('\n');
+            renderImagesNotice([]);
+            updateImages();
+            if (urls.length === 0) {
+                return;
+            }
+            Promise.all(urls.map(probeImage)).then(function (answered) {
+                var untouched = parseImageUrls(imagesInput.value).join('\n') === urls.join('\n');
+
+                if (run !== imageProbeRun || !untouched) {
+                    return;
+                }
+                var dead = urls.filter(function (url, index) { return !answered[index]; });
+
+                imagesInput.value = urls.filter(function (url, index) { return answered[index]; }).join('\n');
+                renderImagesNotice(dead);
+                updateImages();
+            });
         };
 
         var update = function () {
@@ -1784,10 +1865,7 @@ jQuery(document).ready(function () {
             editingLog = log;
             log.querySelector('.editing-badge').classList.remove('d-none');
             loadText(log.getAttribute('data-text') || '');
-            if (imagesInput) {
-                imagesInput.value = log.getAttribute('data-image-urls') || '';
-                updateImages();
-            }
+            setFormImages(log.getAttribute('data-image-urls') || '');
             scrollToMiddle(log);
 
             if (sourceTypeInput && sourceIdInput) {
@@ -1855,10 +1933,7 @@ jQuery(document).ready(function () {
             if (distributeImagesInput) {
                 distributeImagesInput.checked = false;
             }
-            if (imagesInput) {
-                imagesInput.value = '';
-                updateImages();
-            }
+            setFormImages('');
             if (sourceTypeInput) sourceTypeInput.value = 'new';
             if (sourceIdInput) sourceIdInput.value = '';
             if (forumTypeInput) forumTypeInput.value = '';
@@ -1945,10 +2020,7 @@ jQuery(document).ready(function () {
                 text = title + "\n\n" + text;
             }
             loadText(text);
-            if (imagesInput) {
-                imagesInput.value = btn.getAttribute('data-image-urls') || '';
-                updateImages();
-            }
+            setFormImages(btn.getAttribute('data-image-urls') || '');
             if (sourceTypeInput && sourceIdInput) {
                 sourceTypeInput.value = 'new';
                 sourceIdInput.value = '';
