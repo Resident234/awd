@@ -11,7 +11,7 @@ declare(strict_types=1);
 /** @var bool $withPostsOnly */
 /** @var array{posts: int, drafts: int, deleted: int} $totals */
 /** @var int $pageSize */
-/** @var array{posts: bool, drafts: bool, deleted: bool} $oldestFirst */
+/** @var array<string, bool> $oldestFirst the order of every switch of the page */
 /** @var string $now */
 
 use app\shared\Telegram\Service\ChannelService;
@@ -148,7 +148,21 @@ CSS
         <!-- Forum topics -->
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="card-title">Форум</h5>
+                <div class="d-flex align-items-center justify-content-between gap-3">
+                    <h5 class="card-title mb-0">Форум</h5>
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" role="switch" id="pubSortForumTopics"
+                                <?= $oldestFirst['forumTopics'] ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="pubSortForumTopics">Сначала старые топики</label>
+                        </div>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" role="switch" id="pubSortForumPosts"
+                                <?= $oldestFirst['forumPosts'] ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="pubSortForumPosts">Сначала старые посты</label>
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="card-body">
                 <div class="scroll350">
@@ -685,11 +699,15 @@ jQuery(document).ready(function () {
     // How close to the bottom of a block counts as "the reader ran out of
     // rows"; the request is made early enough to finish before the edge.
     var __SCROLL_EDGE = 80;
-    // The switch that reverses the order of a block sits in its header.
+    // Every switch that reverses the order of a list, by the name the server
+    // knows it under. The forum block has two of them because it reads its
+    // topics and its posts in an order of their own.
     var __SORT_SWITCH_IDS = {
         posts: 'pubSortPosts',
         drafts: 'pubSortDrafts',
-        deleted: 'pubSortDeleted'
+        deleted: 'pubSortDeleted',
+        forumTopics: 'pubSortForumTopics',
+        forumPosts: 'pubSortForumPosts'
     };
     var paging = {};
 
@@ -782,7 +800,7 @@ jQuery(document).ready(function () {
     // The answer of a switch comes back as the first page of the new order,
     // so the reader restarts the block at the end of the list they asked for.
     function watchSortSwitches() {
-        __PAGED_BLOCKS.forEach(function (name) {
+        Object.keys(__SORT_SWITCH_IDS).forEach(function (name) {
             var input = document.getElementById(__SORT_SWITCH_IDS[name]);
             if (!input) {
                 return;

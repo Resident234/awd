@@ -57,9 +57,12 @@ interface ForumRepositoryInterface extends ForumPublicationMapGatewayInterface
      * $imagesCount > 0 only topics/posts having exactly $imagesCount
      * images are returned.
      *
+     * $oldestTopicFirst and $oldestPostFirst read their own field from
+     * the other end: the limit then cuts the oldest topics / the oldest
+     * posts of a topic rather than the newest ones.     *
      * @return array<int, array{topic: \app\shared\Forum\Dto\TopicData, posts: \app\shared\Forum\Dto\PostData[]}>
      */
-    public function latestTopicsWithPosts(int $topicLimit, int $postLimit, bool $withImagesOnly = false, bool $withPostsOnly = false, int $imagesCount = 0): array;
+    public function latestTopicsWithPosts(int $topicLimit, int $postLimit, bool $withImagesOnly = false, bool $withPostsOnly = false, int $imagesCount = 0, bool $oldestTopicFirst = false, bool $oldestPostFirst = false): array;
 
     /**
      * Marks a forum topic as viewed by the "Просмотрено" button:

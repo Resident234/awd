@@ -34,6 +34,20 @@ class SiteController extends Controller
      */
     private const PUBLICATIONS_PAGE_SIZE = 10;
 
+    /**
+     * The orders a switch of the page can reverse. Every name is both a key of
+     * the stored state and the parameter of the address (`postsOldest`), and
+     * says which block has to be redrawn when it switches: the forum block
+     * reads its topics and its posts in an order of their own.
+     */
+    private const PUBLICATIONS_SORT_BLOCKS = [
+        'posts' => 'posts',
+        'drafts' => 'drafts',
+        'deleted' => 'deleted',
+        'forumTopics' => 'forum',
+        'forumPosts' => 'forum',
+    ];
+
     public function __construct(
         $id,
         $module,
@@ -264,11 +278,12 @@ class SiteController extends Controller
     }
 
     /**
-     * Which of the three record lists read themselves oldest first. The order
-     * belongs to the block that switched it, so the other two keep showing
-     * what the reader was looking at.
+     * Which of the lists of the page read themselves oldest first. The order
+     * belongs to the switch that set it, so the other lists keep showing what
+     * the reader was looking at — including the two switches of the forum
+     * block, which reverses its topics and its posts on their own.
      *
-     * @return array{posts: bool, drafts: bool, deleted: bool}
+     * @return array<string, bool> every name of PUBLICATIONS_SORT_BLOCKS
      */
     private function publicationsSort(): array
     {
@@ -279,13 +294,13 @@ class SiteController extends Controller
      * The order the address of the page asks for: `?postsOldest=1` and friends.
      *
      * @param array<string, mixed> $query
-     * @return array{posts: bool, drafts: bool, deleted: bool}
+     * @return array<string, bool> every name of PUBLICATIONS_SORT_BLOCKS
      */
     private function publicationsSortFromQuery(array $query): array
     {
         $raw = [];
 
-        foreach (['posts', 'drafts', 'deleted'] as $block) {
+        foreach (array_keys(self::PUBLICATIONS_SORT_BLOCKS) as $block) {
             $raw[$block] = $query[$block . 'Oldest'] ?? null;
         }
 
@@ -312,13 +327,13 @@ class SiteController extends Controller
 
     /**
      * @param array<string, mixed> $raw
-     * @return array{posts: bool, drafts: bool, deleted: bool}
+     * @return array<string, bool> every name of PUBLICATIONS_SORT_BLOCKS
      */
     private function normalizePublicationsSort(array $raw): array
     {
         $oldestFirst = [];
 
-        foreach (['posts', 'drafts', 'deleted'] as $block) {
+        foreach (array_keys(self::PUBLICATIONS_SORT_BLOCKS) as $block) {
             $value = $raw[$block] ?? null;
             // The session keeps real booleans, a request keeps the '1' of
             // a switch; anything else leaves the block at its default order.
@@ -348,6 +363,8 @@ class SiteController extends Controller
                 $filters['withImages'],
                 $filters['withPosts'],
                 $filters['imagesCount'],
+                $sorts['forumTopics'],
+                $sorts['forumPosts'],
             ),
             'withImagesOnly' => $filters['withImages'],
             'withPostsOnly' => $filters['withPosts'],
@@ -457,23 +474,27 @@ class SiteController extends Controller
     }
 
     /**
-     * Stores the order a block was switched to and answers with that block
-     * redrawn from the beginning: the switch reverses the reading direction of
-     * one list, so the reader gets its first page in the new order.
+     * Stores the order a switch was set to and answers with the block that
+     * switch belongs to, redrawn from the beginning: a switch reverses the
+     * reading direction of one list, so the reader gets its first page in the
+     * new order. Two of the switches belong to the same forum block, which is
+     * why the name of a switch and the name of the block it redraws are not
+     * the same thing.
      *
      * @return Response
      */
     public function actionPublicationSort(): Response
     {
-        $block = $this->request->post('block');
+        $switch = $this->request->post('block');
         $sorts = $this->publicationsSort();
 
-        if (!is_string($block) || !isset($sorts[$block]) || !$this->request->getIsAjax()) {
+        if (!is_string($switch) || !isset($sorts[$switch]) || !$this->request->getIsAjax()) {
             return $this->redirect(['publications']);
         }
 
-        $sorts[$block] = $this->request->post('oldest') === '1';
+        $sorts[$switch] = $this->request->post('oldest') === '1';
         Yii::$app->session->set('publicationsSort', $sorts);
+        $block = self::PUBLICATIONS_SORT_BLOCKS[$switch];
         $data = $this->publicationsData();
 
         return $this->asJson([

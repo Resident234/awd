@@ -314,10 +314,18 @@ final class ForumRepository implements ForumRepositoryInterface, ForumPublicatio
      *
      * With $imagesCount > 0 only topics/posts having exactly $imagesCount images are returned.
      *
+     * $oldestTopicFirst and $oldestPostFirst read their own date field from
+     * the other end. Both orders keep a record without a date at the very
+     * end and break ties on the row id, and because the limit of a topic's
+     * posts is taken in the same order, reversing it hands over the oldest
+     * $postLimit posts of the discussion instead of the newest ones.
+     *
      * @return array<int, array{topic: TopicData, posts: PostData[]}>
      */
-    public function latestTopicsWithPosts(int $topicLimit, int $postLimit, bool $withImagesOnly = false, bool $withPostsOnly = false, int $imagesCount = 0): array
+    public function latestTopicsWithPosts(int $topicLimit, int $postLimit, bool $withImagesOnly = false, bool $withPostsOnly = false, int $imagesCount = 0, bool $oldestTopicFirst = false, bool $oldestPostFirst = false): array
     {
+        $topicOrder = $oldestTopicFirst ? 'ASC' : 'DESC';
+        $postOrder = $oldestPostFirst ? 'ASC' : 'DESC';
         $topicFilter = ($withImagesOnly
             ? ' AND (t.image_urls != \'[]\'::jsonb OR EXISTS (SELECT 1 FROM {{%post}} fp WHERE fp.topic_id = t.id AND fp.image_urls != \'[]\'::jsonb))'
             : '')
@@ -343,7 +351,7 @@ final class ForumRepository implements ForumRepositoryInterface, ForumPublicatio
                 . ' LEFT JOIN {{%member}} m ON m.id = t.author_id'
                 . ' LEFT JOIN {{%publications_topic_map}} ptm ON ptm.topic_id = t.id'
                 . ' WHERE t.login_required = FALSE' . $topicFilter
-                . ' ORDER BY t.published_at DESC NULLS LAST, t.id DESC'
+                . ' ORDER BY t.published_at ' . $topicOrder . ' NULLS LAST, t.id ' . $topicOrder
                 . ' LIMIT :limit'
             )
             ->bindValue(':limit', $topicLimit)
@@ -367,7 +375,7 @@ final class ForumRepository implements ForumRepositoryInterface, ForumPublicatio
                 . ' ppm.post_id AS publication_map_id, ppm.telegram_id AS publication_telegram_id'
                 . ' FROM ('
                 . ' SELECT bp.id, bp.topic_id, bp.author_id, bp.number, bp.title, bp.posted_at, bp.content_html, bp.content_text, bp.source_url, bp.image_urls,'
-                . ' ROW_NUMBER() OVER (PARTITION BY bp.topic_id ORDER BY bp.posted_at DESC NULLS LAST, bp.id DESC) AS rn'
+                . ' ROW_NUMBER() OVER (PARTITION BY bp.topic_id ORDER BY bp.posted_at ' . $postOrder . ' NULLS LAST, bp.id ' . $postOrder . ') AS rn'
                 . ' FROM {{%post}} bp'
                 . ' WHERE bp.topic_id IN (' . implode(',', $topicIds) . ')'
                 . $unprocessedPosts
@@ -375,7 +383,7 @@ final class ForumRepository implements ForumRepositoryInterface, ForumPublicatio
                 . ' LEFT JOIN {{%member}} m ON m.id = p.author_id'
                 . ' LEFT JOIN {{%publications_post_map}} ppm ON ppm.post_id = p.id'
                 . ' WHERE p.rn <= :postLimit' . $postFilter
-                . ' ORDER BY p.topic_id, p.posted_at DESC NULLS LAST, p.id DESC'
+                . ' ORDER BY p.topic_id, p.posted_at ' . $postOrder . ' NULLS LAST, p.id ' . $postOrder
             )
             ->bindValue(':postLimit', $postLimit)
             ->queryAll(PDO::FETCH_ASSOC);
