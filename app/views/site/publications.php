@@ -251,7 +251,19 @@ CSS
                     </div>
 
                     <!-- Outside the parts box, so the template a new part is cloned from stays clean. -->
-                    <div class="d-flex justify-content-end mb-2">
+                    <div class="d-flex flex-wrap justify-content-end gap-2 mb-2" id="publicationSplitModes">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-split-whole="paragraphs"
+                                title="Разбить весь текст по абзацам: пустая строка начинает новую часть">
+                            <i class="bi bi-paragraph me-1"></i>По абзацам
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-split-whole="lines"
+                                title="Разбить весь текст по переносам строк: каждая строка становится частью">
+                            <i class="bi bi-list-nested me-1"></i>По строкам
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-split-whole="sentences"
+                                title="Разбить весь текст по предложениям: «.», «!», «?» и «…» начинают новую часть">
+                            <i class="bi bi-chat-left-text me-1"></i>По предложениям
+                        </button>
                         <button type="button" class="btn btn-outline-secondary btn-sm" id="publicationSplitPart"
                                 title="Разделить часть по курсору, а без курсора — примерно посередине">
                             <i class="bi bi-scissors me-1"></i>Разделить
@@ -911,6 +923,7 @@ jQuery(document).ready(function () {
         var numberPartsInput = document.getElementById('publicationNumberParts');
         var distributeImagesInput = document.getElementById('publicationDistributeImages');
         var splitButton = document.getElementById('publicationSplitPart');
+        var splitModesBox = document.getElementById('publicationSplitModes');
 
         function textParts() {
             return Array.prototype.slice.call(partsBox.querySelectorAll('.publication-text-part'));
@@ -1221,6 +1234,81 @@ jQuery(document).ready(function () {
                     next.setSelectionRange(0, 0);
                 }
             }
+        }
+
+        // --- manual split of the whole text at boundaries of one kind ---------
+
+        // A run of newlines is one seam, so neither an empty line nor a run of
+        // breaks leaves an empty part behind.
+        function breakCuts(text, seams) {
+            var cuts = [];
+            var pattern = new RegExp(seams, 'g');
+            var match;
+
+            while ((match = pattern.exec(text)) !== null) {
+                cuts.push(match.index);
+            }
+
+            return cuts;
+        }
+
+        // Sentences are not a newline pattern: a part ends at a stop, an exclamation,
+        // a question or an ellipsis, wherever the line breaks happen to fall.
+        function sentenceCuts(text) {
+            var cuts = [];
+
+            for (var index = 1; index < text.length; index++) {
+                if (endsSentence(text, index)) {
+                    cuts.push(index);
+                }
+            }
+
+            return cuts;
+        }
+
+        function wholeTextCuts(text, mode) {
+            if (mode === 'sentences') {
+                return sentenceCuts(text);
+            }
+            if (mode === 'lines') {
+                return breakCuts(text, '\\n+');
+            }
+
+            return breakCuts(text, '\\n{2,}');
+        }
+
+        // What stands between two cuts, with the seam whitespace around it dropped.
+        function piecesAt(text, cuts) {
+            var pieces = [];
+            var from = 0;
+
+            cuts.concat([text.length]).forEach(function (cut) {
+                var piece = text.slice(from, cut).trim();
+
+                from = cut;
+                if (piece !== '') {
+                    pieces.push(piece);
+                }
+            });
+
+            return pieces;
+        }
+
+        // One part per paragraph, line or sentence, however short it comes out —
+        // unlike the automatic split, which never leaves a part under half a message.
+        // A piece that does not fit one message is still cut down by that rule,
+        // because the server rejects a longer part.
+        function splitWholeText(mode) {
+            var text = partValues().map(stripPartNumber).join('\n\n');
+            var parts = [];
+
+            piecesAt(text, wholeTextCuts(text, mode)).forEach(function (piece) {
+                splitIntoParts(piece).forEach(function (one) {
+                    parts.push(one);
+                });
+            });
+
+            setTextParts(parts.length > 0 ? parts : ['']);
         }
 
         // Two neighbouring parts into one: the seam becomes a paragraph, exactly
@@ -1764,6 +1852,15 @@ jQuery(document).ready(function () {
         }
         if (splitButton) {
             splitButton.addEventListener('click', splitPartAtCaret);
+        }
+        if (splitModesBox) {
+            splitModesBox.addEventListener('click', function (event) {
+                var button = event.target.closest('[data-split-whole]');
+                if (!button) {
+                    return;
+                }
+                splitWholeText(button.getAttribute('data-split-whole'));
+            });
         }
         // One listener for the rows of every part, including the cloned ones.
         partsBox.addEventListener('click', function (event) {
