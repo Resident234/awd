@@ -291,10 +291,11 @@ final class ForumRepository implements ForumRepositoryInterface, ForumPublicatio
 
     /**
      * Latest accessible topics (login_required = false) sorted by
-     * published_at descending, at most $topicLimit rows. Each topic
-     * carries its own posts (at most $postLimit, posted_at descending,
-     * full field values) with author data hydrated from the joined
-     * member rows.
+     * published_at descending, $topicLimit rows of them starting at
+     * $topicOffset. Each topic carries its own posts (at most $postLimit,
+     * posted_at descending, full field values) with author data hydrated
+     * from the joined member rows, and how many posts the whole discussion
+     * has under the filters the page is showing.
      *
      * Publication filter: only topics without a publications_topic_map
      * record are listed, plus mapped (viewed/published) topics that
@@ -320,13 +321,150 @@ final class ForumRepository implements ForumRepositoryInterface, ForumPublicatio
      * posts is taken in the same order, reversing it hands over the oldest
      * $postLimit posts of the discussion instead of the newest ones.
      *
-     * @return array<int, array{topic: TopicData, posts: PostData[]}>
+     * @return array<int, array{topic: TopicData, posts: PostData[], postsTotal: int}>
      */
-    public function latestTopicsWithPosts(int $topicLimit, int $postLimit, bool $withImagesOnly = false, bool $withPostsOnly = false, int $imagesCount = 0, bool $oldestTopicFirst = false, bool $oldestPostFirst = false): array
+    public function latestTopicsWithPosts(int $topicLimit, int $postLimit, bool $withImagesOnly = false, bool $withPostsOnly = false, int $imagesCount = 0, bool $oldestTopicFirst = false, bool $oldestPostFirst = false, int $topicOffset = 0): array
     {
         $topicOrder = $oldestTopicFirst ? 'ASC' : 'DESC';
         $postOrder = $oldestPostFirst ? 'ASC' : 'DESC';
-        $topicFilter = ($withImagesOnly
+        $topicRows = $this->db
+            ->createCommand(
+                'SELECT t.id, t.source_url, t.title, t.published_at, t.content_html, t.content_text, t.image_urls,'
+                . ' m.id AS author_id, m.profile_url AS author_profile_url, m.name AS author_name,'
+                . ' m.avatar_url AS author_avatar_url, m.rank_name AS author_rank_name,'
+                . ' ptm.topic_id AS publication_map_id, ptm.telegram_id AS publication_telegram_id'
+                . ' FROM {{%topic}} t'
+                . ' LEFT JOIN {{%member}} m ON m.id = t.author_id'
+                . ' LEFT JOIN {{%publications_topic_map}} ptm ON ptm.topic_id = t.id'
+                . ' WHERE t.login_required = FALSE' . $this->topicFilterSql($withImagesOnly, $withPostsOnly, $imagesCount)
+                . ' ORDER BY t.published_at ' . $topicOrder . ' NULLS LAST, t.id ' . $topicOrder
+                . ' LIMIT :limit OFFSET :offset'
+            )
+            ->bindValue(':limit', $topicLimit)
+            ->bindValue(':offset', max(0, $topicOffset))
+            ->queryAll(PDO::FETCH_ASSOC);
+
+        if ($topicRows === []) {
+            return [];
+        }
+
+        $topicIds = array_map(static fn (array $row): int => (int)$row['id'], $topicRows);
+        $postRows = $this->db
+            ->createCommand(
+                'SELECT p.id, p.topic_id, p.author_id, p.number, p.title, p.posted_at, p.content_html, p.content_text, p.source_url, p.image_urls, p.topic_post_total,'
+                . ' m.profile_url AS author_profile_url, m.name AS author_name,'
+                . ' m.avatar_url AS author_avatar_url, m.rank_name AS author_rank_name,'
+                . ' ppm.post_id AS publication_map_id, ppm.telegram_id AS publication_telegram_id'
+                . ' FROM ('
+                . ' SELECT bp.id, bp.topic_id, bp.author_id, bp.number, bp.title, bp.posted_at, bp.content_html, bp.content_text, bp.source_url, bp.image_urls,'
+                . ' ROW_NUMBER() OVER (PARTITION BY bp.topic_id ORDER BY bp.posted_at ' . $postOrder . ' NULLS LAST, bp.id ' . $postOrder . ') AS rn,'
+                . ' COUNT(*) OVER (PARTITION BY bp.topic_id) AS topic_post_total'
+                . ' FROM {{%post}} bp'
+                . ' WHERE bp.topic_id IN (' . implode(',', $topicIds) . ')'
+                . $this->unprocessedPostFilterSql($withPostsOnly)
+                . $this->postImageFilterSql($withImagesOnly, $imagesCount)
+                . ' ) p'
+                . ' LEFT JOIN {{%member}} m ON m.id = p.author_id'
+                . ' LEFT JOIN {{%publications_post_map}} ppm ON ppm.post_id = p.id'
+                . ' WHERE p.rn <= :postLimit'
+                . ' ORDER BY p.topic_id, p.posted_at ' . $postOrder . ' NULLS LAST, p.id ' . $postOrder
+            )
+            ->bindValue(':postLimit', $postLimit)
+            ->queryAll(PDO::FETCH_ASSOC);
+
+        $postsByTopic = [];
+        $totalsByTopic = [];
+        foreach ($postRows as $row) {
+            $topicId = (int)$row['topic_id'];
+            $postsByTopic[$topicId][] = $this->hydratePostRow($row);
+            $totalsByTopic[$topicId] = (int)$row['topic_post_total'];
+        }
+
+        $result = [];
+        foreach ($topicRows as $row) {
+            $topicId = (int)$row['id'];
+            $result[] = [
+                'topic' => $this->hydrateTopicRow($row),
+                'posts' => $postsByTopic[$topicId] ?? [],
+                'postsTotal' => $totalsByTopic[$topicId] ?? 0,
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * How many topics the filters of the page leave for the forum block: the
+     * very selection latestTopicsWithPosts pages through, counted without its
+     * limit, so the scroll knows when the list has run out.
+     */
+    public function countTopics(bool $withImagesOnly = false, bool $withPostsOnly = false, int $imagesCount = 0): int
+    {
+        return (int)$this->db
+            ->createCommand(
+                'SELECT COUNT(*) FROM {{%topic}} t'
+                . ' LEFT JOIN {{%publications_topic_map}} ptm ON ptm.topic_id = t.id'
+                . ' WHERE t.login_required = FALSE' . $this->topicFilterSql($withImagesOnly, $withPostsOnly, $imagesCount)
+            )
+            ->queryScalar();
+    }
+
+    /**
+     * The next page of one discussion: $limit posts read from $offset in the
+     * order the block shows them, together with how many posts the topic has
+     * under the filters of the page. The numbering runs over the same
+     * selection the first page of the discussion was cut from, so a post the
+     * reader is looking at is never handed out twice and none is skipped.
+     *
+     * @return array{posts: PostData[], total: int}
+     */
+    public function topicPosts(int $topicId, int $limit, int $offset, bool $withImagesOnly = false, bool $withPostsOnly = false, int $imagesCount = 0, bool $oldestPostFirst = false): array
+    {
+        $postOrder = $oldestPostFirst ? 'ASC' : 'DESC';
+        $from = max(0, $offset);
+        $rows = $this->db
+            ->createCommand(
+                'SELECT p.id, p.topic_id, p.author_id, p.number, p.title, p.posted_at, p.content_html, p.content_text, p.source_url, p.image_urls, p.total,'
+                . ' m.profile_url AS author_profile_url, m.name AS author_name,'
+                . ' m.avatar_url AS author_avatar_url, m.rank_name AS author_rank_name,'
+                . ' ppm.post_id AS publication_map_id, ppm.telegram_id AS publication_telegram_id'
+                . ' FROM ('
+                . ' SELECT bp.id, bp.topic_id, bp.author_id, bp.number, bp.title, bp.posted_at, bp.content_html, bp.content_text, bp.source_url, bp.image_urls,'
+                . ' ROW_NUMBER() OVER (ORDER BY bp.posted_at ' . $postOrder . ' NULLS LAST, bp.id ' . $postOrder . ') AS rn,'
+                . ' COUNT(*) OVER () AS total'
+                . ' FROM {{%post}} bp'
+                . ' WHERE bp.topic_id = :topicId'
+                . $this->unprocessedPostFilterSql($withPostsOnly)
+                . $this->postImageFilterSql($withImagesOnly, $imagesCount)
+                . ' ) p'
+                . ' LEFT JOIN {{%member}} m ON m.id = p.author_id'
+                . ' LEFT JOIN {{%publications_post_map}} ppm ON ppm.post_id = p.id'
+                . ' WHERE p.rn > :from AND p.rn <= :to'
+                . ' ORDER BY p.posted_at ' . $postOrder . ' NULLS LAST, p.id ' . $postOrder
+            )
+            ->bindValue(':topicId', $topicId)
+            ->bindValue(':from', $from)
+            ->bindValue(':to', $from + $limit)
+            ->queryAll(PDO::FETCH_ASSOC);
+
+        $posts = [];
+        foreach ($rows as $row) {
+            $posts[] = $this->hydratePostRow($row);
+        }
+
+        // A page past the end carries no row to read the count from, and the
+        // reader who asked for it has reached the bottom either way.
+        return ['posts' => $posts, 'total' => $rows === [] ? 0 : (int)$rows[0]['total']];
+    }
+
+    /**
+     * The rule that lets a topic reach the page: it is unprocessed itself, or
+     * one of its posts still is, plus the filters of the block header. Shared
+     * by the list of topics and by the count that pages it.
+     */
+    private function topicFilterSql(bool $withImagesOnly, bool $withPostsOnly, int $imagesCount): string
+    {
+        return ($withImagesOnly
             ? ' AND (t.image_urls != \'[]\'::jsonb OR EXISTS (SELECT 1 FROM {{%post}} fp WHERE fp.topic_id = t.id AND fp.image_urls != \'[]\'::jsonb))'
             : '')
             . ($withPostsOnly
@@ -341,98 +479,29 @@ final class ForumRepository implements ForumRepositoryInterface, ForumPublicatio
             . ' AND NOT EXISTS (SELECT 1 FROM {{%publications_post_map}} fpm WHERE fpm.post_id = fp.id)'
             . ($withImagesOnly ? ' AND fp.image_urls != \'[]\'::jsonb' : '')
             . '))';
-        $topicRows = $this->db
-            ->createCommand(
-                'SELECT t.id, t.source_url, t.title, t.published_at, t.content_html, t.content_text, t.image_urls,'
-                . ' m.id AS author_id, m.profile_url AS author_profile_url, m.name AS author_name,'
-                . ' m.avatar_url AS author_avatar_url, m.rank_name AS author_rank_name,'
-                . ' ptm.topic_id AS publication_map_id, ptm.telegram_id AS publication_telegram_id'
-                . ' FROM {{%topic}} t'
-                . ' LEFT JOIN {{%member}} m ON m.id = t.author_id'
-                . ' LEFT JOIN {{%publications_topic_map}} ptm ON ptm.topic_id = t.id'
-                . ' WHERE t.login_required = FALSE' . $topicFilter
-                . ' ORDER BY t.published_at ' . $topicOrder . ' NULLS LAST, t.id ' . $topicOrder
-                . ' LIMIT :limit'
-            )
-            ->bindValue(':limit', $topicLimit)
-            ->queryAll(PDO::FETCH_ASSOC);
+    }
 
-        if ($topicRows === []) {
-            return [];
-        }
-
-        $topicIds = array_map(static fn (array $row): int => (int)$row['id'], $topicRows);
-        $postFilter = ($withImagesOnly ? ' AND p.image_urls != \'[]\'::jsonb' : '')
-            . ($imagesCount > 0 ? ' AND jsonb_array_length(p.image_urls) = ' . $imagesCount : '');
-        $unprocessedPosts = $withPostsOnly
+    /**
+     * A discussion shows only its unprocessed posts unless the page is
+     * filtered down to topics that have any post at all: then the whole
+     * thread is kept, processed posts included.
+     */
+    private function unprocessedPostFilterSql(bool $withPostsOnly): string
+    {
+        return $withPostsOnly
             ? ''
             : ' AND NOT EXISTS (SELECT 1 FROM {{%publications_post_map}} fpm WHERE fpm.post_id = bp.id)';
-        $postRows = $this->db
-            ->createCommand(
-                'SELECT p.id, p.topic_id, p.author_id, p.number, p.title, p.posted_at, p.content_html, p.content_text, p.source_url, p.image_urls,'
-                . ' m.profile_url AS author_profile_url, m.name AS author_name,'
-                . ' m.avatar_url AS author_avatar_url, m.rank_name AS author_rank_name,'
-                . ' ppm.post_id AS publication_map_id, ppm.telegram_id AS publication_telegram_id'
-                . ' FROM ('
-                . ' SELECT bp.id, bp.topic_id, bp.author_id, bp.number, bp.title, bp.posted_at, bp.content_html, bp.content_text, bp.source_url, bp.image_urls,'
-                . ' ROW_NUMBER() OVER (PARTITION BY bp.topic_id ORDER BY bp.posted_at ' . $postOrder . ' NULLS LAST, bp.id ' . $postOrder . ') AS rn'
-                . ' FROM {{%post}} bp'
-                . ' WHERE bp.topic_id IN (' . implode(',', $topicIds) . ')'
-                . $unprocessedPosts
-                . ' ) p'
-                . ' LEFT JOIN {{%member}} m ON m.id = p.author_id'
-                . ' LEFT JOIN {{%publications_post_map}} ppm ON ppm.post_id = p.id'
-                . ' WHERE p.rn <= :postLimit' . $postFilter
-                . ' ORDER BY p.topic_id, p.posted_at ' . $postOrder . ' NULLS LAST, p.id ' . $postOrder
-            )
-            ->bindValue(':postLimit', $postLimit)
-            ->queryAll(PDO::FETCH_ASSOC);
+    }
 
-        $postsByTopic = [];
-        foreach ($postRows as $row) {
-            $author = $row['author_id'] === null ? null : new MemberData(
-                (int)$row['author_id'],
-                (string)($row['author_profile_url'] ?? ''),
-                (string)($row['author_name'] ?? ''),
-                $row['author_avatar_url'] === null ? null : (string)$row['author_avatar_url'],
-                $row['author_rank_name'] === null ? null : (string)$row['author_rank_name'],
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                [],
-            );
-            $postsByTopic[(int)$row['topic_id']][] = new PostData(
-                (int)$row['id'],
-                (int)$row['topic_id'],
-                $row['author_id'] === null ? null : (int)$row['author_id'],
-                $row['number'] === null ? null : (int)$row['number'],
-                (string)$row['title'],
-                $row['posted_at'] === null ? null : (string)$row['posted_at'],
-                (string)$row['content_html'],
-                (string)$row['content_text'],
-                (string)$row['source_url'],
-                $author,
-                self::decodeImageUrls($row['image_urls']),
-                self::publicationStatus($row['publication_map_id'], $row['publication_telegram_id']),
-                self::publicationTelegramId($row['publication_map_id'], $row['publication_telegram_id']),
-            );
-        }
-
-        $result = [];
-        foreach ($topicRows as $row) {
-            $result[] = [
-                'topic' => $this->hydrateTopicRow($row),
-                'posts' => $postsByTopic[(int)$row['id']] ?? [],
-            ];
-        }
-
-        return $result;
+    /**
+     * The image filters of the header. They run over the posts of a topic
+     * before those posts are numbered, so the window a page reads from and
+     * the count of the discussion speak about the same set of rows.
+     */
+    private function postImageFilterSql(bool $withImagesOnly, int $imagesCount): string
+    {
+        return ($withImagesOnly ? ' AND bp.image_urls != \'[]\'::jsonb' : '')
+            . ($imagesCount > 0 ? ' AND jsonb_array_length(bp.image_urls) = ' . $imagesCount : '');
     }
 
     /**
@@ -618,6 +687,31 @@ final class ForumRepository implements ForumRepositoryInterface, ForumPublicatio
             false,
             self::publicationStatus($row['publication_map_id'] ?? null, $row['publication_telegram_id'] ?? null),
             self::publicationTelegramId($row['publication_map_id'] ?? null, $row['publication_telegram_id'] ?? null),
+        );
+    }
+
+    /**
+     * A post row of either of the two paged queries: the author is hydrated
+     * from the same joined member columns the topic list carries.
+     *
+     * @param array<string, mixed> $row
+     */
+    private function hydratePostRow(array $row): PostData
+    {
+        return new PostData(
+            (int)$row['id'],
+            (int)$row['topic_id'],
+            $row['author_id'] === null ? null : (int)$row['author_id'],
+            $row['number'] === null ? null : (int)$row['number'],
+            (string)$row['title'],
+            $row['posted_at'] === null ? null : (string)$row['posted_at'],
+            (string)$row['content_html'],
+            (string)$row['content_text'],
+            (string)$row['source_url'],
+            $this->hydrateAuthorRow($row),
+            self::decodeImageUrls($row['image_urls']),
+            self::publicationStatus($row['publication_map_id'], $row['publication_telegram_id']),
+            self::publicationTelegramId($row['publication_map_id'], $row['publication_telegram_id']),
         );
     }
 

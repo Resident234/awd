@@ -47,8 +47,10 @@ interface ForumRepositoryInterface extends ForumPublicationMapGatewayInterface
 
     /**
      * Latest accessible topics (login_required = false) sorted by
-     * published_at descending, at most $topicLimit rows, each with its
-     * own latest posts (at most $postLimit, posted_at descending).
+     * published_at descending, $topicLimit rows read from $topicOffset,
+     * each with its own posts (at most $postLimit, posted_at descending)
+     * and the number of posts its whole discussion has under the filters
+     * the page runs by.
      * With $withImagesOnly = true only topics/posts having non-empty
      * image_urls are returned. With $withPostsOnly = true only topics
      * having at least one post are returned, and every post the shown
@@ -59,10 +61,28 @@ interface ForumRepositoryInterface extends ForumPublicationMapGatewayInterface
      *
      * $oldestTopicFirst and $oldestPostFirst read their own field from
      * the other end: the limit then cuts the oldest topics / the oldest
-     * posts of a topic rather than the newest ones.     *
-     * @return array<int, array{topic: \app\shared\Forum\Dto\TopicData, posts: \app\shared\Forum\Dto\PostData[]}>
+     * posts of a topic rather than the newest ones.
+     *
+     * @return array<int, array{topic: \app\shared\Forum\Dto\TopicData, posts: \app\shared\Forum\Dto\PostData[], postsTotal: int}>
      */
-    public function latestTopicsWithPosts(int $topicLimit, int $postLimit, bool $withImagesOnly = false, bool $withPostsOnly = false, int $imagesCount = 0, bool $oldestTopicFirst = false, bool $oldestPostFirst = false): array;
+    public function latestTopicsWithPosts(int $topicLimit, int $postLimit, bool $withImagesOnly = false, bool $withPostsOnly = false, int $imagesCount = 0, bool $oldestTopicFirst = false, bool $oldestPostFirst = false, int $topicOffset = 0): array;
+
+    /**
+     * How many topics the forum block of these filters is made of, which is
+     * how far its scroll may keep loading.
+     */
+    public function countTopics(bool $withImagesOnly = false, bool $withPostsOnly = false, int $imagesCount = 0): int;
+
+    /**
+     * The next page of one discussion: $limit posts read from $offset in the
+     * order the block shows them, plus how many posts the topic has under
+     * the filters of the page. The two queries of latestTopicsWithPosts cut
+     * their first page from the same selection, so the pages of a discussion
+     * never repeat or skip a post the reader has already seen.
+     *
+     * @return array{posts: \app\shared\Forum\Dto\PostData[], total: int}
+     */
+    public function topicPosts(int $topicId, int $limit, int $offset, bool $withImagesOnly = false, bool $withPostsOnly = false, int $imagesCount = 0, bool $oldestPostFirst = false): array;
 
     /**
      * Marks a forum topic as viewed by the "Просмотрено" button:

@@ -479,11 +479,13 @@ $csrfParam = Yii::$app->request->csrfParam;
 $csrfToken = Yii::$app->request->csrfToken;
 $filterSaveUrl = \yii\helpers\Url::to(['site/forum-filter-save']);
 $pageUrl = \yii\helpers\Url::to(['site/publication-page']);
+$postPageUrl = \yii\helpers\Url::to(['site/forum-post-page']);
 $sortUrl = \yii\helpers\Url::to(['site/publication-sort']);
 $blockTotals = json_encode($totals);
 $this->registerJs(
     "var __FILTER_SAVE_URL = '{$filterSaveUrl}';
 var __PAGE_URL = '{$pageUrl}';
+var __POST_PAGE_URL = '{$postPageUrl}';
 var __SORT_URL = '{$sortUrl}';
 var __PAGE_SIZE = {$pageSize};
 var __BLOCK_TOTALS = {$blockTotals};
@@ -693,9 +695,19 @@ jQuery(document).ready(function () {
         });
     }
 
-    // The three record lists are drawn a page at a time: reaching the bottom
-    // of a block asks the server for the next __PAGE_SIZE rows of that list.
-    var __PAGED_BLOCKS = ['posts', 'drafts', 'deleted'];
+    // Every list the page draws a page at a time: reaching the bottom of a
+    // block asks the server for the next __PAGE_SIZE rows of that list. The
+    // forum block pages through its topics, while the posts of one topic are
+    // paged by the box that holds them.
+    var __PAGED_BLOCKS = ['posts', 'drafts', 'deleted', 'forum'];
+    // What one row of a paged block looks like: how many of them a block holds
+    // is how far the reader already is.
+    var __BLOCK_ROWS = {
+        posts: '.activity-log',
+        drafts: '.activity-log',
+        deleted: '.activity-log',
+        forum: '.thread'
+    };
     // How close to the bottom of a block counts as "the reader ran out of
     // rows"; the request is made early enough to finish before the edge.
     var __SCROLL_EDGE = 80;
@@ -722,7 +734,11 @@ jQuery(document).ready(function () {
     function loadedRows(name) {
         var list = document.getElementById(__BLOCK_TARGETS[name]);
 
-        return list ? list.querySelectorAll('.activity-log').length : 0;
+        return list ? list.querySelectorAll(__BLOCK_ROWS[name]).length : 0;
+    }
+
+    function nearBottom(el) {
+        return el.scrollTop + el.clientHeight >= el.scrollHeight - __SCROLL_EDGE;
     }
 
     // A block that has just been repainted shows its first page again, so the
@@ -794,6 +810,40 @@ jQuery(document).ready(function () {
                 + (error && error.message ? error.message : error));
         }).then(function () {
             state.busy = false;
+        });
+    }
+
+    // A discussion keeps its place in its own markup: the box says how many of
+    // its posts are on screen and how many the filters leave, so a repainted
+    // forum block restarts every one of them at its first page for free.
+    function loadNextReplies(box) {
+        var topic = parseInt(box.dataset.topic, 10) || 0;
+        var offset = parseInt(box.dataset.offset, 10) || 0;
+        var total = parseInt(box.dataset.total, 10) || 0;
+
+        if (box.__busy || box.__failed || topic <= 0 || offset >= total) {
+            return;
+        }
+        box.__busy = true;
+
+        postForJson(__POST_PAGE_URL, { topic: topic, offset: offset }).then(function (payload) {
+            if (payload.topic !== topic || typeof payload.html !== 'string') {
+                return;
+            }
+            box.insertAdjacentHTML('beforeend', payload.html);
+
+            if (typeof payload.offset === 'number') {
+                box.dataset.offset = payload.offset;
+            }
+            if (typeof payload.total === 'number') {
+                box.dataset.total = payload.total;
+            }
+        }).catch(function (error) {
+            box.__failed = true;
+            showFlash('error', 'Не удалось догрузить посты: '
+                + (error && error.message ? error.message : error));
+        }).then(function () {
+            box.__busy = false;
         });
     }
 
@@ -1990,14 +2040,22 @@ jQuery(document).ready(function () {
         // Scroll does not bubble, so one capture listener on the document sees
         // the viewport of every block, whenever OverlayScrollbars rebuilt it.
         document.addEventListener('scroll', function (event) {
-            var name = pagedBlockOf(event.target);
+            var scroller = event.target;
+            var replies = typeof scroller.closest === 'function' ? scroller.closest('.thread-replies') : null;
 
-            if (name === '') {
+            // A discussion box sits inside the list of topics, so its scroll has
+            // to be answered first: otherwise it would read as the bottom of the
+            // list and ask for another topic.
+            if (replies) {
+                if (nearBottom(replies)) {
+                    loadNextReplies(replies);
+                }
+
                 return;
             }
-            var viewport = event.target;
+            var name = pagedBlockOf(scroller);
 
-            if (viewport.scrollTop + viewport.clientHeight < viewport.scrollHeight - __SCROLL_EDGE) {
+            if (name === '' || !nearBottom(scroller)) {
                 return;
             }
             loadNextPage(name);

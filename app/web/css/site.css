@@ -355,3 +355,12 @@ div.extension-card:hover,
     padding: 0;
     white-space: pre-wrap;
 }
+
+/* Forum Discussion Scroller */
+/* Posts of one topic: the box scrolls on its own and loads the next page of
+   the discussion when its reader reaches the bottom. */
+.thread-replies {
+    max-height: 320px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}

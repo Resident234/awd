@@ -90,6 +90,7 @@ class SiteController extends Controller
                     'publication-page' => ['post'],
                     'publication-sort' => ['post'],
                     'forum-viewed' => ['post'],
+                    'forum-post-page' => ['post'],
                 ],
             ],
         ];
@@ -352,14 +353,20 @@ class SiteController extends Controller
     {
         $filters = $this->forumFilters();
         $sorts = $this->publicationsSort();
+        $totals = $this->publications->listTotals();
+        $totals['forum'] = $this->forum->countTopics(
+            $filters['withImages'],
+            $filters['withPosts'],
+            $filters['imagesCount'],
+        );
 
         return [
             'posts' => $this->publications->posts(self::PUBLICATIONS_PAGE_SIZE, 0, $sorts['posts']),
             'drafts' => $this->publications->drafts(self::PUBLICATIONS_PAGE_SIZE, 0, $sorts['drafts']),
             'deleted' => $this->publications->deleted(self::PUBLICATIONS_PAGE_SIZE, 0, $sorts['deleted']),
             'topics' => $this->forum->latestTopicsWithPosts(
-                10,
-                10,
+                self::PUBLICATIONS_PAGE_SIZE,
+                self::PUBLICATIONS_PAGE_SIZE,
                 $filters['withImages'],
                 $filters['withPosts'],
                 $filters['imagesCount'],
@@ -369,7 +376,7 @@ class SiteController extends Controller
             'withImagesOnly' => $filters['withImages'],
             'withPostsOnly' => $filters['withPosts'],
             'imagesCount' => $filters['imagesCount'],
-            'totals' => $this->publications->listTotals(),
+            'totals' => $totals,
             'pageSize' => self::PUBLICATIONS_PAGE_SIZE,
             'oldestFirst' => $sorts,
             'now' => gmdate('Y-m-d H:i:s'),
@@ -544,21 +551,81 @@ class SiteController extends Controller
      * The list a page of the scroll reads: the view of one item, the rows of
      * that page in the order the block is currently showing and how many rows
      * the whole list holds. A name the page does not have answers null, which
-     * is how the caller's block key is checked.
+     * is how the caller's block key is checked. The forum answers with its
+     * topics: each row carries the posts of its own discussion and their
+     * total, which is what opens the scroller of that discussion.
      *
-     * @return array{0: string, 1: list<\app\shared\Publications\Dto\PublicationData>, 2: int}|null
+     * @return array{0: string, 1: list<array<string, mixed>|\app\shared\Publications\Dto\PublicationData>, 2: int}|null
      */
     private function publicationPage(string $block, int $offset): ?array
     {
         $size = self::PUBLICATIONS_PAGE_SIZE;
         $sorts = $this->publicationsSort();
+        $filters = $this->forumFilters();
 
         return match ($block) {
             'posts' => ['_item_post', $this->publications->posts($size, $offset, $sorts['posts']), $this->publications->countPosts()],
             'drafts' => ['_item_draft', $this->publications->drafts($size, $offset, $sorts['drafts']), $this->publications->countDrafts()],
             'deleted' => ['_item_deleted', $this->publications->deleted($size, $offset, $sorts['deleted']), $this->publications->countDeleted()],
+            'forum' => [
+                '_item_topic',
+                $this->forum->latestTopicsWithPosts(
+                    $size,
+                    $size,
+                    $filters['withImages'],
+                    $filters['withPosts'],
+                    $filters['imagesCount'],
+                    $sorts['forumTopics'],
+                    $sorts['forumPosts'],
+                    $offset,
+                ),
+                $this->forum->countTopics($filters['withImages'], $filters['withPosts'], $filters['imagesCount']),
+            ],
             default => null,
         };
+    }
+
+    /**
+     * The next page of one discussion, for the scroll of the box that holds
+     * its posts: the replies alone, appended under the ones already on
+     * screen. The offset the box carries is where its first page ended,
+     * because a topic reaches the page with ten posts of its own.
+     *
+     * @return Response
+     */
+    public function actionForumPostPage(): Response
+    {
+        $topicId = (int)$this->request->post('topic', 0);
+        $offset = max(0, (int)$this->request->post('offset', 0));
+
+        if ($topicId <= 0 || !$this->request->getIsAjax()) {
+            return $this->redirect(['publications']);
+        }
+
+        $filters = $this->forumFilters();
+        $sorts = $this->publicationsSort();
+        $page = $this->forum->topicPosts(
+            $topicId,
+            self::PUBLICATIONS_PAGE_SIZE,
+            $offset,
+            $filters['withImages'],
+            $filters['withPosts'],
+            $filters['imagesCount'],
+            $sorts['forumPosts'],
+        );
+        $html = '';
+
+        foreach ($page['posts'] as $post) {
+            $html .= $this->renderPartial('_item_reply', ['record' => $post]);
+        }
+
+        return $this->asJson([
+            'ok' => true,
+            'topic' => $topicId,
+            'offset' => $offset + count($page['posts']),
+            'total' => $page['total'],
+            'html' => $html,
+        ]);
     }
 
     /**

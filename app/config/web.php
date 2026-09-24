@@ -94,6 +94,7 @@ $config = [
                 'forum-viewed' => 'site/forum-viewed',
                 'forum-filter-save' => 'site/forum-filter-save',
                 'forum-filter-clear' => 'site/forum-filter-clear',
+                'forum-post-page' => 'site/forum-post-page',
                 'login' => 'site/login',
                 'logout' => 'site/logout',
                 'contact' => 'site/contact',
