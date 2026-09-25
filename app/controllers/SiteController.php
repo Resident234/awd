@@ -8,8 +8,10 @@ use Yii;
 use app\models\ContactForm;
 use app\models\LoginForm;
 use app\shared\Forum\Contract\ForumRepositoryInterface;
+use app\shared\Forum\Service\ParserSettingsService;
 use app\shared\Publications\Dto\ForumPublicationRef;
 use app\shared\Publications\Service\PublicationsService;
+use app\shared\Settings\Service\PublicationSettingsService;
 use app\shared\Telegram\Infrastructure\TelegramApiException;
 use app\shared\Telegram\Service\ChannelService;
 use app\widgets\Alert;
@@ -28,12 +30,6 @@ use Throwable;
 
 class SiteController extends Controller
 {
-    /**
-     * How many records the publications page shows per block until the
-     * reader scrolls to the end of the list.
-     */
-    private const PUBLICATIONS_PAGE_SIZE = 10;
-
     /**
      * The orders a switch of the page can reverse. Every name is both a key of
      * the stored state and the parameter of the address (`postsOldest`), and
@@ -56,9 +52,27 @@ class SiteController extends Controller
         private readonly ChannelService $telegramChannel,
         private readonly PublicationsService $publications,
         private readonly ForumRepositoryInterface $forum,
+        private readonly ?PublicationSettingsService $settings = null,
+        private readonly ?ParserSettingsService $parserSettings = null,
         $config = [],
     ) {
         parent::__construct($id, $module, $config);
+    }
+
+    /**
+     * The tunables of the publications page as the settings page stores them.
+     *
+     * A block partial is rendered one record at a time and receives nothing but
+     * that record, so it asks the controller for a number instead of carrying
+     * it through every render call — exactly like it asks for the timezone of
+     * the viewer. A controller built without the storage keeps the defaults of
+     * the schema.
+     *
+     * @return array<string, string>
+     */
+    public function publicationSettings(): array
+    {
+        return $this->settings !== null ? $this->settings->all() : PublicationSettingsService::defaults();
     }
 
     /**
@@ -92,6 +106,8 @@ class SiteController extends Controller
                     'forum-viewed' => ['post'],
                     'forum-post-page' => ['post'],
                     'forum-thread' => ['post'],
+                    'settings-save' => ['post'],
+                    'parser-settings-save' => ['post'],
                 ],
             ],
         ];
@@ -138,11 +154,13 @@ class SiteController extends Controller
     }
 
     /**
-     * Displays the channel settings page.
+     * Displays the settings page: the description of the channel the posts go
+     * to, the tunables of the publications page, and the protocol limits the
+     * portal does not own.
      *
      * @return string
      */
-    public function actionChannelSettings(): string
+    public function actionSettings(): string
     {
         $this->layout = 'dashboard';
 
@@ -156,10 +174,72 @@ class SiteController extends Controller
 
         $publishedDescriptions = $this->telegramChannel->publishedDescriptions();
 
-        return $this->render('channel-settings', [
+        return $this->render('settings', [
             'channelDescription' => $channelDescription,
             'publishedDescriptions' => $publishedDescriptions,
+            'settings' => $this->publicationSettings(),
+            'partsOffsetMin' => $this->settings !== null ? $this->settings->minimumPartsOffsetMinutes() : 1,
+            'cronSchedule' => $this->settings !== null ? $this->settings->cronSchedule() : '',
         ]);
+    }
+
+    /**
+     * Stores the tunables of the publications page.
+     *
+     * @return Response
+     */
+    public function actionSettingsSave(): Response
+    {
+        try {
+            $this->settings->save((array)$this->request->post('settings', []));
+        } catch (InvalidArgumentException $e) {
+            Yii::$app->session->setFlash('error', $e->getMessage());
+
+            return $this->redirect(['settings']);
+        }
+
+        Yii::$app->session->setFlash('success', 'Настройки публикаций сохранены.');
+
+        return $this->redirect(['settings']);
+    }
+
+    /**
+     * Displays the settings page of the parsers: how the scan asks the forum
+     * for a page and which ranges of entity ids it walks.
+     *
+     * @return string
+     */
+    public function actionParserSettings(): string
+    {
+        $this->layout = 'dashboard';
+
+        return $this->render('parser-settings', [
+            'tunables' => $this->parserSettings->tunables(),
+            'rows' => $this->parserSettings->rows(),
+        ]);
+    }
+
+    /**
+     * Stores the tunables of the parsers together with the entity ranges.
+     *
+     * @return Response
+     */
+    public function actionParserSettingsSave(): Response
+    {
+        try {
+            $this->parserSettings->save(
+                (array)$this->request->post('tunables', []),
+                (array)$this->request->post('rows', []),
+            );
+        } catch (InvalidArgumentException $e) {
+            Yii::$app->session->setFlash('error', $e->getMessage());
+
+            return $this->redirect(['parser-settings']);
+        }
+
+        Yii::$app->session->setFlash('success', 'Настройки парсера сохранены.');
+
+        return $this->redirect(['parser-settings']);
     }
 
     /**
@@ -210,11 +290,12 @@ class SiteController extends Controller
     private function normalizeForumFilters(array $raw): array
     {
         $imagesCount = (int)($raw['imagesCount'] ?? 0);
+        $ceiling = (int)$this->publicationSettings()['imagesCountFilterMax'];
 
         return [
             'withImages' => (string)($raw['withImages'] ?? '') === '1',
             'withPosts' => (string)($raw['withPosts'] ?? '') === '1',
-            'imagesCount' => $imagesCount > 0 ? $imagesCount : 0,
+            'imagesCount' => $imagesCount > 0 ? min($imagesCount, $ceiling) : 0,
         ];
     }
 
@@ -261,10 +342,14 @@ class SiteController extends Controller
     private function publicationsUrl(): array
     {
         $url = $this->forumFilterUrl();
+        $default = $this->oldestFirstByDefault();
 
         foreach ($this->publicationsSort() as $block => $oldestFirst) {
-            if ($oldestFirst) {
-                $url[$block . 'Oldest'] = '1';
+            // Only a block that reads against the order of the settings needs
+            // a parameter; the value it says is the order of the block, so a
+            // page whose default is «oldest» can carry a switch back.
+            if ($oldestFirst !== $default) {
+                $url[$block . 'Oldest'] = $oldestFirst ? '1' : '0';
             }
         }
 
@@ -313,11 +398,11 @@ class SiteController extends Controller
      * Resolves the effective reading order the way the forum filters do: an
      * order that is already active in the session wins, so reloading or
      * following a link cannot switch a block back; only a session that reads
-     * every block newest first adopts the query of the request.
+     * every block in the order of the settings adopts the query of the request.
      */
     private function syncPublicationsSort(): void
     {
-        if (in_array(true, $this->publicationsSort(), true)) {
+        if ($this->publicationsSort() !== $this->defaultPublicationsSort()) {
             return;
         }
 
@@ -328,18 +413,41 @@ class SiteController extends Controller
     }
 
     /**
+     * Whether a reader who never touched a switch of the page sees the oldest
+     * records first — the order the settings page chooses for all blocks.
+     */
+    private function oldestFirstByDefault(): bool
+    {
+        return $this->settings !== null && $this->settings->isOldestFirstByDefault();
+    }
+
+    /**
+     * The order of a page nobody has switched.
+     *
+     * @return array<string, bool> every name of PUBLICATIONS_SORT_BLOCKS
+     */
+    private function defaultPublicationsSort(): array
+    {
+        return $this->normalizePublicationsSort([]);
+    }
+
+    /**
      * @param array<string, mixed> $raw
      * @return array<string, bool> every name of PUBLICATIONS_SORT_BLOCKS
      */
     private function normalizePublicationsSort(array $raw): array
     {
         $oldestFirst = [];
+        $default = $this->oldestFirstByDefault();
 
         foreach (array_keys(self::PUBLICATIONS_SORT_BLOCKS) as $block) {
             $value = $raw[$block] ?? null;
-            // The session keeps real booleans, a request keeps the '1' of
-            // a switch; anything else leaves the block at its default order.
-            $oldestFirst[$block] = $value === true || $value === '1';
+            // The session keeps real booleans, a request keeps the '1' or the
+            // '0' of a switch; anything else leaves the block at the order of
+            // the settings.
+            $oldestFirst[$block] = $value === null
+                ? $default
+                : ($value === true || $value === '1');
         }
 
         return $oldestFirst;
@@ -354,6 +462,10 @@ class SiteController extends Controller
     {
         $filters = $this->forumFilters();
         $sorts = $this->publicationsSort();
+        $settings = $this->publicationSettings();
+        $postsSize = (int)$settings['publicationPageSize'];
+        $topicsSize = (int)$settings['forumTopicsPageSize'];
+        $repliesSize = (int)$settings['forumPostsPageSize'];
         $totals = $this->publications->listTotals();
         $totals['forum'] = $this->forum->countTopics(
             $filters['withImages'],
@@ -362,12 +474,12 @@ class SiteController extends Controller
         );
 
         return [
-            'posts' => $this->publications->posts(self::PUBLICATIONS_PAGE_SIZE, 0, $sorts['posts']),
-            'drafts' => $this->publications->drafts(self::PUBLICATIONS_PAGE_SIZE, 0, $sorts['drafts']),
-            'deleted' => $this->publications->deleted(self::PUBLICATIONS_PAGE_SIZE, 0, $sorts['deleted']),
+            'posts' => $this->publications->posts($postsSize, 0, $sorts['posts']),
+            'drafts' => $this->publications->drafts($postsSize, 0, $sorts['drafts']),
+            'deleted' => $this->publications->deleted($postsSize, 0, $sorts['deleted']),
             'topics' => $this->forum->latestTopicsWithPosts(
-                self::PUBLICATIONS_PAGE_SIZE,
-                self::PUBLICATIONS_PAGE_SIZE,
+                $topicsSize,
+                $repliesSize,
                 $filters['withImages'],
                 $filters['withPosts'],
                 $filters['imagesCount'],
@@ -378,8 +490,8 @@ class SiteController extends Controller
             'withPostsOnly' => $filters['withPosts'],
             'imagesCount' => $filters['imagesCount'],
             'totals' => $totals,
-            'pageSize' => self::PUBLICATIONS_PAGE_SIZE,
             'oldestFirst' => $sorts,
+            'settings' => $settings,
             'now' => gmdate('Y-m-d H:i:s'),
         ];
     }
@@ -560,7 +672,8 @@ class SiteController extends Controller
      */
     private function publicationPage(string $block, int $offset): ?array
     {
-        $size = self::PUBLICATIONS_PAGE_SIZE;
+        $settings = $this->publicationSettings();
+        $size = (int)$settings['publicationPageSize'];
         $sorts = $this->publicationsSort();
         $filters = $this->forumFilters();
 
@@ -571,8 +684,8 @@ class SiteController extends Controller
             'forum' => [
                 '_item_topic',
                 $this->forum->latestTopicsWithPosts(
-                    $size,
-                    $size,
+                    (int)$settings['forumTopicsPageSize'],
+                    (int)$settings['forumPostsPageSize'],
                     $filters['withImages'],
                     $filters['withPosts'],
                     $filters['imagesCount'],
@@ -590,7 +703,7 @@ class SiteController extends Controller
      * The next page of one discussion, for the scroll of the box that holds
      * its posts: the replies alone, appended under the ones already on
      * screen. The offset the box carries is where its first page ended,
-     * because a topic reaches the page with ten posts of its own.
+     * because a topic reaches the page with a page of posts of its own.
      *
      * @return Response
      */
@@ -607,7 +720,7 @@ class SiteController extends Controller
         $sorts = $this->publicationsSort();
         $page = $this->forum->topicPosts(
             $topicId,
-            self::PUBLICATIONS_PAGE_SIZE,
+            (int)$this->publicationSettings()['forumPostsPageSize'],
             $offset,
             $filters['withImages'],
             $filters['withPosts'],
@@ -948,7 +1061,7 @@ class SiteController extends Controller
     }
 
     /**
-     * Updates the TRVL channel description from the channel settings page.
+     * Updates the TRVL channel description from the settings page.
      *
      * @return Response
      */
@@ -961,23 +1074,23 @@ class SiteController extends Controller
         } catch (InvalidArgumentException $e) {
             Yii::$app->session->setFlash('error', $e->getMessage());
 
-            return $this->redirect(['channel-settings']);
+            return $this->redirect(['settings']);
         } catch (TelegramApiException $e) {
             Yii::$app->session->setFlash(
                 'error',
                 "Telegram API error [{$e->errorCode}]: {$e->getMessage()}",
             );
 
-            return $this->redirect(['channel-settings']);
+            return $this->redirect(['settings']);
         } catch (RuntimeException $e) {
             Yii::$app->session->setFlash('error', $e->getMessage());
 
-            return $this->redirect(['channel-settings']);
+            return $this->redirect(['settings']);
         }
 
         Yii::$app->session->setFlash('success', 'Описание канала обновлено.');
 
-        return $this->redirect(['channel-settings']);
+        return $this->redirect(['settings']);
     }
 
     /**

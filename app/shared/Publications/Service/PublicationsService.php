@@ -10,7 +10,9 @@ use app\shared\Publications\Contract\PublicationForumLinkStoreInterface;
 use app\shared\Publications\Contract\PublicationRepositoryInterface;
 use app\shared\Publications\Dto\ForumPublicationRef;
 use app\shared\Publications\Dto\PublicationData;
+use app\shared\Settings\Service\PublicationSettingsService;
 use app\shared\Telegram\Infrastructure\TelegramApiException;
+use app\shared\Telegram\Service\ChannelService;
 use DateTimeImmutable;
 use DateTimeZone;
 use InvalidArgumentException;
@@ -27,8 +29,6 @@ use yii;
  */
 final class PublicationsService
 {
-    private const TEXT_MAX_LENGTH = 4096;
-
     public function __construct(
         private readonly PublicationRepositoryInterface $publications,
         private ?LoggerInterface $logger,
@@ -36,6 +36,7 @@ final class PublicationsService
         private readonly ?ForumPublicationMapGatewayInterface $forumMap = null,
         private readonly ?PublicationForumLinkStoreInterface $forumLinks = null,
         private readonly ?ForumHttpClientInterface $forumHttpClient = null,
+        private readonly ?PublicationSettingsService $settings = null,
     ) {
     }
 
@@ -136,8 +137,9 @@ final class PublicationsService
     /**
      * Saves the text fields of the publication form, which clones its input
      * when a text goes past the Telegram limit. A single field is saved
-     * exactly as before; several parts become one record each, a minute
-     * after the previous part, so the periodic task drains them in order.
+     * exactly as before; several parts become one record each, offset from
+     * the previous part by the configured parts gap, so the periodic task
+     * drains them in order.
      * Those records are written by one repository call, so a failure leaves
      * neither a half publication nor a part that never reaches the channel.
      * The forum link belongs to the first part, which is the message the
@@ -197,7 +199,7 @@ final class PublicationsService
             $rows[] = [
                 'text' => $text,
                 'imageUrls' => $albums[$index] ?? [],
-                'publishedAt' => $this->shiftDate($firstAt, $index),
+                'publishedAt' => $this->shiftDate($firstAt, $index * $this->partsOffsetMinutes()),
             ];
         }
 
@@ -938,14 +940,15 @@ final class PublicationsService
     }
 
     /**
-     * @throws InvalidArgumentException when the text is empty or longer than 4096 chars
+     * @throws InvalidArgumentException when the text is empty or longer than
+     * the message limit Telegram accepts
      */
     private function assertTextValid(string $text): void
     {
         $length = mb_strlen($text);
-        if ($length === 0 || $length > self::TEXT_MAX_LENGTH) {
+        if ($length === 0 || $length > ChannelService::TEXT_MAX_LENGTH) {
             throw new InvalidArgumentException(
-                sprintf('Текст публикации должен быть от 1 до %d символов.', self::TEXT_MAX_LENGTH),
+                sprintf('Текст публикации должен быть от 1 до %d символов.', ChannelService::TEXT_MAX_LENGTH),
             );
         }
     }
@@ -991,14 +994,28 @@ final class PublicationsService
 
     /**
      * Offsets an already normalized UTC timestamp, which is how the parts of
-     * one publication are spread a minute apart. normalizeDate() cannot do
-     * this: it reads a bare timestamp as local time.
+     * one publication are spread apart. normalizeDate() cannot do this: it
+     * reads a bare timestamp as local time.
      */
     private function shiftDate(string $publishedAtUtc, int $minutes): string
     {
         $date = new DateTimeImmutable($publishedAtUtc, new DateTimeZone('UTC'));
 
         return $date->modify($minutes . ' minutes')->format('Y-m-d H:i:s');
+    }
+
+    /**
+     * The gap the parts of one publication are given, in minutes. A service
+     * built without the settings storage keeps the default of the schema, so
+     * the gap is never invented here twice.
+     */
+    private function partsOffsetMinutes(): int
+    {
+        if ($this->settings !== null) {
+            return $this->settings->intValue('partsOffsetMinutes');
+        }
+
+        return (int)PublicationSettingsService::defaults()['partsOffsetMinutes'];
     }
 
     private function detectUserTimezone(): string

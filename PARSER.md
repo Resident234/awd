@@ -1,14 +1,14 @@
 # Парсер форума awd.ru
 
-Описание реализации парсинга тем форума `forum.awd.ru` (phpBB) в PostgreSQL: модель данных, слои, обход диапазона, парсинг постов тем, периодический запуск.
+Описание реализации парсинга тем форума `forum.awd.ru` (phpBB) в PostgreSQL: модель данных, настройки парсера, слои, обход диапазона, парсинг постов тем, периодический запуск.
 
 ## Модель данных
 
-Миграции: `app/migrations/m260828_000001_create_forum_parser_tables.php`, `app/migrations/m260904_000002_add_topic_login_required.php`, `app/migrations/m260906_000003_create_post_table.php`, `app/migrations/m260907_000004_create_gallery_tables.php`, `app/migrations/m260907_000005_extend_member_for_profiles.php`
+Миграции: `app/migrations/m260828_000001_create_forum_parser_tables.php`, `app/migrations/m260904_000002_add_topic_login_required.php`, `app/migrations/m260906_000003_create_post_table.php`, `app/migrations/m260907_000004_create_gallery_tables.php`, `app/migrations/m260907_000005_extend_member_for_profiles.php`, `app/migrations/m260925_000002_add_parser_tunables_to_parser_config.php`
 
 ### parser_config
 
-Конфигурации диапазона перебора парсера.
+Конфигурация диапазона перебора парсера и поведение самого запроса.
 
 | Поле | Тип | Назначение |
 |---|---|---|
@@ -18,8 +18,18 @@
 | `t_from` | int, default 0 | Начало диапазона параметра `t` |
 | `t_to` | int, default 500000 | Конец диапазона параметра `t` |
 | `is_active` | bool, default true | Активность конфигурации |
+| `http_timeout` | int, default 30 | Ожидание ответа страницы, секунд |
+| `http_retries` | int, default 3 | Число повторов запроса |
+| `http_delay_microseconds` | int, default 500000 | Пауза перед повтором, мкс (умножается на номер попытки) |
+| `http_max_redirects` | int, default 5 | Бюджет переходов по редиректу |
+| `http_banned_statuses` | string(64), default `429,500,502,503,504` | Коды ответа, на которые запрос повторяется |
+| `login_url` | string(500) | Адрес входа на форум (`ucp.php?mode=login`) |
+| `max_pages` | int, default 10000 | Потолок страниц на одну сущность (посты топика, страницы альбома) |
+| `source_timezone` | string(64), default `Europe/Moscow` | Часовой пояс сайта: даты на страницах пояса не носят, только он превращает «1 сент. 2026, 14:30» в UTC |
 | `last_run_at` | datetime, NULL | Время последнего прохода |
 | `created_at` / `updated_at` | datetime | Метки времени |
+
+Поля делятся на два рода. `base_url`, `t_from`, `t_to` и `is_active` описывают диапазон одной сущности и потому у разных строк разные. Восемь остальных относятся ко всему парсингу сразу: страница настроек пишет их во все строки одним `UPDATE`, а сервисы читают из той строки, которую и так загружают, — `ForumRepository::parserTunables()` берёт первую строку таблицы. Миграция `m260925_000002` даёт этим колонкам default, поэтому уже существующие строки получают те же значения, что сеет `ParserSettingsService::DEFAULTS`, и отдельного бэкфилла не нужно.
 
 Миграция вставляет сид `awd_forum_topics` с диапазоном `0–500000`.
 
@@ -139,7 +149,28 @@
 
 ### Авторизация форума
 
-Профили пользователей (и memberlist в целом) доступны только авторизованным. Учётные данные задаются в `.env` (`FORUM_LOGIN_USERNAME`, `FORUM_LOGIN_PASSWORD`), прокидываются в контейнеры `app` и `parser` через docker-compose. `ForumHttpClient` хранит сессию phpBB в собственной cookie-памяти (Set-Cookie собирается через header-function — cURL-файл jar ненадёжен под HTTP/2), при ответе «вы должны быть авторизованы» выполняет автоматический логин через `ucp.php?mode=login` (sid из формы логина) и повторяет запрос. Куки `phpbb3_alft2_u` ≠ `1` подтверждают успешный вход. Без заданных учётных данных клиент работает как гость (остальные парсеры не затронуты).
+Профили пользователей (и memberlist в целом) доступны только авторизованным. Учётные данные задаются в `.env` (`FORUM_LOGIN_USERNAME`, `FORUM_LOGIN_PASSWORD`), прокидываются в контейнеры `app` и `parser` через docker-compose. `ForumHttpClient` хранит сессию phpBB в собственной cookie-памяти (Set-Cookie собирается через header-function — cURL-файл jar ненадёжен под HTTP/2), при ответе «вы должны быть авторизованы» выполняет автоматический логин через `ucp.php?mode=login` (sid из формы логина) и повторяет запрос. Адрес входа берётся из `parser_config.login_url`, учётные данные — из окружения: адрес правится на странице настроек, секрет наружу не выходит. Куки `phpbb3_alft2_u` ≠ `1` подтверждают успешный вход. Без заданных учётных данных клиент работает как гость (остальные парсеры не затронуты).
+
+## Настройки парсера
+
+Страница `/parser-settings` («Настройки парсера» в меню портала, `SiteController::actionParserSettings`, вид `app/views/site/parser-settings.php`) правит то, что раньше было зашито в код и в `console.php`. Две карточки: «Запрос к форуму» — восемь поведенческих колонок `parser_config`, «Диапазоны источников» — `base_url`, `t_from`, `t_to` и активность каждой строки конфигурации.
+
+| Величина | Код | По умолчанию | Границы формы |
+|---|---|---|---|
+| Ожидание ответа страницы | `http_timeout` | 30 | 1–300 секунд |
+| Повторов запроса | `http_retries` | 3 | 0–10 |
+| Пауза перед повтором | `http_delay_microseconds` | 500000 | 0–5000000 мкс |
+| Переходов по редиректу | `http_max_redirects` | 5 | 0–20 |
+| Коды ответа на повтор | `http_banned_statuses` | `429,500,502,503,504` | список трёхзначных кодов через запятую |
+| Адрес входа на форум | `login_url` | `https://forum.awd.ru/ucp.php?mode=login` | http(s) URL |
+| Страниц на одну сущность | `max_pages` | 10000 | 1–100000 |
+| Часовой пояс источника | `source_timezone` | `Europe/Moscow` | идентификатор `DateTimeZone` |
+
+- Всё читает и пишет `ParserSettingsService` (`app/shared/Forum/Service/ParserSettingsService.php`) — он лежит в Shared-модуле форума, потому что его величины относятся к парсингу, а не к странице. Границы числовых полей замкнуты в одном месте (`BOUNDS`), оттуда же берутся подписи и единицы измерения, так что форма, проверка и сообщения об ошибке говорят одно и то же.
+- `save()` проверяет всё до первой записи и отвечает `InvalidArgumentException` — страница показывает flash и оставляет прежние значения. Поведенческие колонки одним `UPDATE` уходят во все строки `parser_config`, диапазоны — построчно, и то и другое в одной транзакции (`ForumRepository::saveParserSettings`).
+- `tunables()` служится раз за запрос: сервис объявлен синглтоном и в `app/config/console.php`, и в `app/config/web.php` (`ForumHttpClientInterface` собирается через фабрику, которая спрашивает его же), поэтому страница, парсер и HTTP-клиент читают таблицу один раз.
+- Отсюда числа попадают в то место, где раньше стояли: `ForumHttpClient` получает таймаут, повторы, паузу, адрес логина, бюджет редиректов (`CURLOPT_MAXREDIRS`) и список кодов, на которые запрос повторяется; `ForumPageDomParser` и его наследники — часовой пояс сайта (`$siteTimezone`, относительные «Вчера»/«Сегодня» считаются от него); `ForumPostScanService` и `GalleryScanService` — потолок страниц (`maxPages`, константы `MAX_PAGES_PER_*` остались как default конструктора для ручных сборок в тестах). `ForumScanService` диапазона страниц не имеет: он идёт по id топиков, а потолок `t_to` задаёт его конфигурационная строка.
+- Тот же `ForumHttpClient` теперь объявлен и в web-конфиге: раньше он собирался только в `console.php`, и страница публикаций не могла его получить.
 
 ## Слои (по README)
 
@@ -154,6 +185,8 @@ app/
 ├── migrations/m260906_000003_...php            # таблица post + сид awd_forum_posts
 ├── migrations/m260907_000004_...php            # таблицы gallery_album, gallery_image + сид awd_gallery_albums
 ├── migrations/m260907_000005_...php            # member: last_visit_at, photos_count, profile_login_required + сид awd_forum_members
+├── migrations/m260925_000002_...php            # parser_config: восемь поведенческих колонок
+├── views/site/parser-settings.php              # Application: страница «Настройки парсера»
 ├── shared/Forum/                               # Shared-модуль
 │   ├── Contract/
 │   │   ├── ForumHttpClientInterface.php        # граница HTTP
@@ -175,7 +208,8 @@ app/
 │       ├── MemberProfilePageParser.php        # DOMDocument/XPath (профиль + вкладка статистики)
 │       ├── ForumScanService.php                # обход диапазона тем
 │       ├── ForumPostScanService.php            # обход топиков и страниц постов
-│       └── MemberScanService.php                # обход диапазона пользователей
+│       ├── MemberScanService.php                # обход диапазона пользователей
+│       └── ParserSettingsService.php           # чтение и проверка настроек из parser_config
 ├── shared/Gallery/                             # Shared-модуль галереи
 │   ├── Contract/
 │   │   └── GalleryRepositoryInterface.php       # граница хранения (upsert альбомов, lock)
@@ -189,16 +223,16 @@ app/
 │       └── GalleryScanService.php              # обход диапазона альбомов
 ```
 
-- **Application**: команды `yii forum-parser/scan`, `yii forum-post-parser/scan`, `yii gallery-parser/scan` и `yii member-parser/scan` принимают `--from`, `--to`, `--limit` (посты и галерея: ещё `--pageLimit`), выводят статистику. Логики парсинга не содержат.
+- **Application**: команды `yii forum-parser/scan`, `yii forum-post-parser/scan`, `yii gallery-parser/scan` и `yii member-parser/scan` принимают `--from`, `--to`, `--limit` (посты и галерея: ещё `--pageLimit`), выводят статистику. Логики парсинга не содержат. Страница `/parser-settings` — тоже Application: она показывает и отправляет форму, а проверяет и пишет сервис Shared-модуля.
 - **Shared**: сервисы, парсеры и DTO. SQL и HTTP скрыты за контрактами; замена хранилища или HTTP-адаптера не требует изменений в командах и сервисах.
-- **Composition root**: `config/console.php` связывает реализации через `controllerMap` и `container.definitions`.
+- **Composition root**: `config/console.php` связывает реализации через `controllerMap` и `container.definitions`, `config/web.php` — через `container.singletons` и `container.definitions`; оба собирают HTTP-клиент и парсеры по числам из `parser_config`, поэтому одно и то же поведение у прогона из cron и у страницы публикаций.
 
 ## Парсинг страниц
 
 `ForumHtmlParser` построен на реальной структуре страниц phpBB (prosilver) форума:
 
 - **Заголовок**: `h2.topic-title` (fallback: `h3.first`, `h1`)
-- **Дата**: текст `p.author`, форматы `27 авг 2026, 19:42`, `Вчера, 19:42`, `Сегодня, 09:05`, `дд.мм.гггг, чч:мм` → `Y-m-d H:i:s` (часовой пояс сайта Europe/Moscow, хранение в UTC). Относительные слова («Вчера», «Сегодня») вычисляются относительно времени загрузки страницы и в БД не пишутся.
+- **Дата**: текст `p.author`, форматы `27 авг 2026, 19:42`, `Вчера, 19:42`, `Сегодня, 09:05`, `дд.мм.гггг, чч:мм` → `Y-m-d H:i:s` (часовой пояс сайта — `parser_config.source_timezone`, по умолчанию Europe/Moscow, хранение в UTC). Относительные слова («Вчера», «Сегодня») вычисляются относительно времени загрузки страницы и в БД не пишутся.
 - **Содержимое**: `div.content` внутри `div.post` с `dl.postprofile`; сохраняется HTML и текстовая версия (`<br>` → перевод строки)
 - **Изображения**: атрибут `data-src` (lazyload), fallback `src`; фильтр по расширениям (gif/jpg/png/webp); дедупликация; результат — массив абсолютных ссылок вида `https://live.staticflickr.com/65535/55491522951_2a109d663b_b.jpg`
 - **Автор**: блок `dl.postprofile`; имя — ссылка в `dt` без `img` (первая ссылка — аватар), поля — по меткам `strong` в `dd`, звание — первый `dd` без `strong`
@@ -247,7 +281,7 @@ app/
 1. Захватывает advisory lock по коду конфига `awd_forum_members` (независимый от остальных парсеров)
 2. Читает активный `parser_config`; `from`/`to` сужают диапазон, но не расширяют
 3. **Основная страница** `memberlist.php?mode=viewprofile&u=<id>` (вкладка «Контакты»): имя из `h2 «Профиль пользователя X»`, звание под аватаром, поля `dl.left-box details` (Страна, Город, Возраст, Пол — присутствуют опционально)
-4. **Вкладка статистики** `&page=7`: «Зарегистрирован: 24 дек 2011, 22:42» → `registered_on` (дата), «Последнее посещение: Сегодня, 17:28 / 2 минуты назад / 27 авг 2026, 20:10» → `last_visit_at` (время сайта Europe/Moscow, относительные форматы нормализуются от текущего момента), «Всего сообщений: 1389 | Найти...» → `messages_count` (первое число), «Фотографий: N | ...» → `photos_count`
+4. **Вкладка статистики** `&page=7`: «Зарегистрирован: 24 дек 2011, 22:42» → `registered_on` (дата), «Последнее посещение: Сегодня, 17:28 / 2 минуты назад / 27 авг 2026, 20:10» → `last_visit_at` (время сайта из `parser_config.source_timezone`, относительные форматы нормализуются от текущего момента), «Всего сообщений: 1389 | Найти...» → `messages_count` (первое число), «Фотографий: N | ...» → `photos_count`
 5. Обе вкладки мержатся в один `MemberData` и upsert'ятся в `member` через `saveMemberProfile()`: поля, которых нет на memberlist (thanks/countries/reports из блоков постов), не затираются
 6. Авторизация: профили видны только авторизованным — `ForumHttpClient` логинится автоматически под учёткой из `.env` (см. «Авторизация форума»)
 7. Ошибка одного пользователя не останавливает проход; «Запрашиваемого пользователя не существует» (HTTP 404) → счётчик `not_found`; страница входа без учётных данных → заглушка в `member` (`profile_login_required = true`)
@@ -276,7 +310,7 @@ MEMBER_PARSER_CRON_SCHEDULE=*/10 * * * *           # member-parser/scan (про�
 6. Ошибка одной ссылки (404, таймаут, битый HTML) не останавливает проход — логируется и учитывается в счётчиках; login-required — не ошибка: сохраняется заглушка и инкрементируется `login_required` (запись также идёт в `saved`/`updated`)
 7. По завершении обновляет `parser_config.last_run_at` и снимает блокировку
 
-HTTP-адаптер (cURL): редиректы до 5, retry с нарастающей задержкой на 429/5xx, таймауты, User-Agent.
+HTTP-адаптер (cURL): редиректы, retry с нарастающей задержкой на настроенные коды ответа, таймауты, User-Agent. Все числа, кроме задержки, берутся из `parser_config` (см. «Настройки парсера»), константы класса остаются как поведение вручную собранного клиента — в тестах и при пустой таблице.
 
 Статистика прохода: `processed`, `saved`, `updated`, `not_found`, `login_required`, `failed`.
 
@@ -415,3 +449,4 @@ docker compose exec app sh -c "grep forum-parser runtime/logs/app.log | tail -20
 - Парсер постов обходит только топики, уже существующие в таблице `topic` (кроме login-required заглушек), и двигается по диапазону вслед за сканером тем; все четыре парсера работают параллельно по независимым блокировкам (см. «Параллельная работа парсеров»)
 - Альбомы закрытых разделов галереи могут требовать авторизацию — сохраняются заглушки; ссылка на изображение ведёт на файл в `images/upload` — при удалении изображения из галереи ссылка устареет до следующего прохода
 - Профили пользователей без авторизации недоступны: при отсутствии учётных данных в `.env` все профили сохраняются заглушками `profile_login_required = true`; при неверных учётных данных проход упадёт на первом профиле с ошибкой в логе
+- Перенос настроек парсера в `parser_config` проверен только офлайн: `php -l`, разбор `container.definitions`/`singletons` и сборка сервиса на фейковых репозиториях в разовых скриптах. Миграция `m260925_000002` по PostgreSQL не прогонялась, `/parser-settings` не открывалась в браузере против живой базы, и ни один прогон парсера с изменёнными числами не выполнялся — первый же `yii migrate` и запись одной настройки на реальном форуме закрывают эти три пробела

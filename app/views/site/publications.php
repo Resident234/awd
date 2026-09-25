@@ -10,10 +10,11 @@ declare(strict_types=1);
 /** @var bool $withImagesOnly */
 /** @var bool $withPostsOnly */
 /** @var array{posts: int, drafts: int, deleted: int} $totals */
-/** @var int $pageSize */
 /** @var array<string, bool> $oldestFirst the order of every switch of the page */
+/** @var array<string, string> $settings the tunables of the publications page */
 /** @var string $now */
 
+use app\shared\Settings\Service\PublicationSettingsService;
 use app\shared\Telegram\Service\ChannelService;
 use yii\helpers\Html;
 
@@ -124,7 +125,7 @@ CSS
                         <span id="forumFilterImagesCountValue" class="ms-2 fw-bold text-primary"><?= $imagesCount > 0 ? (int)$imagesCount : '∞' ?></span>
                     </label>
                     <input type="range" class="form-range" id="forumFilterImagesCount"
-                           min="0" max="100" value="<?= $imagesCount > 0 ? (int)$imagesCount : 0 ?>">
+                           min="0" max="<?= (int)$settings['imagesCountFilterMax'] ?>" value="<?= $imagesCount > 0 ? (int)$imagesCount : 0 ?>">
                     <div class="form-text">0 — без ограничения</div>
                 </div>
             </div>
@@ -517,17 +518,35 @@ $postPageUrl = \yii\helpers\Url::to(['site/forum-post-page']);
 $threadUrl = \yii\helpers\Url::to(['site/forum-thread']);
 $sortUrl = \yii\helpers\Url::to(['site/publication-sort']);
 $blockTotals = json_encode($totals);
+// The page tunes its own behaviour through the settings storage: what the
+// scroll waits for, how long a picture may think, which step the minutes of
+// the picker take and which format of date the reader reads.
+$scrollEdge = (int)$settings['scrollEdgePx'];
+$probeTimeout = (int)$settings['imageProbeTimeoutMs'];
+$snapRange = (int)$settings['splitSnapRangeChars'];
+$minuteStep = (int)$settings['scheduleMinuteStep'];
+$horizonHours = (int)$settings['scheduleHorizonHours'];
+$previewLimit = (int)$settings['imagesPreviewLimit'];
+$numberingReserve = ChannelService::PARTS_NUMBERING_RESERVE;
+$pickerFormat = PublicationSettingsService::DATE_FORMATS[$settings['dateFormat']];
 $this->registerJs(
     "var __FILTER_SAVE_URL = '{$filterSaveUrl}';
 var __PAGE_URL = '{$pageUrl}';
 var __POST_PAGE_URL = '{$postPageUrl}';
 var __THREAD_URL = '{$threadUrl}';
 var __SORT_URL = '{$sortUrl}';
-var __PAGE_SIZE = {$pageSize};
 var __BLOCK_TOTALS = {$blockTotals};
 var __CSRF_PARAM = '{$csrfParam}';
 var __CSRF_TOKEN = '{$csrfToken}';
 var __TEXT_PART_LIMIT = {$textLimit};
+var __NUMBERING_RESERVE = {$numberingReserve};
+var __SCROLL_EDGE = {$scrollEdge};
+var __IMAGE_PROBE_TIMEOUT = {$probeTimeout};
+var __SNAP_RANGE = {$snapRange};
+var __MINUTE_STEP = {$minuteStep};
+var __HORIZON_HOURS = {$horizonHours};
+var __PREVIEW_LIMIT = {$previewLimit};
+var __PICKER_FORMAT = '{$pickerFormat}';
 " . <<<'JS'
 var __BLOCK_TARGETS = {
     forum: 'pub-forum-list',
@@ -537,27 +556,23 @@ var __BLOCK_TARGETS = {
 };
 
 jQuery(document).ready(function () {
-    var pickerFormat = 'DD.MM.YYYY HH:mm';
+    var pickerFormat = __PICKER_FORMAT;
     var __FLASH_ID = 'app-flash';
 
-    function roundUpToNearest10Minutes(m) {
+    function roundUpToMinuteStep(m) {
         var minutes = m.minute();
-        var remainder = minutes % 10;
+        var remainder = minutes % __MINUTE_STEP;
         if (remainder === 0 && m.second() === 0 && m.millisecond() === 0) {
-            return m.clone().add(10, 'minute').startOf('minute');
+            return m.clone().add(__MINUTE_STEP, 'minute').startOf('minute');
         }
-        return m.clone().add(10 - remainder, 'minute').startOf('minute');
-    }
-
-    function roundMomentTo10(m) {
-        return roundUpToNearest10Minutes(m);
+        return m.clone().add(__MINUTE_STEP - remainder, 'minute').startOf('minute');
     }
 
     function computeNextPublicationSlot() {
         var now = moment();
-        var candidate = roundUpToNearest10Minutes(now);
+        var candidate = roundUpToMinuteStep(now);
         if (!candidate.isAfter(now)) {
-            candidate = candidate.add(10, 'minute');
+            candidate = candidate.add(__MINUTE_STEP, 'minute');
         }
         return candidate;
     }
@@ -594,9 +609,9 @@ jQuery(document).ready(function () {
             singleDatePicker: true,
             timePicker: true,
             timePicker24Hour: true,
-            timePickerIncrement: 10,
+            timePickerIncrement: __MINUTE_STEP,
             startDate: startMoment,
-            endDate: startMoment.clone().add(32, 'hour'),
+            endDate: startMoment.clone().add(__HORIZON_HOURS, 'hour'),
             locale: {
                 format: pickerFormat,
             },
@@ -605,27 +620,18 @@ jQuery(document).ready(function () {
     }
 
     function renderUtcTimes(root) {
-        var tz = getPortalTimezone();
-        if (!tz) {
-            return;
-        }
-        var formatter = new Intl.DateTimeFormat('ru-RU', {
-            year: 'numeric', month: '2-digit', day: '2-digit',
-            hour: '2-digit', minute: '2-digit',
-            timeZone: tz
-        });
         (root || document).querySelectorAll('.utc-time[data-utc]').forEach(function (el) {
-            var utcStr = el.getAttribute('data-utc');
-            if (!utcStr) return;
-            var d = new Date(utcStr + 'Z');
-            if (isNaN(d.getTime())) return;
-            el.textContent = formatter.format(d);
+            var shown = utcToPickerValue(el.getAttribute('data-utc'));
+            if (shown !== '') {
+                el.textContent = shown;
+            }
         });
     }
 
     // A list element carries its publication time as a raw UTC timestamp, while
     // the picker and the server both work with the wall-clock time of the user,
-    // so the value has to change timezone before it reaches the form.
+    // so the value has to change timezone before it reaches the form. The same
+    // conversion writes the timestamps a block shows under a record.
     function utcToPickerValue(utcStr) {
         if (!utcStr || typeof moment === 'undefined') {
             return '';
@@ -732,7 +738,8 @@ jQuery(document).ready(function () {
     }
 
     // Every list the page draws a page at a time: reaching the bottom of a
-    // block asks the server for the next __PAGE_SIZE rows of that list. The
+    // block asks the server for the next page of rows of that list. The size
+    // of the page the server answers with lives in the settings, not here. The
     // forum block pages through its topics, while the posts of one topic are
     // paged by the box that holds them.
     var __PAGED_BLOCKS = ['posts', 'drafts', 'deleted', 'forum'];
@@ -744,9 +751,6 @@ jQuery(document).ready(function () {
         deleted: '.activity-log',
         forum: '.thread'
     };
-    // How close to the bottom of a block counts as "the reader ran out of
-    // rows"; the request is made early enough to finish before the edge.
-    var __SCROLL_EDGE = 80;
     // Every switch that reverses the order of a list, by the name the server
     // knows it under. The forum block has two of them because it reads its
     // topics and its posts in an order of their own.
@@ -1109,9 +1113,9 @@ jQuery(document).ready(function () {
         }
 
         // The «Часть N» prefix travels inside the message, so it eats into the
-        // length a text is split at. 16 characters cover a three-digit number.
+        // length a text is split at. The reserve covers the line of the number.
         function partLimit() {
-            return isNumbered() ? __TEXT_PART_LIMIT - 16 : __TEXT_PART_LIMIT;
+            return isNumbered() ? __TEXT_PART_LIMIT - __NUMBERING_RESERVE : __TEXT_PART_LIMIT;
         }
 
         function stripPartNumber(text) {
@@ -1323,20 +1327,19 @@ jQuery(document).ready(function () {
         }
 
         // A sentence far away from the caret is not the place the user meant, so
-        // the snap only reaches this far and then leaves the caret where it is.
-        var MANUAL_SNAP_RANGE = 600;
-
+        // the snap only reaches as far as __SNAP_RANGE and then leaves the caret
+        // where it is.
         function manualCut(text, caret) {
             if (caret <= 0 || caret >= text.length) {
                 return -1;
             }
 
-            var sentence = snapCut(text, caret, endsSentence, MANUAL_SNAP_RANGE);
+            var sentence = snapCut(text, caret, endsSentence, __SNAP_RANGE);
             if (sentence !== -1) {
                 return sentence;
             }
 
-            var word = snapCut(text, caret, endsWord, MANUAL_SNAP_RANGE);
+            var word = snapCut(text, caret, endsWord, __SNAP_RANGE);
             if (word !== -1) {
                 return word;
             }
@@ -1845,21 +1848,22 @@ jQuery(document).ready(function () {
             if (!container) {
                 return;
             }
+            var limit = __PREVIEW_LIMIT;
             container.innerHTML = '';
             if (!urls.length) {
                 container.classList.add('d-none');
                 return;
             }
-            urls.slice(0, 10).forEach(function (url) {
+            urls.slice(0, limit).forEach(function (url) {
                 var img = document.createElement('img');
                 img.src = url;
                 img.alt = 'Изображение публикации';
                 container.appendChild(img);
             });
-            if (urls.length > 10) {
+            if (urls.length > limit) {
                 var plus = document.createElement('span');
                 plus.className = 'plus bg-danger';
-                plus.textContent = '+' + (urls.length - 10);
+                plus.textContent = '+' + (urls.length - limit);
                 container.appendChild(plus);
             }
             container.classList.remove('d-none');
@@ -1914,8 +1918,8 @@ jQuery(document).ready(function () {
 
         // The forum keeps the image links it once read, and a link can outlive
         // the file behind it. The only way to notice before the album goes to
-        // the channel is to ask for every one of them.
-        var __IMAGE_PROBE_TIMEOUT = 6000;
+        // the channel is to ask for every one of them; __IMAGE_PROBE_TIMEOUT
+        // says how long an answer may take.
         // One counter per album of the form: it counts how often the list of that
         // place was rewritten, which is what a probe that came later answers for.
         var albumWrites = [];
@@ -2253,7 +2257,7 @@ jQuery(document).ready(function () {
                         var m = moment(newVal, pickerFormat);
                         if (m.isValid()) {
                             picker.setStartDate(m);
-                            picker.setEndDate(m.clone().add(32, 'hour'));
+                            picker.setEndDate(m.clone().add(__HORIZON_HOURS, 'hour'));
                         }
                     }
                 } catch (e) {}
@@ -2317,7 +2321,7 @@ jQuery(document).ready(function () {
                     if (picker) {
                         var m = moment(next, pickerFormat);
                         picker.setStartDate(m);
-                        picker.setEndDate(m.clone().add(32, 'hour'));
+                        picker.setEndDate(m.clone().add(__HORIZON_HOURS, 'hour'));
                     }
                 } catch (e) {}
                 updatePreviewPublicationAt();
@@ -2575,13 +2579,13 @@ jQuery(document).ready(function () {
                 var scheduleInput = document.getElementById('scheduleAt');
                 if (scheduleInput) {
                     var scheduleVal = scheduleInput.value;
-                    var startM = scheduleVal ? moment(scheduleVal, pickerFormat) : roundMomentTo10(moment());
-                    if (!startM.isValid()) startM = roundMomentTo10(moment());
+                    var startM = scheduleVal ? moment(scheduleVal, pickerFormat) : roundUpToMinuteStep(moment());
+                    if (!startM.isValid()) startM = roundUpToMinuteStep(moment());
                     try {
                         var schPicker = scheduleAtJq.data('daterangepicker');
                         if (schPicker) {
                             schPicker.setStartDate(startM);
-                            schPicker.setEndDate(startM.clone().add(32, 'hour'));
+                            schPicker.setEndDate(startM.clone().add(__HORIZON_HOURS, 'hour'));
                             scheduleInput.value = startM.format(pickerFormat);
                         }
                     } catch (e) {}

@@ -27,6 +27,7 @@ final class ForumPostScanService
         private readonly ForumPostPageParser $parser,
         private readonly LoggerInterface $logger,
         private readonly string $configCode = 'awd_forum_posts',
+        private readonly int $maxPages = self::MAX_PAGES_PER_TOPIC,
     ) {
     }
 
@@ -100,7 +101,7 @@ final class ForumPostScanService
 
         try {
             while ($pageUrl !== null) {
-                if ($pages >= self::MAX_PAGES_PER_TOPIC || ($pageLimit !== null && $pages >= $pageLimit)) {
+                if ($pages >= $this->maxPages || ($pageLimit !== null && $pages >= $pageLimit)) {
                     break;
                 }
                 // Fresh timestamp per page: updated_at shows the actual refresh moment.

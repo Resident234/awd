@@ -25,11 +25,22 @@ final class ForumHttpClient implements ForumHttpClientInterface
 {
     private const BANNED_STATUS = [429, 500, 502, 503, 504];
 
+    private const MAX_REDIRECTS = 5;
+
     private const LOGIN_MARKER = 'вы должны быть авторизованы';
 
     /** @var array<string, string> cookie name => value */
     private array $_cookies = [];
 
+    /** @var int[] */
+    private array $bannedStatuses;
+
+    /**
+     * The timeouts, the retry count, the backoff base, the redirect budget and
+     * the status list a retry answers to all come from parser_config; the
+     * defaults here are what the client does when it is built by hand (tests,
+     * a table without rows).
+     */
     public function __construct(
         private readonly int $timeout = 30,
         private readonly int $retries = 3,
@@ -37,7 +48,10 @@ final class ForumHttpClient implements ForumHttpClientInterface
         private readonly string $loginUrl = 'https://forum.awd.ru/ucp.php?mode=login',
         private readonly string $loginUsername = '',
         private readonly string $loginPassword = '',
+        private readonly int $maxRedirects = self::MAX_REDIRECTS,
+        ?array $bannedStatuses = null,
     ) {
+        $this->bannedStatuses = $bannedStatuses ?? self::BANNED_STATUS;
     }
 
     public function get(string $url): string
@@ -69,7 +83,7 @@ final class ForumHttpClient implements ForumHttpClientInterface
             if ($status === 404) {
                 throw new ForumPageNotFoundException('Page does not exist: ' . $url);
             }
-            if ($attempt > $this->retries || (!in_array($status, self::BANNED_STATUS, true) && $status >= 400)) {
+            if ($attempt > $this->retries || (!in_array($status, $this->bannedStatuses, true) && $status >= 400)) {
                 throw new RuntimeException(sprintf('Forum request failed: %s [%s]', $url, $statusText));
             }
             usleep($this->delayMicroseconds * $attempt);
@@ -122,7 +136,7 @@ final class ForumHttpClient implements ForumHttpClientInterface
         $options = [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_MAXREDIRS => 5,
+            CURLOPT_MAXREDIRS => $this->maxRedirects,
             CURLOPT_CONNECTTIMEOUT => $this->timeout,
             CURLOPT_TIMEOUT => $this->timeout,
             CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; AWD-Parser/1.0)',

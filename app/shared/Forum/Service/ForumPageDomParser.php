@@ -25,6 +25,16 @@ abstract class ForumPageDomParser
 
     protected const DATE_SITE = 'Europe/Moscow';
 
+    /**
+     * The timezone the site speaks. parser_config holds it, because the dates
+     * on the pages carry no zone and only this knowledge turns "1 сент. 2026,
+     * 14:30" into a UTC timestamp.
+     */
+    public function __construct(
+        protected readonly string $siteTimezone = self::DATE_SITE,
+    ) {
+    }
+
     protected function loadXPath(string $html): DOMXPath
     {
         $document = new DOMDocument();
@@ -51,7 +61,7 @@ abstract class ForumPageDomParser
         if ($value === '') {
             return null;
         }
-        $siteNow = $now->setTimezone(new DateTimeZone(self::DATE_SITE));
+        $siteNow = $now->setTimezone(new DateTimeZone($this->siteTimezone));
         if (preg_match('/(Сегодня|Вчера),?\s*(\d{1,2}:\d{2})/u', $value, $m) === 1) {
             $day = $siteNow->modify($m[1] === 'Вчера' ? '-1 day' : 'today');
             return $this->formatSiteDate($day, $m[2]);
@@ -76,7 +86,7 @@ abstract class ForumPageDomParser
                 $date = DateTimeImmutable::createFromFormat(
                     '!Y-n-j G:i',
                     sprintf('%d-%d-%d %s', (int)$m[3], $month, (int)$m[1], $m[4]),
-                    new DateTimeZone(self::DATE_SITE)
+                    new DateTimeZone($this->siteTimezone)
                 );
                 if ($date !== false) {
                     return $date->format('Y-m-d H:i:s');
@@ -84,7 +94,7 @@ abstract class ForumPageDomParser
             }
         }
         if (preg_match('/(\d{1,2}\.\d{1,2}\.\d{4}),?\s+(\d{1,2}:\d{2})/u', $value, $m) === 1) {
-            $date = DateTimeImmutable::createFromFormat('!d.m.Y G:i', $m[1] . ' ' . $m[2], new DateTimeZone(self::DATE_SITE));
+            $date = DateTimeImmutable::createFromFormat('!d.m.Y G:i', $m[1] . ' ' . $m[2], new DateTimeZone($this->siteTimezone));
             if ($date !== false) {
                 return $date->format('Y-m-d H:i:s');
             }
@@ -97,7 +107,7 @@ abstract class ForumPageDomParser
         $date = DateTimeImmutable::createFromFormat(
             '!Y-m-d G:i',
             $day->format('Y-m-d') . ' ' . $time,
-            new DateTimeZone(self::DATE_SITE)
+            new DateTimeZone($this->siteTimezone)
         );
         if ($date === false) {
             return $day->format('Y-m-d') . ' ' . $time . ':00';

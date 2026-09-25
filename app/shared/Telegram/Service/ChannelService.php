@@ -22,9 +22,16 @@ use RuntimeException;
  */
 final class ChannelService
 {
-    private const DESCRIPTION_MAX_LENGTH = 255;
+    public const DESCRIPTION_MAX_LENGTH = 255;
     public const TEXT_MAX_LENGTH = 4096;
-    private const CAPTION_MAX_LENGTH = 1024;
+    public const CAPTION_MAX_LENGTH = 1024;
+    /** Telegram takes no more than this many photos into one album. */
+    public const ALBUM_MAX_PHOTOS = 10;
+    /**
+     * The characters the «Часть N» prefix of a split publication keeps out of
+     * the text budget: "Часть " plus a three-digit number plus a blank line.
+     */
+    public const PARTS_NUMBERING_RESERVE = 16;
 
     public function __construct(
         private readonly ?TelegramChannelClientInterface $client,
@@ -156,7 +163,7 @@ final class ChannelService
         }
         $firstMessageId = 0;
 
-        foreach (array_chunk($photoUrls, 10) as $chunk) {
+        foreach (array_chunk($photoUrls, self::ALBUM_MAX_PHOTOS) as $chunk) {
             if (count($chunk) === 1) {
                 $messageId = $this->client()
                     ->sendPhotoMessage($this->channelId, $chunk[0], $caption)

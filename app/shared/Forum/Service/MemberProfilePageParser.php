@@ -151,7 +151,7 @@ final class MemberProfilePageParser extends ForumPageDomParser
         if ($value === '') {
             return null;
         }
-        $siteNow = $now->setTimezone(new DateTimeZone(self::DATE_SITE));
+        $siteNow = $now->setTimezone(new DateTimeZone($this->siteTimezone));
         if (preg_match('/(Сегодня|Вчера),?\s*(\d{1,2}:\d{2})/u', $value, $m) === 1) {
             $day = $siteNow->modify($m[1] === 'Вчера' ? '-1 day' : 'today');
             return $this->formatSiteDate($day, $m[2]);

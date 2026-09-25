@@ -137,46 +137,22 @@ function getPortalTimezone() {
                             <span class="menu-text">Дашборд</span>
                         </a>
                     </li>
-                    <li>
-                        <a href="#!">
-                            <i class="bi bi-telegram"></i>
-                            <span class="menu-text">Канал TRVL</span>
-                        </a>
-                    </li>
                     <li class="<?= $currentRoute === 'site/publications' ? 'active current-page' : '' ?>">
                         <a href="<?= Url::to(['site/publications']) ?>">
                             <i class="bi bi-collection"></i>
                             <span class="menu-text">Публикации в канал</span>
                         </a>
                     </li>
-                    <li>
-                        <a href="#!">
-                            <i class="bi bi-input-cursor-text"></i>
-                            <span class="menu-text">Стили текста</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="#!">
-                            <i class="bi bi-images"></i>
-                            <span class="menu-text">Медиа</span>
-                        </a>
-                    </li>
-                    <li class="<?= $currentRoute === 'site/channel-settings' ? 'active current-page' : '' ?>">
-                        <a href="<?= Url::to(['site/channel-settings']) ?>">
+                    <li class="<?= $currentRoute === 'site/settings' ? 'active current-page' : '' ?>">
+                        <a href="<?= Url::to(['site/settings']) ?>">
                             <i class="bi bi-gear"></i>
-                            <span class="menu-text">Настройки канала</span>
+                            <span class="menu-text">Настройки публикаций</span>
                         </a>
                     </li>
-                    <li>
-                        <a href="#!">
+                    <li class="<?= $currentRoute === 'site/parser-settings' ? 'active current-page' : '' ?>">
+                        <a href="<?= Url::to(['site/parser-settings']) ?>">
                             <i class="bi bi-cloud-download"></i>
-                            <span class="menu-text">Парсер источников</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="#!">
-                            <i class="bi bi-robot"></i>
-                            <span class="menu-text">Telegram-бот</span>
+                            <span class="menu-text">Настройки парсера</span>
                         </a>
                     </li>
                 </ul>

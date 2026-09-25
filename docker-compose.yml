@@ -16,10 +16,14 @@ services:
       DB_DSN: pgsql:host=postgres;port=5432;dbname=${POSTGRES_DB:-yii_dev}
       DB_USERNAME: ${POSTGRES_USER:-yii}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-change-me-now}
+      COOKIE_VALIDATION_KEY: ${COOKIE_VALIDATION_KEY:-}
       FORUM_LOGIN_USERNAME: ${FORUM_LOGIN_USERNAME:-}
       FORUM_LOGIN_PASSWORD: ${FORUM_LOGIN_PASSWORD:-}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHANNEL_ID: ${TELEGRAM_CHANNEL_ID:-@gsu_travels}
+      # The settings page shows this interval and refuses a shorter gap between
+      # the parts of one publication.
+      TELEGRAM_PUBLISH_CRON_SCHEDULE: ${TELEGRAM_PUBLISH_CRON_SCHEDULE:-*/5 * * * *}
     expose:
       - "9000"
     depends_on:

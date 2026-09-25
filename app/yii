@@ -8,8 +8,10 @@
  * @license https://www.yiiframework.com/license/
  */
 
-defined('YII_DEBUG') or define('YII_DEBUG', true);
-defined('YII_ENV') or define('YII_ENV', 'dev');
+// Same as the web entry script: the flags live in the environment, and without
+// them the console runs as production.
+defined('YII_DEBUG') or define('YII_DEBUG', filter_var(getenv('YII_DEBUG'), FILTER_VALIDATE_BOOLEAN));
+defined('YII_ENV') or define('YII_ENV', (string)(getenv('YII_ENV') ?: 'prod'));
 
 require __DIR__ . '/vendor/autoload.php';
 require __DIR__ . '/vendor/yiisoft/yii2/Yii.php';

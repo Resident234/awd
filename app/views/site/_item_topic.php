@@ -51,11 +51,12 @@ $posts = $record['posts'];
                 </span>
                 <span class="me-3"><i class="bi bi-clock"></i> <?php
                     $userTz = $this->context->getUserDisplayTimezone();
-                    $moscowTz = new DateTimeZone($userTz);
+                    $displayFormat = $this->context->publicationSettings()['dateFormat'];
+                    $displayTz = new DateTimeZone($userTz);
                     if ($topic->publishedAt !== null && $topic->publishedAt !== '') {
                         $tDate = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $topic->publishedAt, new DateTimeZone('UTC'));
                         if ($tDate instanceof DateTimeImmutable) {
-                            echo Html::encode($tDate->setTimezone($moscowTz)->format('d.m.Y H:i'));
+                            echo Html::encode($tDate->setTimezone($displayTz)->format($displayFormat));
                         } else {
                             echo Html::encode($topic->publishedAt);
                         }

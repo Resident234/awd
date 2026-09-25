@@ -3,6 +3,12 @@
 $params = require __DIR__ . '/params.php';
 $db = require __DIR__ . '/db.php';
 
+// The HTTP client of the forum behaves as parser_config says, exactly like in
+// the console app: the settings service is a singleton, so a request reads the
+// table once and every factory asks it for the numbers it needs.
+$parserTunables = static fn (): array =>
+    \Yii::createObject(\app\shared\Forum\Service\ParserSettingsService::class)->tunables();
+
 $config = [
     'id' => 'basic',
     'basePath' => dirname(__DIR__),
@@ -32,7 +38,33 @@ $config = [
                     \Yii::createObject(\app\shared\Telegram\Service\ChannelService::class),
                     \Yii::createObject(\app\shared\Forum\Contract\ForumPublicationMapGatewayInterface::class),
                     \Yii::createObject(\app\shared\Publications\Contract\PublicationForumLinkStoreInterface::class),
+                    \Yii::createObject(\app\shared\Forum\Contract\ForumHttpClientInterface::class),
+                    \Yii::createObject(\app\shared\Settings\Service\PublicationSettingsService::class),
                 ),
+            \app\shared\Settings\Service\PublicationSettingsService::class => static fn (): \app\shared\Settings\Service\PublicationSettingsService =>
+                new \app\shared\Settings\Service\PublicationSettingsService(
+                    \Yii::createObject(\app\shared\Settings\Contract\PublicationSettingsRepositoryInterface::class),
+                    (string)(getenv('TELEGRAM_PUBLISH_CRON_SCHEDULE') ?: ''),
+                ),
+            \app\shared\Forum\Service\ParserSettingsService::class => static fn (): \app\shared\Forum\Service\ParserSettingsService =>
+                new \app\shared\Forum\Service\ParserSettingsService(
+                    \Yii::createObject(\app\shared\Forum\Contract\ForumRepositoryInterface::class),
+                ),
+            \app\shared\Settings\Contract\PublicationSettingsRepositoryInterface::class => static fn (): \app\shared\Settings\Infrastructure\PublicationSettingsRepository =>
+                new \app\shared\Settings\Infrastructure\PublicationSettingsRepository(\Yii::$app->getDb()),
+            \app\shared\Forum\Contract\ForumHttpClientInterface::class => static function () use ($parserTunables): \app\shared\Forum\Infrastructure\ForumHttpClient {
+                $tunables = $parserTunables();
+                return new \app\shared\Forum\Infrastructure\ForumHttpClient(
+                    (int)$tunables['http_timeout'],
+                    (int)$tunables['http_retries'],
+                    (int)$tunables['http_delay_microseconds'],
+                    (string)$tunables['login_url'],
+                    (string)(getenv('FORUM_LOGIN_USERNAME') ?: ''),
+                    (string)(getenv('FORUM_LOGIN_PASSWORD') ?: ''),
+                    (int)$tunables['http_max_redirects'],
+                    \Yii::createObject(\app\shared\Forum\Service\ParserSettingsService::class)->bannedStatuses(),
+                );
+            },
             \app\shared\Forum\Contract\ForumRepositoryInterface::class => static fn (): \app\shared\Forum\Infrastructure\ForumRepository =>
                 new \app\shared\Forum\Infrastructure\ForumRepository(\Yii::$app->getDb()),
             \app\shared\Forum\Contract\ForumPublicationMapGatewayInterface::class => static fn (): \app\shared\Forum\Infrastructure\ForumRepository =>
@@ -47,8 +79,11 @@ $config = [
     ],
     'components' => [
         'request' => [
-            // !!! insert a secret key in the following (if it is empty) - this is required by cookie validation
-            'cookieValidationKey' => 'GOcW1dc0ZfKxsCcmwvlsOhZ0CI52zHwB',
+            // The secret lives in the environment (`COOKIE_VALIDATION_KEY` in
+            // `.env`), never in the repository. Without it Yii cannot sign the
+            // session and CSRF cookies, so the portal does not accept any
+            // request that carries one.
+            'cookieValidationKey' => (string)(getenv('COOKIE_VALIDATION_KEY') ?: ''),
         ],
         'cache' => [
             'class' => \yii\caching\FileCache::class,
@@ -82,7 +117,10 @@ $config = [
             'rules' => [
                 '' => 'site/index',
                 'publications' => 'site/publications',
-                'channel-settings' => 'site/channel-settings',
+                'settings' => 'site/settings',
+                'settings-save' => 'site/settings-save',
+                'parser-settings' => 'site/parser-settings',
+                'parser-settings-save' => 'site/parser-settings-save',
                 'channel-description' => 'site/channel-description',
                 'publication-create' => 'site/publication-create',
                 'publication-publish' => 'site/publication-publish',

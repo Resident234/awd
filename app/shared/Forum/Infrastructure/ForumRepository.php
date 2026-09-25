@@ -40,6 +40,82 @@ final class ForumRepository implements ForumRepositoryInterface, ForumPublicatio
             ->execute();
     }
 
+    public function parserTunables(): ?array
+    {
+        $row = $this->db
+            ->createCommand(
+                'SELECT http_timeout, http_retries, http_delay_microseconds, http_max_redirects,'
+                . ' http_banned_statuses, login_url, max_pages, source_timezone'
+                . ' FROM {{%parser_config}} ORDER BY id LIMIT 1',
+            )
+            ->queryOne(PDO::FETCH_ASSOC);
+
+        return $row === false ? null : $row;
+    }
+
+    public function parserRows(): array
+    {
+        return $this->db
+            ->createCommand(
+                'SELECT id, code, base_url, t_from, t_to, is_active, last_run_at'
+                . ' FROM {{%parser_config}} ORDER BY code',
+            )
+            ->queryAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * @param array<string, mixed> $tunables
+     * @param array<int, array<string, mixed>> $rows
+     */
+    public function saveParserSettings(array $tunables, array $rows, string $now): void
+    {
+        $transaction = $this->db->beginTransaction();
+        try {
+            $this->db
+                ->createCommand(
+                    'UPDATE {{%parser_config}} SET http_timeout = :timeout, http_retries = :retries,'
+                    . ' http_delay_microseconds = :delay, http_max_redirects = :redirects,'
+                    . ' http_banned_statuses = :statuses, login_url = :login_url,'
+                    . ' max_pages = :max_pages, source_timezone = :timezone, updated_at = :now',
+                )
+                ->bindValues([
+                    ':timeout' => (int)$tunables['http_timeout'],
+                    ':retries' => (int)$tunables['http_retries'],
+                    ':delay' => (int)$tunables['http_delay_microseconds'],
+                    ':redirects' => (int)$tunables['http_max_redirects'],
+                    ':statuses' => (string)$tunables['http_banned_statuses'],
+                    ':login_url' => (string)$tunables['login_url'],
+                    ':max_pages' => (int)$tunables['max_pages'],
+                    ':timezone' => (string)$tunables['source_timezone'],
+                    ':now' => $now,
+                ])
+                ->execute();
+
+            foreach ($rows as $row) {
+                $this->db
+                    ->createCommand(
+                        'UPDATE {{%parser_config}} SET base_url = :base_url, t_from = :t_from,'
+                        . ' t_to = :t_to, is_active = :is_active, updated_at = :now WHERE id = :id',
+                    )
+                    ->bindValues([
+                        ':base_url' => (string)$row['baseUrl'],
+                        ':t_from' => (int)$row['tFrom'],
+                        ':t_to' => (int)$row['tTo'],
+                        ':is_active' => $row['isActive'] === true,
+                        ':now' => $now,
+                        ':id' => (int)$row['id'],
+                    ])
+                    ->execute();
+            }
+
+            $transaction->commit();
+        } catch (\Throwable $e) {
+            $transaction->rollBack();
+
+            throw $e;
+        }
+    }
+
     /**
      * Session-level PostgreSQL advisory lock: held until the process
      * finishes or the DB session drops, so a crashed run never blocks

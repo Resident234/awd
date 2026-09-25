@@ -126,12 +126,17 @@ final class PublicationsUi
         return $lines === '' ? '' : '<div class="activity-meta">' . $lines . '</div>';
     }
 
-    public static function stackedImages(array $imageUrls, int $limit = 4): string
+    /**
+     * The album of a saved record: its first pictures, as many as the settings
+     * allow a record to show, and the count of the rest behind them.
+     */
+    public static function stackedImages(array $imageUrls): string
     {
         if ($imageUrls === []) {
             return '';
         }
 
+        $limit = (int)Yii::$app->controller->publicationSettings()['imagesShownLimit'];
         $shown = array_slice($imageUrls, 0, $limit);
         $html = '<div class="stacked-images sm mt-2">';
         foreach ($shown as $url) {

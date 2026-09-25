@@ -11,6 +11,27 @@ interface ForumRepositoryInterface extends ForumPublicationMapGatewayInterface
 {
     public function activeConfig(string $code): ?array;
 
+    /**
+     * The shared tunables of every parser (timeouts, retries, page cap, login
+     * address, site timezone) as the columns of one parser_config row, or null
+     * while the table holds no row at all.
+     */
+    public function parserTunables(): ?array;
+
+    /**
+     * Every parser_config row, the entity ranges the scans walk.
+     */
+    public function parserRows(): array;
+
+    /**
+     * Stores the shared tunables and the entity ranges in one transaction:
+     * a rejected range never leaves the timeouts half written.
+     *
+     * @param array<string, mixed> $tunables
+     * @param array<int, array<string, mixed>> $rows
+     */
+    public function saveParserSettings(array $tunables, array $rows, string $now): void;
+
     public function markRun(string $code, string $time): void;
 
     /**

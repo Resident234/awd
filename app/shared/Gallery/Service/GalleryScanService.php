@@ -28,6 +28,7 @@ final class GalleryScanService
         private readonly GalleryAlbumPageParser $parser,
         private readonly LoggerInterface $logger,
         private readonly string $configCode = 'awd_gallery_albums',
+        private readonly int $maxPages = self::MAX_PAGES_PER_ALBUM,
     ) {
     }
 
@@ -103,7 +104,7 @@ final class GalleryScanService
 
         try {
             while ($pageUrl !== null) {
-                if ($pages >= self::MAX_PAGES_PER_ALBUM || ($pageLimit !== null && $pages >= $pageLimit)) {
+                if ($pages >= $this->maxPages || ($pageLimit !== null && $pages >= $pageLimit)) {
                     break;
                 }
                 // A fresh timestamp per album: updated_at must show when the
