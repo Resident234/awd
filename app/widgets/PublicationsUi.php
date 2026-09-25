@@ -85,6 +85,26 @@ final class PublicationsUi
     }
 
     /**
+     * The two «в форму» buttons of a whole discussion: the topic with all of its
+     * posts as one text, or with every post a part of its own. They carry no text
+     * themselves — the posts are read from the table when a button is pressed,
+     * and the topic the block already hands over on its own publish button.
+     */
+    public static function threadButtons(int $topicId): string
+    {
+        $merged = '<button type="button" class="btn btn-outline-primary btn-sm forum-thread-btn"'
+            . ' data-thread="merged" data-topic="' . $topicId . '"'
+            . ' title="Загрузить в форму текст топика и всех его постов одним текстом">'
+            . '<i class="bi bi-file-earmark-text me-1"></i>Тред целиком</button>';
+        $parts = '<button type="button" class="btn btn-outline-primary btn-sm forum-thread-btn"'
+            . ' data-thread="parts" data-topic="' . $topicId . '"'
+            . ' title="Загрузить топик и каждый его пост отдельной частью, в порядке блока">'
+            . '<i class="bi bi-card-list me-1"></i>Тред по частям</button>';
+
+        return $merged . $parts;
+    }
+
+    /**
      * One line per timestamp the record actually carries. Values stay in
      * UTC and are printed by the client in the viewer's timezone, so a
      * label is dropped rather than shown with an empty value.

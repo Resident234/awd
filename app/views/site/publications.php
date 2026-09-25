@@ -239,6 +239,22 @@ CSS
                                       name="publicationText[]"
                                       placeholder="Введите текст публикации"></textarea>
 
+                            <?php /* The album of a part. The first block never shows its own:
+                                    its album is the shared «Изображения публикации» field under the
+                                    list, so this one stays hidden and disabled — a disabled field
+                                    is not submitted and cannot shift the parts of the list. */ ?>
+                            <div class="publication-part-album d-none mt-2">
+                                <label class="form-label mb-1" for="publicationPartImages">
+                                    <i class="bi bi-images me-1"></i>Изображения этой части
+                                </label>
+                                <textarea class="form-control publication-part-album-field" id="publicationPartImages"
+                                          name="publicationPartImages[]" rows="2" disabled
+                                          placeholder="По одному URL изображения в строке"></textarea>
+                                <div class="bg-primary-subtle px-3 py-2 mt-1 rounded-2 text-break d-none publication-images-notice"
+                                     role="status"></div>
+                                <div class="stacked-images mt-2 d-none publication-part-images"></div>
+                            </div>
+
                             <!-- The row a part is merged with the one under it by;
                                  the last part of the form has none. -->
                             <div class="text-end mt-2 d-none publication-merge-row">
@@ -280,16 +296,17 @@ CSS
                         </small>
                     </div>
 
-                    <!-- Unlike the part numbers this option cannot be folded into the
-                         submitted fields, so the checkbox travels to the server itself. -->
+                    <!-- The part albums are the submitted fields already, so this one
+                         never travels to the server: it hands the images of the shared
+                         field out to the fields of the parts inside the form. -->
                     <div class="form-check mb-3">
-                        <input class="form-check-input" type="checkbox" id="publicationDistributeImages"
-                               name="publicationDistributeImages" value="1">
+                        <input class="form-check-input" type="checkbox" id="publicationDistributeImages">
                         <label class="form-check-label" for="publicationDistributeImages">
                             <i class="bi bi-card-image me-1"></i>Равномерно распределить изображения между частями
                         </label>
                         <small class="text-muted d-block">
-                            Раздаёт изображения по частям так, чтобы каждая часть ушла в канал со своей группой
+                            Раздаёт изображения первой части по всем частям так, чтобы каждая ушла в канал
+                            со своей группой
                         </small>
                     </div>
 
@@ -303,11 +320,12 @@ CSS
                                   placeholder="По одному URL изображения в строке&#10;https://example.com/photo1.jpg&#10;https://example.com/photo2.jpg"></textarea>
                         <?php /* Named here are the links a fill left out: the shape is the
                                 one the ui-kit gives a day divider inside a chat column. */ ?>
-                        <div class="bg-primary-subtle px-3 py-2 m-3 mb-1 rounded-2 text-break d-none"
+                        <div class="bg-primary-subtle px-3 py-2 m-3 mb-1 rounded-2 text-break d-none publication-images-notice"
                              id="publicationImagesNotice" role="status"></div>
                         <div class="stacked-images mt-2 d-none" id="publicationImagesPreview"></div>
                         <small class="text-muted">
-                            Изображения отправляются в канал вместе с текстом публикации (первое — с подписью)
+                            Изображения отправляются в канал вместе с текстом публикации (первое — с подписью);
+                            у разбитой публикации это изображения её первой части
                         </small>
                     </div>
 
@@ -496,12 +514,14 @@ $csrfToken = Yii::$app->request->csrfToken;
 $filterSaveUrl = \yii\helpers\Url::to(['site/forum-filter-save']);
 $pageUrl = \yii\helpers\Url::to(['site/publication-page']);
 $postPageUrl = \yii\helpers\Url::to(['site/forum-post-page']);
+$threadUrl = \yii\helpers\Url::to(['site/forum-thread']);
 $sortUrl = \yii\helpers\Url::to(['site/publication-sort']);
 $blockTotals = json_encode($totals);
 $this->registerJs(
     "var __FILTER_SAVE_URL = '{$filterSaveUrl}';
 var __PAGE_URL = '{$pageUrl}';
 var __POST_PAGE_URL = '{$postPageUrl}';
+var __THREAD_URL = '{$threadUrl}';
 var __SORT_URL = '{$sortUrl}';
 var __PAGE_SIZE = {$pageSize};
 var __BLOCK_TOTALS = {$blockTotals};
@@ -939,12 +959,153 @@ jQuery(document).ready(function () {
             });
         }
 
-        function isNumbered() {
-            return !!(numberPartsInput && numberPartsInput.checked);
+        // The album of a part is its own field, except for the first part: the
+        // shared «Изображения публикации» textarea under the list is its album,
+        // so the targets run one ahead of the part fields.
+        function imageTargets() {
+            return [imagesInput].concat(albumFields());
         }
 
-        function isDistributingImages() {
-            return !!(distributeImagesInput && distributeImagesInput.checked);
+        function readImageGroups() {
+            return imageTargets().map(function (target) {
+                return parseImageUrls(target ? target.value : '');
+            });
+        }
+
+        function noteImageWrite(index) {
+            albumWrites[index] = (albumWrites[index] || 0) + 1;
+        }
+
+        function writeImageGroup(index, urls) {
+            var target = imageTargets()[index];
+            if (!target) {
+                return;
+            }
+            noteImageWrite(index);
+            target.value = (urls || []).join('\n');
+        }
+
+        // Lists laid out along the parts: what a part has no list of its own
+        // gets stands empty, as it does when the parts grow past them.
+        function alignGroups(groups, count) {
+            var list = [];
+
+            for (var index = 0; index < count; index++) {
+                list.push(Array.isArray(groups[index]) ? groups[index] : []);
+            }
+
+            return list;
+        }
+
+        // `count` albums with nothing in them, as the fields of the form see them.
+        function emptyGroups(count) {
+            var list = [];
+
+            for (var index = 0; index < count; index++) {
+                list.push('');
+            }
+
+            return list;
+        }
+
+        function asTexts(groups) {
+            return groups.map(function (urls) {
+                return urls.join('\n');
+            });
+        }
+
+        // An album that is not handed to a part of its own goes to the first of
+        // them: one text cut into several parts still travels with all its photos.
+        function unionGroups(groups) {
+            var urls = [];
+
+            groups.forEach(function (group) {
+                group.forEach(function (url) {
+                    if (urls.indexOf(url) === -1) {
+                        urls.push(url);
+                    }
+                });
+            });
+
+            return urls;
+        }
+
+        function flattenGroups(groups) {
+            return groups.length > 0 ? [unionGroups(groups)] : [];
+        }
+
+        // The lists that stand where the parts already stood before a rebuild.
+        function keepGroups(count) {
+            return asTexts(alignGroups(readImageGroups(), count));
+        }
+
+        function setAlbumFields(groups) {
+            var targets = imageTargets();
+
+            for (var index = 0; index < targets.length; index++) {
+                writeImageGroup(index, parseImageUrls(groups[index] || ''));
+            }
+        }
+
+        // Only the parts after the first one show their album: the first of them
+        // is served by the shared field, whose block keeps the box hidden.
+        function albumBoxes() {
+            return Array.prototype.slice
+                .call(partsBox.querySelectorAll('.publication-part-album'))
+                .slice(1);
+        }
+
+        function albumFields() {
+            return albumBoxes().map(function (box) {
+                return box.querySelector('.publication-part-album-field');
+            });
+        }
+
+        function albumStrips() {
+            return albumBoxes().map(function (box) {
+                return box.querySelector('.publication-part-images');
+            });
+        }
+
+        // The notice of a part comes after the notice of the shared field, which
+        // is the one the first part writes its dead links into.
+        function albumNotices() {
+            return [imagesNotice].concat(albumBoxes().map(function (box) {
+                return box.querySelector('.publication-images-notice');
+            }));
+        }
+
+        function updateAlbumBoxes() {
+            Array.prototype.slice
+                .call(partsBox.querySelectorAll('.publication-part-album'))
+                .forEach(function (box, index) {
+                    box.classList.toggle('d-none', index === 0);
+                });
+        }
+
+        // A rebuild of the parts rewrites every album, so a notice about links a
+        // probe dropped earlier has nothing left to point at.
+        function clearNotices() {
+            albumNotices().forEach(function (notice) {
+                if (notice) {
+                    notice.classList.add('d-none');
+                }
+            });
+        }
+
+        // The two albums of a join come together in the place of the first one,
+        // and the row of the part that went away closes up.
+        function spliceImageGroups(groups, index) {
+            var list = groups.slice();
+
+            list[index] = unionGroups([list[index], list[index + 1]]);
+            list.splice(index + 1, 1);
+
+            return list;
+        }
+
+        function isNumbered() {
+            return !!(numberPartsInput && numberPartsInput.checked);
         }
 
         // The «Часть N» prefix travels inside the message, so it eats into the
@@ -1024,7 +1185,10 @@ jQuery(document).ready(function () {
             });
         }
 
-        function setTextParts(values) {
+        // `groups` is the album of every part, the shared field taking the first
+        // of them. Without it the lists that are already in the form keep their
+        // part, and only the parts that appear get an empty one.
+        function setTextParts(values, groups) {
             // The fields are replaced, and with them the selection the popup points at.
             hideSelectionActions();
 
@@ -1043,20 +1207,33 @@ jQuery(document).ready(function () {
                 var field = block.querySelector('.publication-text-part');
                 field.id = 'publicationTextInput' + (index + 1);
                 block.querySelector('label').setAttribute('for', field.id);
+
+                var album = block.querySelector('.publication-part-album-field');
+                album.id = 'publicationPartImages' + (index + 1);
+                album.disabled = false;
+                block.querySelector('.publication-part-album label').setAttribute('for', album.id);
+                block.querySelector('.publication-part-album').classList.remove('d-none');
+
                 partsBox.appendChild(block);
                 field.value = value;
             });
 
             textParts().forEach(function (field, index) {
-                var label = field.closest('.publication-text-block').querySelector('label');
+                var block = field.closest('.publication-text-block');
+                var label = block.querySelector('label');
                 label.textContent = values.length > 1 ? 'Часть ' + (index + 1) : 'Текст публикации';
+                block.querySelector('.publication-part-album-field').disabled = index === 0;
             });
+
+            setAlbumFields(groups === undefined ? keepGroups(values.length) : groups);
+            updateAlbumBoxes();
+            clearNotices();
 
             updateMergeRows();
             applyPartNumbers();
             updateCounters();
             fitTextInputNow();
-            update();
+            updateImages();
         }
 
         // Splitting runs when a text arrives from outside — a forum post, a
@@ -1078,13 +1255,21 @@ jQuery(document).ready(function () {
                 return stripPartNumber(value);
             }).join('\n\n');
 
-            setTextParts(splitIntoParts(bare));
+            // The whole text is cut anew, so the albums of the parts come together
+            // in the first of them: none of the new parts is the one a list was
+            // written for.
+            setTextParts(splitIntoParts(bare), asTexts(flattenGroups(readImageGroups())));
 
             return true;
         }
 
+        // The text of a record or a forum post arrives as one run of it, and the
+        // album that comes with it belongs to its first part — the field of the
+        // fill writes that one, so the parts of this list start out empty.
         function loadText(text) {
-            setTextParts(splitIntoParts(text));
+            var parts = splitIntoParts(text);
+
+            setTextParts(parts, emptyGroups(parts.length));
         }
 
         // --- manual split of one part into two --------------------------------
@@ -1223,9 +1408,17 @@ jQuery(document).ready(function () {
                 return;
             }
 
+            var head = text.slice(0, cut).replace(/\s+$/, '');
+            var tail = text.slice(cut).replace(/^\s+/, '');
+            var groups = alignGroups(readImageGroups(), values.length);
+
+            // The part that starts below the caret begins without pictures of its
+            // own: the album stays with the text it was attached to.
+            groups.splice(index + 1, 0, []);
+
             setTextParts(values.slice(0, index)
-                .concat([text.slice(0, cut).replace(/\s+$/, ''), text.slice(cut).replace(/^\s+/, '')])
-                .concat(values.slice(index + 1)));
+                .concat([head, tail])
+                .concat(values.slice(index + 1)), asTexts(groups));
 
             var next = textParts()[index + 1];
             if (next && typeof next.focus === 'function') {
@@ -1308,7 +1501,7 @@ jQuery(document).ready(function () {
                 });
             });
 
-            setTextParts(parts.length > 0 ? parts : ['']);
+            setTextParts(parts.length > 0 ? parts : [''], asTexts(flattenGroups(readImageGroups())));
         }
 
         // Two neighbouring parts into one: the seam becomes a paragraph, exactly
@@ -1321,9 +1514,15 @@ jQuery(document).ready(function () {
             }
 
             var seam = values[index].replace(/\s+$/, '').length;
+            var groups = alignGroups(readImageGroups(), values.length);
+
+            // The album of the part that goes away joins the one it grew into.
+            groups[index] = unionGroups([groups[index], groups[index + 1]]);
+            groups.splice(index + 1, 1);
+
             values[index] = joinParts(values[index], values[index + 1]);
             values.splice(index + 1, 1);
-            setTextParts(values);
+            setTextParts(values, asTexts(groups));
 
             // The joined text does not have to fit one message, so it goes back
             // through the split when it stopped fitting.
@@ -1542,8 +1741,9 @@ jQuery(document).ready(function () {
             }
 
             var selection = selectionRange(selectionField);
+            var values = partValues().map(stripPartNumber);
             var moved = shiftSelectedText(
-                partValues().map(stripPartNumber),
+                values,
                 index,
                 selection.from,
                 selection.to,
@@ -1555,7 +1755,18 @@ jQuery(document).ready(function () {
                 return;
             }
 
-            setTextParts(moved.values);
+            // An album goes with the text it belongs to: a part the move emptied
+            // leaves its pictures to the neighbour that took the selection, and a
+            // part born at the edge of the form starts without any.
+            var groups = alignGroups(readImageGroups(), values.length);
+
+            if (moved.values.length === values.length + 1) {
+                groups.splice(moved.index, 0, []);
+            } else if (moved.values.length === values.length - 1) {
+                groups = spliceImageGroups(groups, forward ? index : index - 1);
+            }
+
+            setTextParts(moved.values, asTexts(groups));
 
             var target = textParts()[moved.index];
             if (target && typeof target.focus === 'function') {
@@ -1670,8 +1881,8 @@ jQuery(document).ready(function () {
             }
         };
 
-        // The split the service performs on save, mirrored here so the card shows
-        // every part with the album it will be sent to the channel with.
+        // The even split the album of the first part is handed out by: contiguous
+        // slices that differ in size by at most one image.
         var groupImages = function (urls, partCount) {
             var groups = [];
             var base = Math.floor(urls.length / partCount);
@@ -1687,8 +1898,17 @@ jQuery(document).ready(function () {
             return groups;
         };
 
+        // The strip under an album field shows the list of that field, so every
+        // part of the preview carries its own pictures.
+        var updateAlbumStrips = function () {
+            albumStrips().forEach(function (strip, index) {
+                renderImagesPreview(strip, readImageGroups()[index + 1] || []);
+            });
+        };
+
         var updateImages = function () {
             renderImagesPreview(imagesPreview, parseImageUrls(imagesInput ? imagesInput.value : ''));
+            updateAlbumStrips();
             update();
         };
 
@@ -1696,7 +1916,9 @@ jQuery(document).ready(function () {
         // the file behind it. The only way to notice before the album goes to
         // the channel is to ask for every one of them.
         var __IMAGE_PROBE_TIMEOUT = 6000;
-        var imageProbeRun = 0;
+        // One counter per album of the form: it counts how often the list of that
+        // place was rewritten, which is what a probe that came later answers for.
+        var albumWrites = [];
 
         var probeImage = function (url) {
             return new Promise(function (resolve) {
@@ -1724,48 +1946,82 @@ jQuery(document).ready(function () {
             });
         };
 
-        var renderImagesNotice = function (deadUrls) {
-            if (!imagesNotice) {
+        var renderNotice = function (notice, deadUrls) {
+            if (!notice) {
                 return;
             }
             if (deadUrls.length === 0) {
-                imagesNotice.classList.add('d-none');
+                notice.classList.add('d-none');
 
                 return;
             }
-            imagesNotice.textContent = 'Мёртвые ссылки в изображения не добавлены ('
+            notice.textContent = 'Мёртвые ссылки в изображения не добавлены ('
                 + deadUrls.length + '): ' + deadUrls.join(', ');
-            imagesNotice.classList.remove('d-none');
+            notice.classList.remove('d-none');
         };
 
-        // The whole album goes into the field at once, so a form submitted while
+        // The whole album goes into a field at once, so a form submitted while
         // the links are still being probed cannot lose a live image; the field
         // narrows to the ones that answered as soon as all of them have.
-        var setFormImages = function (raw) {
-            if (!imagesInput) {
+        var writeImages = function (index, raw) {
+            if (!imageTargets()[index]) {
                 return;
             }
             var urls = parseImageUrls(raw);
-            var run = ++imageProbeRun;
+            var writes = albumWrites[index] || 0;
 
-            imagesInput.value = urls.join('\n');
-            renderImagesNotice([]);
+            writeImageGroup(index, urls);
+            renderNotice(albumNotices()[index], []);
             updateImages();
             if (urls.length === 0) {
                 return;
             }
             Promise.all(urls.map(probeImage)).then(function (answered) {
-                var untouched = parseImageUrls(imagesInput.value).join('\n') === urls.join('\n');
-
-                if (run !== imageProbeRun || !untouched) {
+                // A list that was edited since — by hand or by another fill — is
+                // not this one to cut down: the probe knows nothing about it.
+                if ((albumWrites[index] || 0) !== writes + 1) {
                     return;
                 }
-                var dead = urls.filter(function (url, index) { return !answered[index]; });
+                var kept = [];
+                var dead = [];
 
-                imagesInput.value = urls.filter(function (url, index) { return answered[index]; }).join('\n');
-                renderImagesNotice(dead);
+                urls.forEach(function (url, position) {
+                    (answered[position] ? kept : dead).push(url);
+                });
+
+                writeImageGroup(index, kept);
+                renderNotice(albumNotices()[index], dead);
                 updateImages();
             });
+        };
+
+        // A fill brings its album along with one text: until the parts of it are
+        // known the links stand in the album of the first part, which is the
+        // shared field of the form.
+        var fillImages = function (raw) {
+            writeImages(0, raw);
+        };
+
+        // The album of the first part handed out over the parts of the form the
+        // way the channel will receive them: the links keep their order, the
+        // slices come out contiguous and differ in size by at most one image.
+        var distributeImages = function () {
+            var groups = readImageGroups();
+
+            if (groups[0].length === 0 || groups.length < 2) {
+                return;
+            }
+
+            groupImages(groups[0], groups.length).forEach(function (urls, index) {
+                writeImageGroup(index, urls);
+            });
+
+            // The option has done its work inside the form: what the fields hold
+            // now is what travels to the server.
+            if (distributeImagesInput) {
+                distributeImagesInput.checked = false;
+            }
+            updateImages();
         };
 
         var update = function () {
@@ -1773,41 +2029,48 @@ jQuery(document).ready(function () {
                 return;
             }
 
-            var values = partValues().filter(function (value) {
-                return value !== '';
+            var albums = readImageGroups();
+            var shown = [];
+
+            partValues().forEach(function (value, index) {
+                if (value !== '') {
+                    shown.push({ text: value, urls: albums[index] || [] });
+                }
             });
+
             var placeholder = preview.getAttribute('data-placeholder') || '';
-            var texts = values.length > 0 ? values : [placeholder];
-            var urls = parseImageUrls(imagesInput ? imagesInput.value : '');
-            var spread = isDistributingImages() && texts.length > 1 && urls.length > 0;
-            var groups = spread ? groupImages(urls, texts.length) : [];
+            if (shown.length === 0) {
+                shown.push({ text: placeholder, urls: albums[0] || [] });
+            }
+
+            // A publication that stands in several fields goes out as several
+            // messages, so every one of them carries its own album.
+            var many = shown.length > 1;
 
             preview.textContent = '';
-            texts.forEach(function (text, index) {
+            shown.forEach(function (one) {
                 var part = document.createElement('div');
                 part.className = 'event-content bg-light-subtle rounded-3 p-3 flex-grow-1 telegram-preview-text';
-                if (spread && groups[index].length > 0) {
+                if (many && one.urls.length > 0) {
+                    // The photos go first, the text of the part is their caption.
                     var box = document.createElement('div');
                     box.className = 'stacked-images publication-part-images';
                     part.appendChild(box);
-                    renderImagesPreview(box, groups[index]);
+                    renderImagesPreview(box, one.urls);
                 }
                 var body = document.createElement('p');
                 body.className = 'publication-preview-part';
-                body.textContent = text;
+                body.textContent = one.text;
                 part.appendChild(body);
                 preview.appendChild(part);
             });
 
-            if (spread) {
-                // The URLs live inside their parts now, so the shared strip under
-                // the text would show the same images a second time.
-                renderImagesPreview(previewImages, []);
-                updateSingleImagePreview([]);
-            } else {
-                renderImagesPreview(previewImages, urls);
-                updateSingleImagePreview(urls);
-            }
+            // One part keeps the album in the strip under the fields, where a
+            // single picture of it grows into the card of the preview.
+            var first = shown[0].urls;
+
+            renderImagesPreview(previewImages, many ? [] : first);
+            updateSingleImagePreview(many ? [] : first);
         };
         // One listener for every part field, including the ones cloned later.
         partsBox.addEventListener('input', function (event) {
@@ -1829,6 +2092,17 @@ jQuery(document).ready(function () {
                 lastEditedField = event.target;
             }
         });
+        // The albums of the parts, the cloned ones included: a list typed by hand
+        // outranks the probe that was still asking about the one it replaced.
+        partsBox.addEventListener('input', function (event) {
+            var index = imageTargets().indexOf(event.target);
+
+            if (index < 1) {
+                return;
+            }
+            noteImageWrite(index);
+            updateImages();
+        });
         // A selection is made with the mouse or with shift and the arrows, and the
         // fields never report it as an event of their own.
         ['mouseup', 'keyup'].forEach(function (name) {
@@ -1848,7 +2122,7 @@ jQuery(document).ready(function () {
             });
         }
         if (distributeImagesInput) {
-            distributeImagesInput.addEventListener('change', updateImages);
+            distributeImagesInput.addEventListener('change', distributeImages);
         }
         if (splitButton) {
             splitButton.addEventListener('click', splitPartAtCaret);
@@ -1962,7 +2236,7 @@ jQuery(document).ready(function () {
             editingLog = log;
             log.querySelector('.editing-badge').classList.remove('d-none');
             loadText(log.getAttribute('data-text') || '');
-            setFormImages(log.getAttribute('data-image-urls') || '');
+            fillImages(log.getAttribute('data-image-urls') || '');
             scrollToMiddle(log);
 
             if (sourceTypeInput && sourceIdInput) {
@@ -2030,7 +2304,7 @@ jQuery(document).ready(function () {
             if (distributeImagesInput) {
                 distributeImagesInput.checked = false;
             }
-            setFormImages('');
+            writeImages(0, '');
             if (sourceTypeInput) sourceTypeInput.value = 'new';
             if (sourceIdInput) sourceIdInput.value = '';
             if (forumTypeInput) forumTypeInput.value = '';
@@ -2107,6 +2381,11 @@ jQuery(document).ready(function () {
             var forumBtn = event.target.closest ? event.target.closest('.forum-publish-btn') : null;
             if (forumBtn) {
                 fillFormFromForum(forumBtn);
+                return;
+            }
+            var threadBtn = event.target.closest ? event.target.closest('.forum-thread-btn') : null;
+            if (threadBtn) {
+                fillFormFromThread(threadBtn);
             }
         });
 
@@ -2117,7 +2396,7 @@ jQuery(document).ready(function () {
                 text = title + "\n\n" + text;
             }
             loadText(text);
-            setFormImages(btn.getAttribute('data-image-urls') || '');
+            fillImages(btn.getAttribute('data-image-urls') || '');
             if (sourceTypeInput && sourceIdInput) {
                 sourceTypeInput.value = 'new';
                 sourceIdInput.value = '';
@@ -2131,6 +2410,153 @@ jQuery(document).ready(function () {
             }
             editingLog = null;
             source.focus();
+        };
+
+        // --- loading a whole thread into the form ------------------------------
+
+        // The two buttons of a topic differ only in what they do with the texts
+        // once these have arrived, so the request itself is the same.
+        var threadInFlight = false;
+
+        // The topic of the row is already on its publish button, so the server
+        // answers the posts alone. Every entity of the thread keeps its album:
+        // a post that only holds images has nothing to say, but its links
+        // still belong to the publication.
+        var threadEntities = function (topicBtn, posts) {
+            var entities = [];
+
+            var add = function (title, text, urls) {
+                entities.push({
+                    text: (title === '' ? text : title + "\n\n" + text).trim(),
+                    urls: urls,
+                });
+            };
+
+            add(
+                topicBtn.getAttribute('data-title') || '',
+                topicBtn.getAttribute('data-text') || '',
+                parseImageUrls(topicBtn.getAttribute('data-image-urls') || '')
+            );
+            (posts || []).forEach(function (post) {
+                add('', post.text || '', post.images || []);
+            });
+
+            return entities;
+        };
+
+        // An entity with no text is dropped here: the form would carry a part
+        // the service refuses to save.
+        var threadTexts = function (entities) {
+            return entities.filter(function (entity) {
+                return entity.text !== '';
+            }).map(function (entity) {
+                return entity.text;
+            });
+        };
+
+        var threadImages = function (entities) {
+            return unionGroups(entities.map(function (entity) {
+                return entity.urls;
+            })).join('\n');
+        };
+
+        var threadTextParts = function (entities) {
+            var parts = [];
+            threadTexts(entities).forEach(function (text) {
+                // One entity may itself hold more text than a message does.
+                splitIntoParts(text).forEach(function (one) {
+                    parts.push(one);
+                });
+            });
+
+            return parts.length > 0 ? parts : [''];
+        };
+
+        // The album of every part of the thread. The links of an entity go to the
+        // part its text starts in — the pieces an entity is cut into share one
+        // album — and an entity that has nothing to say leaves its pictures to
+        // the next part of the form, since a text that is not there has no part.
+        var threadImageGroups = function (entities) {
+            var groups = [];
+            var pending = [];
+
+            entities.forEach(function (entity) {
+                pending = unionGroups([pending, entity.urls]);
+                if (entity.text === '') {
+                    return;
+                }
+
+                var pieces = splitIntoParts(entity.text);
+
+                // The whole album of an entity stays with the first of its parts.
+                groups.push(pending);
+                pending = [];
+
+                pieces.slice(1).forEach(function () {
+                    groups.push([]);
+                });
+            });
+
+            if (groups.length === 0) {
+                return [pending];
+            }
+
+            // Links that came after the last word of the thread have no part of
+            // their own: the last of them takes them.
+            groups[groups.length - 1] = unionGroups([groups[groups.length - 1], pending]);
+
+            return groups;
+        };
+
+        var fillFormFromThread = function (btn) {
+            if (threadInFlight) {
+                return;
+            }
+            var row = btn.closest('.thread');
+            var topicBtn = row ? row.querySelector('.forum-publish-btn') : null;
+            if (!topicBtn) {
+                return;
+            }
+
+            var splits = btn.getAttribute('data-thread') === 'parts';
+            var topicId = btn.getAttribute('data-topic') || '';
+            threadInFlight = true;
+
+            postForJson(__THREAD_URL, { topic: topicId }).then(function (payload) {
+                var entities = threadEntities(topicBtn, payload.posts);
+
+                if (splits) {
+                    // One entity, one part: the album of every one of them lands
+                    // in the field of its own part.
+                    setTextParts(threadTextParts(entities));
+                    asTexts(threadImageGroups(entities)).forEach(function (raw, index) {
+                        writeImages(index, raw);
+                    });
+                } else {
+                    // The thread is one text here, so its pictures are one album
+                    // of the first part.
+                    loadText(threadTexts(entities).join("\n\n"));
+                    fillImages(threadImages(entities));
+                }
+                if (sourceTypeInput && sourceIdInput) {
+                    sourceTypeInput.value = 'new';
+                    sourceIdInput.value = '';
+                }
+                if (forumTypeInput && forumIdInput) {
+                    forumTypeInput.value = 'topic';
+                    forumIdInput.value = topicId;
+                }
+                if (editingLog && editingLog.isConnected) {
+                    editingLog.querySelector('.editing-badge').classList.add('d-none');
+                }
+                editingLog = null;
+                source.focus();
+            }).catch(function (error) {
+                showFlash('error', 'Не удалось загрузить тред: '
+                    + (error && error.message ? error.message : error));
+            }).then(function () {
+                threadInFlight = false;
+            });
         };
 
         if (scheduleModal) {

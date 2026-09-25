@@ -91,6 +91,7 @@ class SiteController extends Controller
                     'publication-sort' => ['post'],
                     'forum-viewed' => ['post'],
                     'forum-post-page' => ['post'],
+                    'forum-thread' => ['post'],
                 ],
             ],
         ];
@@ -629,6 +630,40 @@ class SiteController extends Controller
     }
 
     /**
+     * The whole discussion of one topic for the publication form: every post
+     * the table holds, in the order the block shows them at this moment. The
+     * filters of the header do not apply here — the form is filled from the
+     * thread as it is stored, not from the page of it the reader sees. The
+     * topic itself the block already carries on its own button.
+     *
+     * @return Response
+     */
+    public function actionForumThread(): Response
+    {
+        $topicId = (int)$this->request->post('topic', 0);
+
+        if ($topicId <= 0 || !$this->request->getIsAjax()) {
+            return $this->redirect(['publications']);
+        }
+
+        $sorts = $this->publicationsSort();
+        $posts = [];
+
+        foreach ($this->forum->topicThread($topicId, $sorts['forumPosts']) as $post) {
+            $posts[] = [
+                'text' => $post->contentText,
+                'images' => $post->imageUrls,
+            ];
+        }
+
+        return $this->asJson([
+            'ok' => true,
+            'topic' => $topicId,
+            'posts' => $posts,
+        ]);
+    }
+
+    /**
      * Marks a forum topic or post as viewed by the "Просмотрено"
      * button: inserts a publications_topic_map / publications_post_map
      * row with an empty telegram_id, so the element stops showing up
@@ -681,13 +716,13 @@ class SiteController extends Controller
         $sourceId = $this->request->post('publicationSourceId');
         $sourceId = $sourceId === null || $sourceId === '' ? null : (int)$sourceId;
         $forumRef = $this->forumRefFromRequest();
-        $imageUrls = $this->imageUrlsFromRequest();
-        $distributeImages = $this->request->post('publicationDistributeImages') === '1';
+        $imageGroups = $this->imageGroupsFromRequest();
+        $imageUrls = $imageGroups[0];
 
         $ok = false;
         try {
             if ($source === 'new') {
-                $this->publications->saveParts($texts, $imageUrls, $publishedAt, $action, $forumRef, $userTz ?: null, $distributeImages);
+                $this->publications->saveParts($texts, $imageGroups, $publishedAt, $action, $forumRef, $userTz ?: null);
                 Yii::$app->session->setFlash('success', $action === 'draft'
                     ? 'Черновик сохранён.'
                     : 'Публикация сохранена и будет отправлена в канал в заданное время.');
@@ -732,18 +767,36 @@ class SiteController extends Controller
     }
 
     /**
-     * The attached images field of the publication form: one URL per
-     * line, empty lines are dropped.
+     * The albums of the publication form as one list of URLs per part: the
+     * shared «Изображения публикации» field carries the album of the first
+     * part, the cloned text blocks add one field each, so a submission
+     * brings a part's pictures in the place of that part.
+     *
+     * @return string[][]
+     */
+    private function imageGroupsFromRequest(): array
+    {
+        $groups = [$this->imageUrlsFromValue($this->request->post('publicationImages', ''))];
+        $raw = $this->request->post('publicationPartImages', []);
+
+        foreach (is_array($raw) ? array_values($raw) : [$raw] as $field) {
+            $groups[] = $this->imageUrlsFromValue($field);
+        }
+
+        return $groups;
+    }
+
+    /**
+     * One images field of the publication form: a URL per line with the empty
+     * lines dropped, the CRLF of a browser put back into a single "\n".
      *
      * @return string[]
      */
-    private function imageUrlsFromRequest(): array
+    private function imageUrlsFromValue(mixed $raw): array
     {
-        $raw = (string)($this->request->post('publicationImages', ''));
-
         $urls = array_map(
-            static fn (string $line): string => trim($line),
-            explode("\n", str_replace("\r\n", "\n", $raw)),
+            static fn ($line): string => trim($line),
+            explode("\n", str_replace(["\r\n", "\r"], "\n", (string)$raw)),
         );
 
         return array_values(array_filter($urls, static fn (string $url): bool => $url !== ''));

@@ -141,25 +141,26 @@ final class PublicationsService
      * Those records are written by one repository call, so a failure leaves
      * neither a half publication nor a part that never reaches the channel.
      * The forum link belongs to the first part, which is the message the
-     * channel thread continues from. The images go to the first part too,
-     * unless $distributeImages asks to spread them over the parts so that
-     * every part of the publication is sent with its own photos.
+     * channel thread continues from. Every part goes out with the album the
+     * form holds in its own field: $imageGroups is one list of URLs per part,
+     * in the order of the parts, and a part that brings no list of its own is
+     * saved without images.
      *
      * @param string[] $texts
-     * @param string[] $imageUrls
+     * @param array<int, string[]> $imageGroups
      * @throws InvalidArgumentException when a part is empty or longer than the
      * Telegram limit, or when the date is invalid
      */
     public function saveParts(
         array $texts,
-        array $imageUrls,
+        array $imageGroups,
         string $publishedAt,
         string $action,
         ?ForumPublicationRef $forumRef = null,
         ?string $userTimezone = null,
-        bool $distributeImages = false,
     ): void {
         $parts = array_map(static fn (string $text): string => trim($text), array_values($texts));
+        $albums = array_values($imageGroups);
 
         foreach ($parts as $text) {
             $this->assertTextValid($text);
@@ -167,23 +168,22 @@ final class PublicationsService
 
         if (count($parts) === 1) {
             if ($action === 'draft') {
-                $this->saveDraft($parts[0], $imageUrls, $forumRef);
+                $this->saveDraft($parts[0], $albums[0] ?? [], $forumRef);
 
                 return;
             }
 
-            $this->schedulePost($parts[0], $imageUrls, $publishedAt, $forumRef, $userTimezone);
+            $this->schedulePost($parts[0], $albums[0] ?? [], $publishedAt, $forumRef, $userTimezone);
 
             return;
         }
 
         $now = $this->now();
-        $imageGroups = $this->groupImages($imageUrls, count($parts), $distributeImages);
 
         if ($action === 'draft') {
             $rows = [];
             foreach ($parts as $index => $text) {
-                $rows[] = ['text' => $text, 'imageUrls' => $imageGroups[$index]];
+                $rows[] = ['text' => $text, 'imageUrls' => $albums[$index] ?? []];
             }
 
             $this->bindForumRef($this->publications->createDrafts($rows, $now), $forumRef);
@@ -196,46 +196,12 @@ final class PublicationsService
         foreach ($parts as $index => $text) {
             $rows[] = [
                 'text' => $text,
-                'imageUrls' => $imageGroups[$index],
+                'imageUrls' => $albums[$index] ?? [],
                 'publishedAt' => $this->shiftDate($firstAt, $index),
             ];
         }
 
         $this->bindForumRef($this->publications->createPosts($rows, $now), $forumRef);
-    }
-
-    /**
-     * Turns the image list of a publication into one list per part. Without a
-     * split the album stays with the first part, which carries the caption;
-     * with it the URLs keep their order and go out as contiguous slices that
-     * differ in size by at most one image, so each part is sent together with
-     * its own photos.
-     *
-     * @param string[] $imageUrls
-     * @return array<int, string[]>
-     */
-    private function groupImages(array $imageUrls, int $partCount, bool $distribute): array
-    {
-        $groups = array_fill(0, $partCount, []);
-
-        if (!$distribute || $imageUrls === []) {
-            $groups[0] = $imageUrls;
-
-            return $groups;
-        }
-
-        $total = count($imageUrls);
-        $base = intdiv($total, $partCount);
-        $extra = $total % $partCount;
-        $offset = 0;
-
-        for ($index = 0; $index < $partCount; $index++) {
-            $size = $base + ($index < $extra ? 1 : 0);
-            $groups[$index] = array_slice($imageUrls, $offset, $size);
-            $offset += $size;
-        }
-
-        return $groups;
     }
 
     /**

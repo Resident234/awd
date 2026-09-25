@@ -73,6 +73,11 @@ $posts = $record['posts'];
             <div class="d-flex align-items-center gap-2 mt-2 mb-1 flex-wrap">
                 <?= PublicationsUi::viewedForm($topic->id, 'topic') ?>
                 <?= PublicationsUi::publishButton($topic->contentText, 'topic', $topic->id, $topic->imageUrls, $topic->title) ?>
+                <?php /* A thread with no posts behind it is the topic alone, which
+                        the button above already loads. */ ?>
+                <?php if ($record['postsTotal'] > 0): ?>
+                    <?= PublicationsUi::threadButtons($topic->id) ?>
+                <?php endif ?>
             </div>
             <?php if ($topic->imageUrls !== []): ?>
                 <div class="d-flex mt-2 flex-wrap align-items-start">

@@ -85,6 +85,17 @@ interface ForumRepositoryInterface extends ForumPublicationMapGatewayInterface
     public function topicPosts(int $topicId, int $limit, int $offset, bool $withImagesOnly = false, bool $withPostsOnly = false, int $imagesCount = 0, bool $oldestPostFirst = false): array;
 
     /**
+     * Every post the table holds for one topic, in the order the block shows
+     * them. Unlike topicPosts() there is no page to cut and no filter to drop
+     * a row: a thread that goes to the form is made of all of its posts,
+     * including the ones already published to the channel. The one rule the
+     * block keeps is its own — a topic that needs a login has no thread here.
+     *
+     * @return \app\shared\Forum\Dto\PostData[]
+     */
+    public function topicThread(int $topicId, bool $oldestPostFirst = false): array;
+
+    /**
      * Marks a forum topic as viewed by the "Просмотрено" button:
      * inserts a publications_topic_map row with an empty telegram_id
      * (an existing row is left untouched). The viewed element is not

@@ -458,6 +458,42 @@ final class ForumRepository implements ForumRepositoryInterface, ForumPublicatio
     }
 
     /**
+     * Every post the table holds for one topic, in the order the block shows
+     * them. Unlike topicPosts() there is no page to cut and no filter to drop
+     * a row: a thread that goes to the form is made of all of its posts,
+     * including the ones already published to the channel. The one rule the
+     * block keeps is its own — a topic that needs a login has no thread here.
+     *
+     * @return PostData[]
+     */
+    public function topicThread(int $topicId, bool $oldestPostFirst = false): array
+    {
+        $postOrder = $oldestPostFirst ? 'ASC' : 'DESC';
+        $rows = $this->db
+            ->createCommand(
+                'SELECT p.id, p.topic_id, p.author_id, p.number, p.title, p.posted_at, p.content_html, p.content_text, p.source_url, p.image_urls,'
+                . ' m.profile_url AS author_profile_url, m.name AS author_name,'
+                . ' m.avatar_url AS author_avatar_url, m.rank_name AS author_rank_name,'
+                . ' ppm.post_id AS publication_map_id, ppm.telegram_id AS publication_telegram_id'
+                . ' FROM {{%post}} p'
+                . ' INNER JOIN {{%topic}} t ON t.id = p.topic_id AND t.login_required = FALSE'
+                . ' LEFT JOIN {{%member}} m ON m.id = p.author_id'
+                . ' LEFT JOIN {{%publications_post_map}} ppm ON ppm.post_id = p.id'
+                . ' WHERE p.topic_id = :topicId'
+                . ' ORDER BY p.posted_at ' . $postOrder . ' NULLS LAST, p.id ' . $postOrder
+            )
+            ->bindValue(':topicId', $topicId)
+            ->queryAll(PDO::FETCH_ASSOC);
+
+        $posts = [];
+        foreach ($rows as $row) {
+            $posts[] = $this->hydratePostRow($row);
+        }
+
+        return $posts;
+    }
+
+    /**
      * The rule that lets a topic reach the page: it is unprocessed itself, or
      * one of its posts still is, plus the filters of the block header. Shared
      * by the list of topics and by the count that pages it.
