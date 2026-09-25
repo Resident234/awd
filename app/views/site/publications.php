@@ -251,6 +251,20 @@ CSS
                                 <textarea class="form-control publication-part-album-field" id="publicationPartImages"
                                           name="publicationPartImages[]" rows="2" disabled
                                           placeholder="По одному URL изображения в строке"></textarea>
+                                <?php /* The album goes to a neighbour and comes in behind the links that field
+                                        already holds; the field it left stands empty. */ ?>
+                                <div class="d-flex flex-wrap gap-2 mt-1 publication-album-move">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm"
+                                            data-move-album="-1"
+                                            title="Все ссылки этого поля переедут в предыдущую часть и встанут после тех, что в ней уже есть">
+                                        <i class="bi bi-arrow-left-short me-1"></i>Переместить изображения в предыдущую часть
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm"
+                                            data-move-album="1"
+                                            title="Все ссылки этого поля переедут в следующую часть и встанут после тех, что в ней уже есть">
+                                        <i class="bi bi-arrow-right-short me-1"></i>Переместить изображения в следующую часть
+                                    </button>
+                                </div>
                                 <div class="bg-primary-subtle px-3 py-2 mt-1 rounded-2 text-break d-none publication-images-notice"
                                      role="status"></div>
                                 <div class="stacked-images mt-2 d-none publication-part-images"></div>
@@ -989,6 +1003,25 @@ jQuery(document).ready(function () {
             target.value = (urls || []).join('\n');
         }
 
+        // The album of a part handed to its neighbour: the moved links come after
+        // the ones the receiving field already holds, a link both fields showed is
+        // named once, and the field they came from stands empty.
+        function moveImageGroup(index, step) {
+            var groups = readImageGroups();
+            var to = index + step;
+
+            // An empty album has nothing to move, so the buttons never turn into a
+            // way to empty the field of a neighbour.
+            if (index < 0 || to < 0 || to >= groups.length || groups[index].length === 0) {
+                return;
+            }
+
+            writeImageGroup(to, unionGroups([groups[to], groups[index]]));
+            writeImageGroup(index, []);
+            renderNotice(albumNotices()[index], []);
+            updateImages();
+        }
+
         // Lists laid out along the parts: what a part has no list of its own
         // gets stands empty, as it does when the parts grow past them.
         function alignGroups(groups, count) {
@@ -1189,6 +1222,20 @@ jQuery(document).ready(function () {
             });
         }
 
+        // Only the last part has no neighbour below it to hand its album to; the
+        // first of the boxes always has one above, which is the shared field.
+        function updateAlbumMoves() {
+            var boxes = albumBoxes();
+
+            boxes.forEach(function (box, index) {
+                var button = box.querySelector('[data-move-album="1"]');
+
+                if (button) {
+                    button.classList.toggle('d-none', index === boxes.length - 1);
+                }
+            });
+        }
+
         // `groups` is the album of every part, the shared field taking the first
         // of them. Without it the lists that are already in the form keep their
         // part, and only the parts that appear get an empty one.
@@ -1234,6 +1281,7 @@ jQuery(document).ready(function () {
             clearNotices();
 
             updateMergeRows();
+            updateAlbumMoves();
             applyPartNumbers();
             updateCounters();
             fitTextInputNow();
@@ -2147,6 +2195,20 @@ jQuery(document).ready(function () {
             if (row) {
                 mergeParts(mergeRows().indexOf(row));
             }
+        });
+        // The album buttons of every part, the cloned ones included.
+        partsBox.addEventListener('click', function (event) {
+            var button = event.target.closest('[data-move-album]');
+
+            if (!button) {
+                return;
+            }
+
+            var album = button.closest('.publication-part-album');
+            moveImageGroup(
+                imageTargets().indexOf(album.querySelector('.publication-part-album-field')),
+                parseInt(button.getAttribute('data-move-album'), 10)
+            );
         });
         if (selectionPopup) {
             // The popup is placed against the viewport, which a transformed
