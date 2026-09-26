@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="57" viewBox="4 3 200 57">
+  <!-- The circle is a route, not a compass: solid arc = flown leg, dashed arc = leg still to fly,
+       orange ring = destination. Ink #64739e, accent #e0713a. -->
+  <circle cx="44.5" cy="10.35" r="6.8" fill="none" stroke="#e0713a" stroke-width="1.6"/>
+  <circle cx="44.5" cy="10.35" r="4.4" fill="#e0713a"/>
+  <path d="M44.5 10.35A25 25 0 1 1 10.35 19.5" fill="none" stroke="#64739e" stroke-width="4.2" stroke-linecap="butt"/>
+  <path d="M10.35 19.5A25 25 0 0 1 25.53 7.85A25 25 0 0 1 44.5 10.35" fill="none" stroke="#64739e" stroke-width="4.2" stroke-dasharray="3 1.91" stroke-linecap="butt"/>
+  <rect x="11" y="44" width="42" height="2.8" fill="#64739e"/>
+  <path fill="#64739e" d="M68 20H98V24.5H85.25V44H80.75V24.5H68Z"/>
+  <path fill="#64739e" d="M102.5 20H132.5V24.5H102.5ZM128 24.5H132.5V34.4H128ZM102.5 29.9H132.5V34.4H102.5ZM102.5 20H107V44H102.5ZM118 34.4H124.2L132.5 44H126.6Z"/>
+  <path fill="#64739e" d="M137 20L149.5 44H154.5L167 20H161.69L152 38.6L142.31 20Z"/>
+  <path fill="#64739e" d="M173.5 20H178V39.5H203.5V44H173.5Z"/>
+</svg>

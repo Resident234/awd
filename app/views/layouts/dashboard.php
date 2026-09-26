@@ -12,8 +12,9 @@ use yii\helpers\Url;
 
 DashboardAsset::register($this);
 
-$uiKitUrl = Yii::getAlias('@web/ui-kit/assets');
+$brandUrl = Yii::getAlias('@web/images');
 
+$this->render('_favicon');
 $this->registerCsrfMetaTags();
 $this->registerMetaTag(
     ['charset' => Yii::$app->charset],
@@ -39,12 +40,26 @@ $this->registerCss(
     justify-content: center;
     border-radius: 50px;
 }
+.app-brand .logo-mini {
+    display: none;
+}
 @media (min-width: 992px) {
     .page-wrapper.toggled .sidebar-wrapper {
         left: -255px;
     }
     .page-wrapper.toggled .main-container {
         padding-left: 0;
+    }
+    /* Pinned, the sidebar is 70px wide and .app-brand only clips what does not
+       fit: the wordmark would show as a ring plus a sliver of the first letter,
+       so the square mark takes its place. */
+    .page-wrapper.pinned:not(.sidebar-hovered) .app-brand .logo-full {
+        display: none;
+    }
+    .page-wrapper.pinned:not(.sidebar-hovered) .app-brand .logo-mini {
+        display: block;
+        width: 46px;
+        height: 46px;
     }
 }
 CSS
@@ -124,7 +139,8 @@ function getPortalTimezone() {
 
             <div class="app-brand">
                 <a href="<?= Yii::$app->homeUrl ?>">
-                    <img src="<?= $uiKitUrl ?>/images/logo.svg" class="logo" alt="TRVL">
+                    <img src="<?= $brandUrl ?>/trvl-logo.svg" class="logo logo-full" alt="TRVL">
+                    <img src="<?= $brandUrl ?>/trvl-mark.svg" class="logo logo-mini" alt="TRVL">
                 </a>
             </div>
 
@@ -175,7 +191,7 @@ function getPortalTimezone() {
 
                 <div class="app-brand-sm d-lg-none d-md-block">
                     <a href="<?= Yii::$app->homeUrl ?>">
-                        <img src="<?= $uiKitUrl ?>/images/logo-sm.svg" class="logo" alt="TRVL">
+                        <img src="<?= $brandUrl ?>/trvl-mark.svg" class="logo" alt="TRVL">
                     </a>
                 </div>
 

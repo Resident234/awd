@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Reduced for the tab, not shrunk: the dashed leg and the chord rule would break to mud
+       at 16 px, so the ring carries a single T. Ink #64739e, accent #e0713a. -->
+  <circle cx="21.5" cy="6.47" r="3.2" fill="#e0713a"/>
+  <path d="M21.5 6.47A11 11 0 1 1 6.47 10.5" fill="none" stroke="#64739e" stroke-width="4" stroke-linecap="butt"/>
+  <path fill="#64739e" d="M10.5 10.8H21.5V14.2H17.7V21.6H14.3V14.2H10.5Z"/>
+</svg>
