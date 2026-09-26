@@ -11,6 +11,7 @@ $parserTunables = static fn (): array =>
 
 $config = [
     'id' => 'basic',
+    'name' => 'TRVL',
     'basePath' => dirname(__DIR__),
     'bootstrap' => ['log'],
     'container' => [

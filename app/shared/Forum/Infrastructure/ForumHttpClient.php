@@ -139,7 +139,7 @@ final class ForumHttpClient implements ForumHttpClientInterface
             CURLOPT_MAXREDIRS => $this->maxRedirects,
             CURLOPT_CONNECTTIMEOUT => $this->timeout,
             CURLOPT_TIMEOUT => $this->timeout,
-            CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; AWD-Parser/1.0)',
+            CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; TRVL-Parser/1.0)',
             CURLOPT_ACCEPT_ENCODING => '',
             CURLOPT_HEADERFUNCTION => function ($ch, string $header) use (&$status, &$statusText): int {
                 $length = strlen($header);

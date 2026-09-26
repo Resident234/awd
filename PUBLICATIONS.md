@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document provides a comprehensive description of the **publications** feature of the AWD project, covering:
+This document provides a comprehensive description of the **publications** feature of the TRVL project, covering:
 
 - How publications are stored and managed (drafts, scheduled posts, published posts, soft-deleted posts).
 - The workflow for creating, editing, deleting and publishing content.

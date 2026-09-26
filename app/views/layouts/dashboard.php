@@ -124,7 +124,7 @@ function getPortalTimezone() {
 
             <div class="app-brand">
                 <a href="<?= Yii::$app->homeUrl ?>">
-                    <img src="<?= $uiKitUrl ?>/images/logo.svg" class="logo" alt="AWD TRVL">
+                    <img src="<?= $uiKitUrl ?>/images/logo.svg" class="logo" alt="TRVL">
                 </a>
             </div>
 
@@ -175,7 +175,7 @@ function getPortalTimezone() {
 
                 <div class="app-brand-sm d-lg-none d-md-block">
                     <a href="<?= Yii::$app->homeUrl ?>">
-                        <img src="<?= $uiKitUrl ?>/images/logo-sm.svg" class="logo" alt="AWD TRVL">
+                        <img src="<?= $uiKitUrl ?>/images/logo-sm.svg" class="logo" alt="TRVL">
                     </a>
                 </div>
 
@@ -195,7 +195,7 @@ function getPortalTimezone() {
                                 <i class="bi bi-person-circle fs-2 me-2 text-primary"></i>
                                 <div>
                                     <h6 class="mb-0">Администратор</h6>
-                                    <small class="text-muted">AWD TRVL</small>
+                                    <small class="text-muted">TRVL</small>
                                 </div>
                             </div>
                             <?php if (Yii::$app->user->isGuest): ?>
@@ -239,7 +239,7 @@ function getPortalTimezone() {
             </div>
 
             <div class="app-footer">
-                <span>© AWD <?= date('Y') ?></span>
+                <span>© TRVL <?= date('Y') ?></span>
             </div>
 
         </div>
