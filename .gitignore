@@ -2,6 +2,7 @@
 /app/vendor/
 /app/runtime/
 /app/web/assets/
+/app/web/uploads/
 /docker-compose.override.yml
 /styles/
 

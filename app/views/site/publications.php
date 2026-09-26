@@ -251,21 +251,38 @@ CSS
                                 <textarea class="form-control publication-part-album-field" id="publicationPartImages"
                                           name="publicationPartImages[]" rows="2" disabled
                                           placeholder="По одному URL изображения в строке"></textarea>
-                                <?php /* The album goes to a neighbour and comes in behind the links that field
-                                        already holds; the field it left stands empty. */ ?>
+
+                                <?php /* The companion of the links field: the same album filled from a
+                                        computer instead of from addresses. One picker per part, so the
+                                        files a part holds move and merge with the links of that part. */ ?>
+                                <label class="form-label mb-1 mt-2 publication-part-album-files-label"
+                                       for="publicationPartImageFiles">
+                                    <i class="bi bi-file-earmark-image me-1"></i>Файлы этой части
+                                </label>
+                                <input type="file" class="form-control publication-part-album-files"
+                                       id="publicationPartImageFiles" name="publicationPartImageFiles0[]"
+                                       accept="image/*" multiple disabled>
+
+                                <?php /* The album goes to a neighbour and comes in behind what that field
+                                        already holds — the links and the files alike; the field it left
+                                        stands empty. */ ?>
                                 <div class="d-flex flex-wrap gap-2 mt-1 publication-album-move">
                                     <button type="button" class="btn btn-outline-secondary btn-sm"
                                             data-move-album="-1"
-                                            title="Все ссылки этого поля переедут в предыдущую часть и встанут после тех, что в ней уже есть">
+                                            title="Ссылки и файлы этого поля переедут в предыдущую часть и встанут после тех, что в ней уже есть">
                                         <i class="bi bi-arrow-left-short me-1"></i>Переместить изображения в предыдущую часть
                                     </button>
                                     <button type="button" class="btn btn-outline-secondary btn-sm"
                                             data-move-album="1"
-                                            title="Все ссылки этого поля переедут в следующую часть и встанут после тех, что в ней уже есть">
+                                            title="Ссылки и файлы этого поля переедут в следующую часть и встанут после тех, что в ней уже есть">
                                         <i class="bi bi-arrow-right-short me-1"></i>Переместить изображения в следующую часть
                                     </button>
                                 </div>
                                 <div class="bg-primary-subtle px-3 py-2 mt-1 rounded-2 text-break d-none publication-images-notice"
+                                     role="status"></div>
+                                <?php /* A file the album will not take is named here: the pick stays out
+                                        of the form, and the album keeps what it already held. */ ?>
+                                <div class="bg-primary-subtle px-3 py-2 mt-1 rounded-2 text-break d-none publication-files-notice"
                                      role="status"></div>
                                 <div class="stacked-images mt-2 d-none publication-part-images"></div>
                             </div>
@@ -333,14 +350,29 @@ CSS
                         <textarea class="form-control" id="publicationImages" name="publicationImages"
                                   rows="3"
                                   placeholder="По одному URL изображения в строке&#10;https://example.com/photo1.jpg&#10;https://example.com/photo2.jpg"></textarea>
+
+                        <?php /* The companion of the links field for the first part of the
+                                publication: the album of that part is this block, so its
+                                picker carries the name of the field, not of a part. The
+                                brackets make PHP keep every file of a `multiple` input
+                                instead of only the last one. */ ?>
+                        <label class="form-label mb-1 mt-2" for="publicationImageFiles">
+                            <i class="bi bi-file-earmark-image me-1"></i>Файлы публикации
+                        </label>
+                        <input type="file" class="form-control" id="publicationImageFiles"
+                               name="publicationImageFiles[]" accept="image/*" multiple>
+
                         <?php /* Named here are the links a fill left out: the shape is the
                                 one the ui-kit gives a day divider inside a chat column. */ ?>
                         <div class="bg-primary-subtle px-3 py-2 m-3 mb-1 rounded-2 text-break d-none publication-images-notice"
                              id="publicationImagesNotice" role="status"></div>
+                        <div class="bg-primary-subtle px-3 py-2 mt-1 rounded-2 text-break d-none publication-files-notice"
+                             id="publicationImageFilesNotice" role="status"></div>
                         <div class="stacked-images mt-2 d-none" id="publicationImagesPreview"></div>
                         <small class="text-muted">
                             Изображения отправляются в канал вместе с текстом публикации (первое — с подписью);
-                            у разбитой публикации это изображения её первой части
+                            у разбитой публикации это изображения её первой части. Файл, выбранный здесь,
+                            сохраняется на сервере и становится ссылкой этого же альбома.
                         </small>
                     </div>
 
@@ -534,13 +566,16 @@ $sortUrl = \yii\helpers\Url::to(['site/publication-sort']);
 $blockTotals = json_encode($totals);
 // The page tunes its own behaviour through the settings storage: what the
 // scroll waits for, how long a picture may think, which step the minutes of
-// the picker take and which format of date the reader reads.
+// the picker take, which format of date the reader reads and how big the
+// files the album picks from a computer may be.
 $scrollEdge = (int)$settings['scrollEdgePx'];
 $probeTimeout = (int)$settings['imageProbeTimeoutMs'];
 $snapRange = (int)$settings['splitSnapRangeChars'];
 $minuteStep = (int)$settings['scheduleMinuteStep'];
 $horizonHours = (int)$settings['scheduleHorizonHours'];
 $previewLimit = (int)$settings['imagesPreviewLimit'];
+$uploadMaxMb = (int)$settings['imageUploadMaxMb'];
+$uploadLimit = (int)$settings['imageUploadLimit'];
 $numberingReserve = ChannelService::PARTS_NUMBERING_RESERVE;
 $pickerFormat = PublicationSettingsService::DATE_FORMATS[$settings['dateFormat']];
 $this->registerJs(
@@ -560,6 +595,8 @@ var __SNAP_RANGE = {$snapRange};
 var __MINUTE_STEP = {$minuteStep};
 var __HORIZON_HOURS = {$horizonHours};
 var __PREVIEW_LIMIT = {$previewLimit};
+var __UPLOAD_MAX_MB = {$uploadMaxMb};
+var __UPLOAD_LIMIT = {$uploadLimit};
 var __PICKER_FORMAT = '{$pickerFormat}';
 " . <<<'JS'
 var __BLOCK_TARGETS = {
@@ -1003,22 +1040,79 @@ jQuery(document).ready(function () {
             target.value = (urls || []).join('\n');
         }
 
-        // The album of a part handed to its neighbour: the moved links come after
-        // the ones the receiving field already holds, a link both fields showed is
-        // named once, and the field they came from stands empty.
+        // The picker that stands beside each of those fields: a file chosen for
+        // a part belongs to the album of that part and travels with its links.
+        function fileTargets() {
+            return [imageFilesInput].concat(albumFileFields());
+        }
+
+        function readFileGroups() {
+            return fileTargets().map(function (target) {
+                return target && target.files ? Array.prototype.slice.call(target.files) : [];
+            });
+        }
+
+        // A rebuilt part block comes out of the template with an empty picker,
+        // so a list gets back into a field only through DataTransfer — the one
+        // way a script has of setting input.files at all.
+        function writeFileGroup(index, files) {
+            var target = fileTargets()[index];
+            if (!target) {
+                return;
+            }
+            var transfer = new DataTransfer();
+            (files || []).forEach(function (file) {
+                transfer.items.add(file);
+            });
+            target.files = transfer.files;
+        }
+
+        function writeFileGroups(groups) {
+            var count = fileTargets().length;
+
+            for (var index = 0; index < count; index++) {
+                writeFileGroup(index, (groups || [])[index] || []);
+            }
+        }
+
+        // `count` empty pickers, as the fields of the form see them.
+        function emptyFileGroups(count) {
+            return alignGroups([], count);
+        }
+
+        // What an album really holds: the links of its field with the files
+        // picked for that part behind them — the list the channel will get once
+        // the server has turned every file into a link of its own.
+        function albumPictures() {
+            var links = readImageGroups();
+            var files = readFileGroups();
+
+            return links.map(function (urls, index) {
+                return urls.concat(files[index] || []);
+            });
+        }
+
+        // The album of a part handed to its neighbour: the moved links and files
+        // come after what the receiving field already holds, a link both fields
+        // showed is named once, and the field they came from stands empty.
         function moveImageGroup(index, step) {
             var groups = readImageGroups();
+            var files = readFileGroups();
             var to = index + step;
 
             // An empty album has nothing to move, so the buttons never turn into a
             // way to empty the field of a neighbour.
-            if (index < 0 || to < 0 || to >= groups.length || groups[index].length === 0) {
+            if (index < 0 || to < 0 || to >= groups.length
+                || groups[index].length + files[index].length === 0) {
                 return;
             }
 
             writeImageGroup(to, unionGroups([groups[to], groups[index]]));
             writeImageGroup(index, []);
+            writeFileGroup(to, unionGroups([files[to], files[index]]));
+            writeFileGroup(index, []);
             renderNotice(albumNotices()[index], []);
+            renderFilesNotice(albumFileNotices()[index], [], []);
             updateImages();
         }
 
@@ -1098,6 +1192,12 @@ jQuery(document).ready(function () {
             });
         }
 
+        function albumFileFields() {
+            return albumBoxes().map(function (box) {
+                return box.querySelector('.publication-part-album-files');
+            });
+        }
+
         function albumStrips() {
             return albumBoxes().map(function (box) {
                 return box.querySelector('.publication-part-images');
@@ -1112,6 +1212,14 @@ jQuery(document).ready(function () {
             }));
         }
 
+        // The notice of a refused pick stands beside the notice of the dead links,
+        // in the place of the same album.
+        function albumFileNotices() {
+            return [imageFilesNotice].concat(albumBoxes().map(function (box) {
+                return box.querySelector('.publication-files-notice');
+            }));
+        }
+
         function updateAlbumBoxes() {
             Array.prototype.slice
                 .call(partsBox.querySelectorAll('.publication-part-album'))
@@ -1123,7 +1231,7 @@ jQuery(document).ready(function () {
         // A rebuild of the parts rewrites every album, so a notice about links a
         // probe dropped earlier has nothing left to point at.
         function clearNotices() {
-            albumNotices().forEach(function (notice) {
+            albumNotices().concat(albumFileNotices()).forEach(function (notice) {
                 if (notice) {
                     notice.classList.add('d-none');
                 }
@@ -1238,8 +1346,13 @@ jQuery(document).ready(function () {
 
         // `groups` is the album of every part, the shared field taking the first
         // of them. Without it the lists that are already in the form keep their
-        // part, and only the parts that appear get an empty one.
-        function setTextParts(values, groups) {
+        // part, and only the parts that appear get an empty one. `files` holds
+        // the picked files of every part the same way.
+        function setTextParts(values, groups, files) {
+            // The blocks that are about to be replaced carry the pickers of the
+            // parts, so their lists are read while the fields still exist.
+            var carriedFiles = files === undefined ? readFileGroups() : files;
+
             // The fields are replaced, and with them the selection the popup points at.
             hideSelectionActions();
 
@@ -1263,6 +1376,16 @@ jQuery(document).ready(function () {
                 album.id = 'publicationPartImages' + (index + 1);
                 album.disabled = false;
                 block.querySelector('.publication-part-album label').setAttribute('for', album.id);
+
+                // The picker of a part is named after its place in the list of
+                // parts: the first part has none of its own, its album is the
+                // shared field, so the names run one behind the parts.
+                var picker = block.querySelector('.publication-part-album-files');
+                picker.id = 'publicationPartImageFiles' + (index + 1);
+                picker.name = 'publicationPartImageFiles' + (index - 1) + '[]';
+                picker.disabled = false;
+                block.querySelector('.publication-part-album-files-label').setAttribute('for', picker.id);
+
                 block.querySelector('.publication-part-album').classList.remove('d-none');
 
                 partsBox.appendChild(block);
@@ -1274,9 +1397,11 @@ jQuery(document).ready(function () {
                 var label = block.querySelector('label');
                 label.textContent = values.length > 1 ? 'Часть ' + (index + 1) : 'Текст публикации';
                 block.querySelector('.publication-part-album-field').disabled = index === 0;
+                block.querySelector('.publication-part-album-files').disabled = index === 0;
             });
 
             setAlbumFields(groups === undefined ? keepGroups(values.length) : groups);
+            writeFileGroups(carriedFiles);
             updateAlbumBoxes();
             clearNotices();
 
@@ -1310,7 +1435,9 @@ jQuery(document).ready(function () {
             // The whole text is cut anew, so the albums of the parts come together
             // in the first of them: none of the new parts is the one a list was
             // written for.
-            setTextParts(splitIntoParts(bare), asTexts(flattenGroups(readImageGroups())));
+            setTextParts(splitIntoParts(bare),
+                asTexts(flattenGroups(readImageGroups())),
+                flattenGroups(readFileGroups()));
 
             return true;
         }
@@ -1321,7 +1448,7 @@ jQuery(document).ready(function () {
         function loadText(text) {
             var parts = splitIntoParts(text);
 
-            setTextParts(parts, emptyGroups(parts.length));
+            setTextParts(parts, emptyGroups(parts.length), emptyFileGroups(parts.length));
         }
 
         // --- manual split of one part into two --------------------------------
@@ -1462,14 +1589,16 @@ jQuery(document).ready(function () {
             var head = text.slice(0, cut).replace(/\s+$/, '');
             var tail = text.slice(cut).replace(/^\s+/, '');
             var groups = alignGroups(readImageGroups(), values.length);
+            var files = alignGroups(readFileGroups(), values.length);
 
             // The part that starts below the caret begins without pictures of its
             // own: the album stays with the text it was attached to.
             groups.splice(index + 1, 0, []);
+            files.splice(index + 1, 0, []);
 
             setTextParts(values.slice(0, index)
                 .concat([head, tail])
-                .concat(values.slice(index + 1)), asTexts(groups));
+                .concat(values.slice(index + 1)), asTexts(groups), files);
 
             var next = textParts()[index + 1];
             if (next && typeof next.focus === 'function') {
@@ -1552,7 +1681,9 @@ jQuery(document).ready(function () {
                 });
             });
 
-            setTextParts(parts.length > 0 ? parts : [''], asTexts(flattenGroups(readImageGroups())));
+            setTextParts(parts.length > 0 ? parts : [''],
+                asTexts(flattenGroups(readImageGroups())),
+                flattenGroups(readFileGroups()));
         }
 
         // Two neighbouring parts into one: the seam becomes a paragraph, exactly
@@ -1571,9 +1702,11 @@ jQuery(document).ready(function () {
             groups[index] = unionGroups([groups[index], groups[index + 1]]);
             groups.splice(index + 1, 1);
 
+            var files = spliceImageGroups(alignGroups(readFileGroups(), values.length), index);
+
             values[index] = joinParts(values[index], values[index + 1]);
             values.splice(index + 1, 1);
-            setTextParts(values, asTexts(groups));
+            setTextParts(values, asTexts(groups), files);
 
             // The joined text does not have to fit one message, so it goes back
             // through the split when it stopped fitting.
@@ -1810,14 +1943,18 @@ jQuery(document).ready(function () {
             // leaves its pictures to the neighbour that took the selection, and a
             // part born at the edge of the form starts without any.
             var groups = alignGroups(readImageGroups(), values.length);
+            var files = alignGroups(readFileGroups(), values.length);
 
             if (moved.values.length === values.length + 1) {
                 groups.splice(moved.index, 0, []);
+                files.splice(moved.index, 0, []);
             } else if (moved.values.length === values.length - 1) {
-                groups = spliceImageGroups(groups, forward ? index : index - 1);
+                var joined = forward ? index : index - 1;
+                groups = spliceImageGroups(groups, joined);
+                files = spliceImageGroups(files, joined);
             }
 
-            setTextParts(moved.values, asTexts(groups));
+            setTextParts(moved.values, asTexts(groups), files);
 
             var target = textParts()[moved.index];
             if (target && typeof target.focus === 'function') {
@@ -1868,6 +2005,8 @@ jQuery(document).ready(function () {
         var forumIdInput = document.getElementById('forumEntityId');
         var imagesInput = document.getElementById('publicationImages');
         var imagesNotice = document.getElementById('publicationImagesNotice');
+        var imageFilesInput = document.getElementById('publicationImageFiles');
+        var imageFilesNotice = document.getElementById('publicationImageFilesNotice');
         var imagesPreview = document.getElementById('publicationImagesPreview');
         var previewImages = document.getElementById('publicationPreviewImages');
         var previewCardImgEl = document.getElementById('previewCardImgEl');
@@ -1892,37 +2031,58 @@ jQuery(document).ready(function () {
             });
         };
 
-        var renderImagesPreview = function (container, urls) {
+        // A picked file shows as a picture of its own: the previews are redrawn
+        // on every keystroke, so one file keeps one object URL for as long as the
+        // page holds it instead of buying a new one each time.
+        var fileUrls = new WeakMap();
+
+        function pictureUrl(picture) {
+            if (typeof picture === 'string') {
+                return picture;
+            }
+
+            var url = fileUrls.get(picture);
+            if (!url) {
+                url = URL.createObjectURL(picture);
+                fileUrls.set(picture, url);
+            }
+
+            return url;
+        }
+
+        // The pictures of an album: links and files of one field side by side,
+        // the links first, then what the picker of that field holds.
+        var renderImagesPreview = function (container, pictures) {
             if (!container) {
                 return;
             }
             var limit = __PREVIEW_LIMIT;
             container.innerHTML = '';
-            if (!urls.length) {
+            if (!pictures.length) {
                 container.classList.add('d-none');
                 return;
             }
-            urls.slice(0, limit).forEach(function (url) {
+            pictures.slice(0, limit).forEach(function (picture) {
                 var img = document.createElement('img');
-                img.src = url;
+                img.src = pictureUrl(picture);
                 img.alt = 'Изображение публикации';
                 container.appendChild(img);
             });
-            if (urls.length > limit) {
+            if (pictures.length > limit) {
                 var plus = document.createElement('span');
                 plus.className = 'plus bg-danger';
-                plus.textContent = '+' + (urls.length - limit);
+                plus.textContent = '+' + (pictures.length - limit);
                 container.appendChild(plus);
             }
             container.classList.remove('d-none');
         };
 
-        var updateSingleImagePreview = function (urls) {
+        var updateSingleImagePreview = function (pictures) {
             if (!previewCardImgEl) {
                 return;
             }
-            if (urls.length === 1) {
-                previewCardImgEl.src = urls[0];
+            if (pictures.length === 1) {
+                previewCardImgEl.src = pictureUrl(pictures[0]);
                 previewCardImgEl.classList.remove('d-none');
                 if (previewImages) {
                     previewImages.classList.add('d-none');
@@ -1950,16 +2110,19 @@ jQuery(document).ready(function () {
             return groups;
         };
 
-        // The strip under an album field shows the list of that field, so every
-        // part of the preview carries its own pictures.
+        // The strip under an album field shows the pictures of that field: its
+        // links with the files picked for it, so every part of the preview
+        // carries its own.
         var updateAlbumStrips = function () {
+            var pictures = albumPictures();
+
             albumStrips().forEach(function (strip, index) {
-                renderImagesPreview(strip, readImageGroups()[index + 1] || []);
+                renderImagesPreview(strip, pictures[index + 1] || []);
             });
         };
 
         var updateImages = function () {
-            renderImagesPreview(imagesPreview, parseImageUrls(imagesInput ? imagesInput.value : ''));
+            renderImagesPreview(imagesPreview, albumPictures()[0] || []);
             updateAlbumStrips();
             update();
         };
@@ -2012,6 +2175,61 @@ jQuery(document).ready(function () {
             notice.classList.remove('d-none');
         };
 
+        // The refusal of a pick is named under the field it came to: the album
+        // keeps the size the settings page sets, and the rest waits for the user
+        // to take it out of the picker himself.
+        var renderFilesNotice = function (notice, tooBig, extra) {
+            if (!notice) {
+                return;
+            }
+            var lines = [];
+
+            if (tooBig.length > 0) {
+                lines.push('Файлы крупнее ' + __UPLOAD_MAX_MB + ' МБ в альбом не добавлены ('
+                    + tooBig.length + '): ' + tooBig.join(', '));
+            }
+            if (extra.length > 0) {
+                lines.push('Файлов больше ' + __UPLOAD_LIMIT + ' в альбоме не будет ('
+                    + extra.length + '): ' + extra.join(', '));
+            }
+            if (lines.length === 0) {
+                notice.classList.add('d-none');
+
+                return;
+            }
+            notice.textContent = lines.join(' ');
+            notice.classList.remove('d-none');
+        };
+
+        // What the browser just handed over is measured against the settings: the
+        // files that fit stay in the picker, so FormData carries them to the form
+        // the same way the links of the field do.
+        var acceptPickedFiles = function (target) {
+            var index = fileTargets().indexOf(target);
+
+            if (index < 0) {
+                return;
+            }
+            var maxBytes = __UPLOAD_MAX_MB * 1024 * 1024;
+            var kept = [];
+            var tooBig = [];
+            var extra = [];
+
+            readFileGroups()[index].forEach(function (file) {
+                if (file.size > maxBytes) {
+                    tooBig.push(file.name);
+                } else if (kept.length >= __UPLOAD_LIMIT) {
+                    extra.push(file.name);
+                } else {
+                    kept.push(file);
+                }
+            });
+
+            writeFileGroup(index, kept);
+            renderFilesNotice(albumFileNotices()[index], tooBig, extra);
+            updateImages();
+        };
+
         // The whole album goes into a field at once, so a form submitted while
         // the links are still being probed cannot lose a live image; the field
         // narrows to the ones that answered as soon as all of them have.
@@ -2055,17 +2273,23 @@ jQuery(document).ready(function () {
         };
 
         // The album of the first part handed out over the parts of the form the
-        // way the channel will receive them: the links keep their order, the
+        // way the channel will receive them: the pictures keep their order, the
         // slices come out contiguous and differ in size by at most one image.
         var distributeImages = function () {
             var groups = readImageGroups();
+            var album = albumPictures()[0] || [];
 
-            if (groups[0].length === 0 || groups.length < 2) {
+            if (album.length === 0 || groups.length < 2) {
                 return;
             }
 
-            groupImages(groups[0], groups.length).forEach(function (urls, index) {
-                writeImageGroup(index, urls);
+            groupImages(album, groups.length).forEach(function (pictures, index) {
+                writeImageGroup(index, pictures.filter(function (picture) {
+                    return typeof picture === 'string';
+                }));
+                writeFileGroup(index, pictures.filter(function (picture) {
+                    return typeof picture !== 'string';
+                }));
             });
 
             // The option has done its work inside the form: what the fields hold
@@ -2081,18 +2305,18 @@ jQuery(document).ready(function () {
                 return;
             }
 
-            var albums = readImageGroups();
+            var albums = albumPictures();
             var shown = [];
 
             partValues().forEach(function (value, index) {
                 if (value !== '') {
-                    shown.push({ text: value, urls: albums[index] || [] });
+                    shown.push({ text: value, pictures: albums[index] || [] });
                 }
             });
 
             var placeholder = preview.getAttribute('data-placeholder') || '';
             if (shown.length === 0) {
-                shown.push({ text: placeholder, urls: albums[0] || [] });
+                shown.push({ text: placeholder, pictures: albums[0] || [] });
             }
 
             // A publication that stands in several fields goes out as several
@@ -2103,12 +2327,12 @@ jQuery(document).ready(function () {
             shown.forEach(function (one) {
                 var part = document.createElement('div');
                 part.className = 'event-content bg-light-subtle rounded-3 p-3 flex-grow-1 telegram-preview-text';
-                if (many && one.urls.length > 0) {
+                if (many && one.pictures.length > 0) {
                     // The photos go first, the text of the part is their caption.
                     var box = document.createElement('div');
                     box.className = 'stacked-images publication-part-images';
                     part.appendChild(box);
-                    renderImagesPreview(box, one.urls);
+                    renderImagesPreview(box, one.pictures);
                 }
                 var body = document.createElement('p');
                 body.className = 'publication-preview-part';
@@ -2155,6 +2379,18 @@ jQuery(document).ready(function () {
             noteImageWrite(index);
             updateImages();
         });
+        // A pick is a change of the field it filled, and only the part fields
+        // live inside the box; the shared one stands below the list.
+        partsBox.addEventListener('change', function (event) {
+            if (event.target.classList && event.target.classList.contains('publication-part-album-files')) {
+                acceptPickedFiles(event.target);
+            }
+        });
+        if (imageFilesInput) {
+            imageFilesInput.addEventListener('change', function () {
+                acceptPickedFiles(imageFilesInput);
+            });
+        }
         // A selection is made with the mouse or with shift and the arrows, and the
         // fields never report it as an event of their own.
         ['mouseup', 'keyup'].forEach(function (name) {
@@ -2363,7 +2599,7 @@ jQuery(document).ready(function () {
                 editingLog.querySelector('.editing-badge').classList.add('d-none');
             }
             editingLog = null;
-            setTextParts(['']);
+            setTextParts([''], [''], []);
             if (numberPartsInput) {
                 numberPartsInput.checked = false;
             }

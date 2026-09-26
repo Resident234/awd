@@ -19,11 +19,13 @@ use yii\captcha\CaptchaAction;
 use yii\filters\AccessControl;
 use yii\filters\VerbFilter;
 use yii\base\Security;
+use yii\helpers\FileHelper;
 use yii\helpers\Url;
 use yii\mail\MailerInterface;
 use yii\web\Controller;
 use yii\web\ErrorAction;
 use yii\web\Response;
+use yii\web\UploadedFile;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
@@ -42,6 +44,25 @@ class SiteController extends Controller
         'deleted' => 'deleted',
         'forumTopics' => 'forum',
         'forumPosts' => 'forum',
+    ];
+
+    /**
+     * Where the files the publication form picks from a computer are kept:
+     * under the web root, so the album of a part holds a plain public link to
+     * the picture exactly as it does when the link was typed in by hand.
+     */
+    private const UPLOAD_DIR = 'uploads/publications';
+
+    /**
+     * The image formats a publication can carry: the type is read out of the
+     * file itself, and the extension of the stored copy comes from it, not from
+     * what the browser chose to name the file.
+     */
+    private const UPLOAD_IMAGE_TYPES = [
+        IMAGETYPE_JPEG => 'jpg',
+        IMAGETYPE_PNG => 'png',
+        IMAGETYPE_GIF => 'gif',
+        IMAGETYPE_WEBP => 'webp',
     ];
 
     public function __construct(
@@ -813,11 +834,28 @@ class SiteController extends Controller
      * "Сохранить" either create a new record or save an opened one —
      * cross-table moves between posts, drafts and the edited archive
      * are handled by the service. Nothing is sent to Telegram directly.
+     * The files the album pickers of the form bring in are stored before
+     * the record is written and go into it as the links of that album.
      *
      * @return Response
      */
     public function actionPublicationCreate(): Response
     {
+        // PHP throws away a body that is larger than post_max_size before the
+        // application sees any of it: neither the fields nor the files of the
+        // form arrive, so the request is answered here rather than as a
+        // publication with an empty text.
+        $contentLength = isset($_SERVER['CONTENT_LENGTH']) ? (int)$_SERVER['CONTENT_LENGTH'] : 0;
+        if ($this->request->getBodyParams() === [] && $contentLength > 0) {
+            Yii::$app->session->setFlash(
+                'error',
+                'Запрос больше разрешённого сервером размера и дошёл пустым: '
+                . 'уменьшите размер или количество приложенных файлов.',
+            );
+
+            return $this->finishPublicationsRequest(false);
+        }
+
         // Browsers put CRLF into the wire form of a textarea, so the same text
         // would gain invisible chars on every save; Telegram and the block
         // rendering both count line breaks as a single "\n".
@@ -829,11 +867,12 @@ class SiteController extends Controller
         $sourceId = $this->request->post('publicationSourceId');
         $sourceId = $sourceId === null || $sourceId === '' ? null : (int)$sourceId;
         $forumRef = $this->forumRefFromRequest();
-        $imageGroups = $this->imageGroupsFromRequest();
-        $imageUrls = $imageGroups[0];
 
         $ok = false;
         try {
+            $imageGroups = $this->withUploadedImages($this->imageGroupsFromRequest());
+            $imageUrls = $imageGroups[0];
+
             if ($source === 'new') {
                 $this->publications->saveParts($texts, $imageGroups, $publishedAt, $action, $forumRef, $userTz ?: null);
                 Yii::$app->session->setFlash('success', $action === 'draft'
@@ -913,6 +952,108 @@ class SiteController extends Controller
         );
 
         return array_values(array_filter($urls, static fn (string $url): bool => $url !== ''));
+    }
+
+    /**
+     * The albums of the form with the files their pickers brought in: a stored
+     * picture is served by the portal itself, so an album gains one more link
+     * exactly like the ones typed into the field by hand. Every file is read
+     * and checked before any of them leaves the temp directory, so an album
+     * that refuses one file stores none of them.
+     *
+     * @param string[][] $groups one list of links per part
+     * @return string[][]
+     * @throws InvalidArgumentException when a file came broken, is bigger than
+     * «Размер загружаемого файла» or is not a picture the web server serves,
+     * and when an album holds more files than «Файлов в альбоме части»
+     */
+    private function withUploadedImages(array $groups): array
+    {
+        $settings = $this->publicationSettings();
+        $maxMb = (int)$settings['imageUploadMaxMb'];
+        $limit = (int)$settings['imageUploadLimit'];
+        $albums = [];
+
+        foreach (array_keys($groups) as $index) {
+            // The picker of the first part is the shared field of the form, so
+            // the named pickers of the parts run one behind the album indexes —
+            // the same offset the fields of links keep.
+            $files = $index === 0
+                ? UploadedFile::getInstancesByName('publicationImageFiles')
+                : UploadedFile::getInstancesByName('publicationPartImageFiles' . ($index - 1));
+
+            if (count($files) > $limit) {
+                throw new InvalidArgumentException(
+                    'Часть принимает не больше ' . $limit . ' файлов, а к ней приложено ' . count($files) . '.',
+                );
+            }
+
+            $albums[$index] = array_map(
+                fn (UploadedFile $file): array => $this->validatedUpload($file, $maxMb),
+                $files,
+            );
+        }
+
+        foreach ($albums as $index => $uploads) {
+            foreach ($uploads as [$file, $extension]) {
+                $groups[$index][] = $this->storeUpload($file, $extension);
+            }
+        }
+
+        return $groups;
+    }
+
+    /**
+     * Checks one picked file and pairs it with the extension of the format its
+     * content holds — what a browser names a file is not a fact the portal can
+     * rely on, and the extension decides whether the web server serves the copy.
+     *
+     * @return array{0: UploadedFile, 1: string}
+     * @throws InvalidArgumentException when the file is unusable
+     */
+    private function validatedUpload(UploadedFile $file, int $maxMb): array
+    {
+        $name = (string)$file->name;
+
+        if ($file->error !== UPLOAD_ERR_OK) {
+            throw new InvalidArgumentException('Файл «' . $name . '» дошёл до сервера не полностью.');
+        }
+
+        if ($file->size > $maxMb * 1024 * 1024) {
+            throw new InvalidArgumentException('Файл «' . $name . '» весит больше ' . $maxMb . ' МБ.');
+        }
+
+        $image = @getimagesize((string)$file->tempName);
+
+        if ($image === false || !isset(self::UPLOAD_IMAGE_TYPES[$image[2]])) {
+            throw new InvalidArgumentException(
+                'Файл «' . $name . '» — не JPEG, PNG, GIF или WebP, а остальное канал не принимает.',
+            );
+        }
+
+        return [$file, self::UPLOAD_IMAGE_TYPES[$image[2]]];
+    }
+
+    /**
+     * Moves the file under the web root and answers with the address the portal
+     * serves it from. The name is random: an upload is not meant to be found or
+     * guessed, only read once by the channel.
+     */
+    private function storeUpload(UploadedFile $file, string $extension): string
+    {
+        $month = date('Ym');
+        $directory = Yii::getAlias('@webroot') . '/' . self::UPLOAD_DIR . '/' . $month;
+        $name = bin2hex(random_bytes(8)) . '.' . $extension;
+
+        FileHelper::createDirectory($directory);
+
+        if (!$file->saveAs($directory . '/' . $name)) {
+            throw new InvalidArgumentException('Файл «' . $file->name . '» не удалось сохранить на сервере.');
+        }
+
+        return rtrim((string)Yii::$app->request->getHostInfo(), '/')
+            . rtrim((string)Yii::getAlias('@web'), '/')
+            . '/' . self::UPLOAD_DIR . '/' . $month . '/' . $name;
     }
 
     /**
